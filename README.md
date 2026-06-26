@@ -9,15 +9,24 @@ no network calls.
 
 ## Features
 
-- **Freeform canvas** — tap empty space to drop a calculation where you want it;
-  drag blocks to rearrange. Type without tapping and blocks stack top-left.
-- **Live expressions** — full PEMDAS, unlimited terms per block.
-- **Linked numbers** — a result selected + an operator starts a new linked block;
-  or long-press a result and drag it onto another block's number, onto a block, or
-  onto empty canvas. Linked values update and cascade automatically.
-- **Edit anything** — tap a number to select and retype; results recompute instantly.
-- **Labels** — name any block.
-- **Undo / redo**, adjustable text size, clear all.
+- **Freeform canvas** — add a calculation with the **+** button (it sits below the
+  last block); drag blocks to rearrange. Typing with nothing active also starts a
+  new block. Scroll in any direction; zoom with the on-canvas controls, Ctrl/
+  trackpad-wheel, or pinch.
+- **Live expressions** — full PEMDAS with parentheses, unary sign (±), and
+  unlimited terms per block. Numbers show locale-aware thousand separators as you type.
+- **Linked numbers** — select a result + an operator to start a new linked block,
+  or drag any **result or input number** onto another block's number slot, onto a
+  block, or onto empty canvas. Linked values cascade automatically, and each
+  linked source gets its own color so references are easy to spot.
+- **Edit anything** — tap a number to retype, tap an operator to swap it, and type
+  an operator after a selected term to insert in the middle of an expression.
+- **Labels & variables** — name any number or result (a result's name is its block
+  title). The **𝑥** sidebar lists every variable, lets you edit values inline, and
+  shows each result's definition in terms of labels (e.g. `total = A + B × C`).
+- **Copy / paste** — copy a value or a whole expression; paste numbers or
+  number+operator combos (desktop shortcuts or the ⋯ menu on mobile).
+- **Undo / redo**, adjustable text size, grid toggle (off by default), clear all.
 - **Auto-save** to the device (localStorage). Single canvas, restored on reopen.
 - **Cycle protection** — a link that would make a result depend on itself is refused.
 - **Delete safety** — deleting a block that others link to warns first.
@@ -33,8 +42,9 @@ python3 -m http.server 8000
 # then open http://localhost:8000 on your phone (same network) or desktop
 ```
 
-On desktop, the number keys, operators, `.`, Backspace, and Cmd/Ctrl+Z (and
-Shift for redo) all work for quick testing.
+On desktop, the number keys, operators, `.`, `(`, `)`, `=`/Enter, Backspace,
+Cmd/Ctrl+C/V (copy/paste), and Cmd/Ctrl+Z (Shift for redo) all work for quick
+testing.
 
 ## Deploy to GitHub Pages
 
@@ -52,9 +62,10 @@ subpath.
 ## Updating
 
 The service worker (`sw.js`) precaches the app shell with a version string at the
-top: `const CACHE = 'canvas-calc-v1';`. When you change any file, bump that
-version (`v2`, `v3`, …) so returning visitors get the new build instead of the
-cached one.
+top: `const CACHE = 'canvas-calc-v2';`. When you change any file, bump that
+version (`v3`, `v4`, …) so returning visitors get the new build instead of the
+cached one. (Navigations are network-first, so HTML updates land without a bump;
+bumping guarantees cached assets refresh too.)
 
 ## Files
 
@@ -74,9 +85,8 @@ cached one.
 - **Fonts are system fonts** (San Francisco on iOS, Roboto on Android) so the app
   stays fully offline with no font downloads. To use specific typefaces, add them
   and cache them in `sw.js`.
-- **Link lines** redraw when a block drag ends, not continuously during the drag.
-- Tested: evaluation engine (PEMDAS, linked cascade, deep chains, cycle
-  protection) and the build/select/link/cascade flow. Touch-geometry behaviours
-  (drag-to-link drop accuracy, drag positioning, tap-to-place, long-press delete)
-  need a real device.
-# Canvas-Calc
+- **Link lines** redraw continuously during a block drag, at any zoom level.
+- Tested: evaluation engine (PEMDAS, parentheses, linked cascade, deep chains,
+  cycle protection) and the build/select/link/cascade flow. Touch-geometry
+  behaviours (drag-to-link drop accuracy, drag positioning, pinch-zoom,
+  long-press delete) are best confirmed on a real device.

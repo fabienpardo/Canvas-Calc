@@ -1454,10 +1454,14 @@
     if (bEl) {
       pointer.mode='drag-block'; pointer.block=byId(bEl.dataset.id);
       pointer.startX=e.clientX; pointer.startY=e.clientY;
-      pointer.origX=pointer.block.x; pointer.origY=pointer.block.y; pointer.moved=false;
-      // select result of this block
+      pointer.origX=pointer.block.x; pointer.origY=pointer.block.y;
+      pointer.moved=false; pointer.snapshotted=false;
+      // select this block's result — update classes in place so bEl stays connected
+      // (a full renderAll() here would detach bEl before setPointerCapture).
       sel.blockId=pointer.block.id; sel.kind='result'; sel.termIndex=null;
-      renderAll();
+      canvas.querySelectorAll('.selected, .sel').forEach(function(x){ x.classList.remove('selected','sel'); });
+      bEl.classList.add('selected');
+      var rc = bEl.querySelector('.result'); if (rc) rc.classList.add('sel');
       bEl.setPointerCapture && bEl.setPointerCapture(e.pointerId);
       return;
     }
@@ -1491,6 +1495,7 @@
       return;
     }
     if (pointer.mode==='drag-block' && pointer.block) {
+      if (!pointer.snapshotted) { snapshot(); pointer.snapshotted = true; } // capture pre-drag position
       pointer.block.x = snap(pointer.origX+dx/zoom);
       pointer.block.y = snap(pointer.origY+dy/zoom);
       var el = canvas.querySelector('.block[data-id="'+pointer.block.id+'"]');
@@ -1561,7 +1566,7 @@
     }
 
     if (pointer.mode==='drag-block') {
-      if (pointer.moved) { snapshot(); save(); }
+      if (pointer.moved) { save(); } // snapshot already taken on first movement
       pointer={mode:null}; return;
     }
 
