@@ -105,13 +105,43 @@ don't depend on the CI machine's locale.
 Exact pixels, CSS values, icon binaries, or the `renderAll` DOM plumbing. Don't
 chase coverage on rendering — assert behavior and computed values, not markup.
 
-## Rollout order
+## Status
 
-1. Extract `engine.js` (no behavior change) — confirm the app still runs.
-2. `node:test` suite for evaluation + formatting + parsing (highest ROI).
-3. Model-mutation tests (backspace chain, insert, definition).
-4. Playwright smoke for the touch-geometry items above.
-5. GitHub Actions workflow.
+### Implemented
+- **Unit (`node --test`, 29 tests):** `test/engine.test.js` — evaluation
+  (precedence, parens, division, negatives, tolerant states, div-by-zero,
+  linked cascade, number-term links, cycle detection incl. indirect +
+  number-link exemption, missing-source), formatting, clipboard parsing,
+  definitions; `test/sw.test.js` — service-worker precache (incl. `engine.js`),
+  `res.ok` guard, non-GET ignored, old-cache cleanup.
+- **E2E (Playwright, 31 specs):**
+  - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
+    live separators, drag + undo-restore, drag-to-link + color, sidebar inline
+    edit, grid toggle, zoom + scroll, paste, single-click label, backspace chain.
+  - `e2e/editing.spec.js` — insert-after-select, operator replacement, linked
+    unlink, empty-block delete, undo/redo (typing, delete, clear, paste, redo,
+    redo-stack-cleared).
+  - `e2e/linking.spec.js` — result→operator link, drop onto a number slot,
+    cycle-rejection dialog, delete-source-with-dependents warning.
+  - `e2e/persistence.spec.js` — old-state load + tid migration, default
+    zoom/grid, restored zoom/grid, corrupt-localStorage survives.
+  - `e2e/mobile.spec.js` — mobile (Pixel 7) smoke + viewport fit.
+- **CI:** `.github/workflows/test.yml` runs unit + e2e.
+
+### Planned (fold into Phase 4's state/history rework)
+- Extract the editing model from `pressKey` into pure reducers
+  (`insertDigit`, `insertOperator`, `backspace`, `insertAfterSelection`,
+  `replaceOperator`, `deleteTermAndSelectPrev`) so the flows currently covered
+  only by e2e can also be unit-tested fast.
+- Pure unit tests for those reducers + undo/redo history as a module.
+
+### Backlog (nice to have)
+- Make `fmt` separators injectable (today only `groupDisplay`/`parseExpression`
+  are; `fmt` uses `Intl` with the runtime locale — tests read `NUM_GROUP` to stay
+  robust, but decimals/spaces could still vary across environments).
+- A WebKit Playwright project (iOS Safari fidelity for the PWA).
+- `data-testid` hooks if styling-class churn starts breaking selectors.
+- Offline reload assertion after SW install.
 
 ## Regression seeds (bugs already fixed — turn each into a test)
 

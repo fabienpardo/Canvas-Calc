@@ -74,11 +74,20 @@ test('linked number-term resolves to that term value', () => {
   assert.equal(E.resolve(b, m), 13); // 12 + 1
 });
 
-test('a reference cycle terminates (does not hang) and stays finite', () => {
+test('a cycle inside a linked operand degrades to 0 instead of hanging', () => {
   var a = block('a', [linkResult('b')]);
   var b = block('b', [linkResult('a')]);
   var m = mapOf(a, b);
-  assert.equal(E.resolve(a, m), 0); // inner cycle resolves to 0, no infinite loop
+  assert.equal(E.resolve(a, m), 0); // self-detected cycle -> null -> coerced to 0; must not infinite-loop
+});
+
+test('linkedValue returns null when the source is missing', () => {
+  assert.equal(E.linkedValue({ type: 'linked', sourceId: 'gone' }, {}), null);
+});
+
+test('blockDefinition shows ? for a missing linked source', () => {
+  var b = block('b', [linkResult('gone')]);
+  assert.equal(E.blockDefinition(b, mapOf(b)), '?');
 });
 
 // ---------- cycle detection ----------
@@ -89,6 +98,14 @@ test('createsCycle: direct and indirect are refused', () => {
   assert.equal(E.createsCycle('a', 'b', mapOf(a, b)), true);
   assert.equal(E.createsCycle('a', 'x', mapOf(a, b)), false); // unrelated
   assert.equal(E.createsCycle('a', 'a', mapOf(a, b)), true);  // self
+});
+
+test('createsCycle detects indirect (transitive) cycles', () => {
+  var a = block('a', [num(1)]);
+  var b = block('b', [linkResult('a')]); // b depends on a
+  var c = block('c', [linkResult('b')]); // c depends on b
+  // linking a -> c would close the loop a -> c -> b -> a
+  assert.equal(E.createsCycle('a', 'c', mapOf(a, b, c)), true);
 });
 
 test('createsCycle: number-term links are constants, never a cycle', () => {
