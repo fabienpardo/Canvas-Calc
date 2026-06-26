@@ -123,9 +123,25 @@
       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
     background-size: 20px 20px;
   }
+  #canvasSizer { position: relative; width: 1600px; height: 2400px; }
   #canvas {
-    position: relative; width: 1600px; height: 2400px; transform-origin: 0 0;
+    position: absolute; top: 0; left: 0; width: 1600px; height: 2400px;
+    transform-origin: 0 0;
   }
+  #zoomCtl {
+    position: absolute; left: 10px; bottom: 10px; z-index: 25;
+    display: flex; align-items: center; gap: 2px;
+    background: var(--block); border: 1px solid var(--block-border);
+    border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
+  #zoomCtl button {
+    border: none; background: transparent; color: var(--text);
+    font-family: var(--sans); font-size: 16px; cursor: pointer;
+    width: 34px; height: 32px; display: flex; align-items: center; justify-content: center;
+  }
+  #zoomCtl button:active { background: var(--key-active); }
+  #zoomLevel { font-size: 12px !important; width: 48px !important; color: var(--text-dim); }
   #linkLayer {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 1;
@@ -360,10 +376,17 @@
   </div>
 
   <div id="canvasWrap">
-    <div id="canvas">
-      <svg id="linkLayer"></svg>
-      <div id="hint">Tap the + button to start a calculation,<br>or just type on the keypad below.</div>
-      <button id="addBtn" aria-label="Add calculation">+</button>
+    <div id="canvasSizer">
+      <div id="canvas">
+        <svg id="linkLayer"></svg>
+        <div id="hint">Tap the + button to start a calculation,<br>or just type on the keypad below.</div>
+        <button id="addBtn" aria-label="Add calculation">+</button>
+      </div>
+    </div>
+    <div id="zoomCtl">
+      <button id="zoomOut" aria-label="Zoom out">−</button>
+      <button id="zoomLevel" aria-label="Reset zoom">100%</button>
+      <button id="zoomIn" aria-label="Zoom in">+</button>
     </div>
   </div>
 
@@ -415,7 +438,9 @@
   "use strict";
 
   // ---------- State ----------
-  var state = { blocks: [], nextId: 1, fontSize: 22, nextTid: 1, showGrid: false };
+  var state = { blocks: [], nextId: 1, fontSize: 22, nextTid: 1, showGrid: false, zoom: 1 };
+  var zoom = 1; // current view scale (mirror of state.zoom)
+  var ZOOM_MIN = 0.4, ZOOM_MAX = 2.5;
   var sel = { blockId: null, termIndex: null, kind: null }; // kind: 'number'|'result'|'linked'
   var activeBlockId = null; // block currently being typed into
   var history = [];
@@ -443,6 +468,8 @@
     } catch (e) {}
     if (!state.fontSize) state.fontSize = 22;
     if (state.showGrid === undefined) state.showGrid = false;
+    if (!state.zoom || isNaN(state.zoom)) state.zoom = 1;
+    zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, state.zoom));
     ensureTids();
   }
 
@@ -665,6 +692,55 @@
     updateUndoRedo();
     syncSidebar();
     positionAddBtn();
+    updateViewport();
+  }
+
+  // ---------- Viewport: dynamic size + zoom ----------
+  function updateViewport() {
+    var pad = 600, maxR = 0, maxB = 0;
+    state.blocks.forEach(function(b){
+      var el = canvas.querySelector('.block[data-id="'+b.id+'"]');
+      maxR = Math.max(maxR, b.x + (el ? el.offsetWidth : 120));
+      maxB = Math.max(maxB, b.y + (el ? el.offsetHeight : 60));
+    });
+    var ab = document.getElementById('addBtn');
+    if (ab && ab.style.display !== 'none') {
+      maxR = Math.max(maxR, (parseInt(ab.style.left,10)||0) + 60);
+      maxB = Math.max(maxB, (parseInt(ab.style.top,10)||0) + 60);
+    }
+    // Always keep the canvas larger than the viewport so there's room to pan/scroll
+    // in both directions, and grow it to fit content.
+    var viewW = wrap.clientWidth / zoom, viewH = wrap.clientHeight / zoom;
+    var W = Math.max(maxR + pad, viewW + pad), H = Math.max(maxB + pad, viewH + pad);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    canvas.style.transform = 'scale(' + zoom + ')';
+    var sizer = document.getElementById('canvasSizer');
+    sizer.style.width = (W * zoom) + 'px';
+    sizer.style.height = (H * zoom) + 'px';
+  }
+
+  function updateZoomLabel() {
+    document.getElementById('zoomLevel').textContent = Math.round(zoom*100) + '%';
+  }
+
+  // Set zoom while keeping the logical point under viewport coord (vx,vy) fixed.
+  function zoomAround(newZoom, vx, vy) {
+    newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+    if (newZoom === zoom) return;
+    var lx = (wrap.scrollLeft + vx) / zoom;
+    var ly = (wrap.scrollTop + vy) / zoom;
+    zoom = newZoom; state.zoom = zoom;
+    updateViewport(); updateZoomLabel();
+    wrap.scrollLeft = lx * zoom - vx;
+    wrap.scrollTop = ly * zoom - vy;
+    save();
+  }
+  function zoomByCenter(factor) {
+    zoomAround(zoom * factor, wrap.clientWidth/2, wrap.clientHeight/2);
+  }
+  function resetZoom() {
+    zoomAround(1, wrap.clientWidth/2, wrap.clientHeight/2);
   }
 
   // The visually lowest block (greatest bottom edge) — where a new calc goes next.
@@ -820,6 +896,13 @@
     return el;
   }
 
+  // Offset of an element relative to an ancestor, summed up the offsetParent chain.
+  function offsetIn(el, ancestor) {
+    var x=0, y=0;
+    while (el && el!==ancestor) { x+=el.offsetLeft; y+=el.offsetTop; el=el.offsetParent; }
+    return { x:x, y:y };
+  }
+
   function drawLinks(map) {
     while (linkLayer.firstChild) linkLayer.removeChild(linkLayer.firstChild);
     state.blocks.forEach(function(b){
@@ -838,14 +921,12 @@
         }
         var dstTerm = dstEl.querySelectorAll('.term')[idx];
         if (!srcRes||!dstTerm) return;
-        var srcBox = srcEl.getBoundingClientRect();
-        var dstBox = dstEl.getBoundingClientRect();
-        var rBox = srcRes.getBoundingClientRect();
-        var tBox = dstTerm.getBoundingClientRect();
-        var x1 = src.x + (rBox.left - srcBox.left) + rBox.width/2;
-        var y1 = src.y + (rBox.top - srcBox.top) + rBox.height/2;
-        var x2 = b.x + (tBox.left - dstBox.left) + tBox.width/2;
-        var y2 = b.y + (tBox.top - dstBox.top) + tBox.height/2;
+        // Use layout offsets (logical coords) so links are correct at any zoom.
+        var so = offsetIn(srcRes, srcEl), to = offsetIn(dstTerm, dstEl);
+        var x1 = src.x + so.x + srcRes.offsetWidth/2;
+        var y1 = src.y + so.y + srcRes.offsetHeight/2;
+        var x2 = b.x + to.x + dstTerm.offsetWidth/2;
+        var y2 = b.y + to.y + dstTerm.offsetHeight/2;
         var path = document.createElementNS('http://www.w3.org/2000/svg','path');
         var dx = Math.abs(x2-x1)*0.4;
         path.setAttribute('d','M '+x1+' '+y1+' C '+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);
@@ -1315,7 +1396,9 @@
   var ghost = document.getElementById('ghost');
 
   wrap.addEventListener('pointerdown', function(e){
+    if (pinching()) return;
     var target = e.target;
+    if (target.closest && target.closest('#zoomCtl')) return; // let zoom buttons handle themselves
 
     // result chip -> potential link drag or select
     var resEl = target.closest && target.closest('.result');
@@ -1386,6 +1469,7 @@
   });
 
   wrap.addEventListener('pointermove', function(e){
+    if (pinching()) return;
     if (!pointer.mode) return;
     var dx=e.clientX-pointer.startX, dy=e.clientY-pointer.startY;
     if (Math.abs(dx)>6||Math.abs(dy)>6) pointer.moved=true;
@@ -1407,8 +1491,8 @@
       return;
     }
     if (pointer.mode==='drag-block' && pointer.block) {
-      pointer.block.x = snap(pointer.origX+dx);
-      pointer.block.y = snap(pointer.origY+dy);
+      pointer.block.x = snap(pointer.origX+dx/zoom);
+      pointer.block.y = snap(pointer.origY+dy/zoom);
       var el = canvas.querySelector('.block[data-id="'+pointer.block.id+'"]');
       if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
       drawLinks(blocksMap());
@@ -1418,6 +1502,7 @@
   });
 
   wrap.addEventListener('pointerup', function(e){
+    if (pinching()) { pointer={mode:null}; return; }
     if (pointer.mode==='linking') {
       var under = document.elementFromPoint(e.clientX, e.clientY);
       var slot = under && under.closest && under.closest('.term.number');
@@ -1495,7 +1580,7 @@
   function clearTargets(){ canvas.querySelectorAll('.slot-target').forEach(function(e){e.classList.remove('slot-target');}); }
   function toCanvas(clientX, clientY){
     var r = canvas.getBoundingClientRect();
-    return { x: clientX - r.left, y: clientY - r.top };
+    return { x: (clientX - r.left)/zoom, y: (clientY - r.top)/zoom };
   }
 
   function createsCycle(targetBlockId, newSourceId) {
@@ -1561,7 +1646,7 @@
     this.innerHTML = np.classList.contains('hidden') ? 'Show keypad ▴' : 'Hide keypad ▾';
     layoutSidebar();
   });
-  window.addEventListener('resize', function(){ if (sidebarOpen()) layoutSidebar(); });
+  window.addEventListener('resize', function(){ updateViewport(); if (sidebarOpen()) layoutSidebar(); });
 
   // ---------- Toolbar ----------
   document.getElementById('undoBtn').onclick = undo;
@@ -1631,6 +1716,47 @@
     if (t) { e.preventDefault(); pasteText(t); }
   });
 
+  // ---------- Zoom controls ----------
+  document.getElementById('zoomIn').addEventListener('click', function(){ zoomByCenter(1.2); });
+  document.getElementById('zoomOut').addEventListener('click', function(){ zoomByCenter(1/1.2); });
+  document.getElementById('zoomLevel').addEventListener('click', resetZoom);
+
+  // Trackpad / ctrl+wheel zoom, anchored at the cursor
+  wrap.addEventListener('wheel', function(e){
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    var r = wrap.getBoundingClientRect();
+    zoomAround(zoom * (e.deltaY < 0 ? 1.1 : 1/1.1), e.clientX - r.left, e.clientY - r.top);
+  }, { passive:false });
+
+  // Two-finger pinch zoom (capture phase so it pre-empts drag/tap handlers)
+  var pinchPts = {}, pinch = null;
+  function pinchCount(){ return Object.keys(pinchPts).length; }
+  wrap.addEventListener('pointerdown', function(e){
+    if (e.pointerType!=='touch') return;
+    pinchPts[e.pointerId] = { x:e.clientX, y:e.clientY };
+    if (pinchCount()===2) {
+      var ids=Object.keys(pinchPts), a=pinchPts[ids[0]], b=pinchPts[ids[1]];
+      pinch = { dist: Math.hypot(b.x-a.x, b.y-a.y), z: zoom };
+      pointer = { mode:null }; ghost.style.display='none'; clearTargets(); // cancel any drag/link
+    }
+  }, true);
+  wrap.addEventListener('pointermove', function(e){
+    if (!pinchPts[e.pointerId]) return;
+    pinchPts[e.pointerId] = { x:e.clientX, y:e.clientY };
+    if (pinch && pinchCount()>=2) {
+      e.preventDefault();
+      var ids=Object.keys(pinchPts), a=pinchPts[ids[0]], b=pinchPts[ids[1]];
+      var dist = Math.hypot(b.x-a.x, b.y-a.y);
+      var r = wrap.getBoundingClientRect();
+      zoomAround(pinch.z * (dist/pinch.dist), (a.x+b.x)/2 - r.left, (a.y+b.y)/2 - r.top);
+    }
+  }, true);
+  function endPinch(e){ delete pinchPts[e.pointerId]; if (pinchCount()<2) pinch=null; }
+  wrap.addEventListener('pointerup', endPinch, true);
+  wrap.addEventListener('pointercancel', endPinch, true);
+  function pinching(){ return !!pinch; }
+
   // physical keyboard support (nice for desktop testing)
   window.addEventListener('keydown', function(e){
     var ae = document.activeElement;
@@ -1662,6 +1788,7 @@
     document.getElementById('sizeBtn').style.fontSize=(12+i*2)+'px';
   }
   applyGrid();
+  updateZoomLabel();
   renderAll();
 })();
 
