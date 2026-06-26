@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1714">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Canvas Calc">
+<title>Canvas Calc</title>
+<style>
+  :root {
+    --bg: #faf8f4;
+    --canvas: #f3efe8;
+    --grid: #e7e1d6;
+    --block: #ffffff;
+    --block-border: #e2dccf;
+    --block-sel: #c9a25a;
+    --text: #2a2520;
+    --text-dim: #8c857a;
+    --op: #b06a3a;
+    --result: #b8862f;
+    --result-bg: #f7efdc;
+    --linked-bg: #f0e6cf;
+    --linked-text: #936b1c;
+    --accent: #c9a25a;
+    --pad-bg: #efe9df;
+    --key: #ffffff;
+    --key-border: #e2dccf;
+    --key-active: #ebe3d4;
+    --danger: #b5432f;
+    --radius: 6px;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: "DM Sans", -apple-system, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1714;
+      --canvas: #14110e;
+      --grid: #221d18;
+      --block: #26211b;
+      --block-border: #3a322a;
+      --block-sel: #c9a25a;
+      --text: #f0e9de;
+      --text-dim: #9a9082;
+      --op: #d98b56;
+      --result: #e0b455;
+      --result-bg: #362d1a;
+      --linked-bg: #3a3016;
+      --linked-text: #e0b455;
+      --accent: #c9a25a;
+      --pad-bg: #1f1b16;
+      --key: #2a241d;
+      --key-border: #3a322a;
+      --key-active: #383026;
+      --danger: #e0603f;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: var(--sans); color: var(--text); background: var(--bg);
+    overscroll-behavior: none; touch-action: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* Toolbar */
+  #toolbar {
+    display: flex; align-items: center; gap: 4px;
+    padding: max(8px, env(safe-area-inset-top)) 10px 8px;
+    background: var(--bg); border-bottom: 1px solid var(--block-border);
+    flex: 0 0 auto; z-index: 30;
+  }
+  #toolbar .title {
+    font-size: 14px; font-weight: 500; letter-spacing: 0.02em;
+    color: var(--text-dim); margin-right: auto; padding-left: 2px;
+  }
+  .tbtn {
+    border: 1px solid var(--key-border); background: var(--key);
+    color: var(--text); border-radius: var(--radius);
+    width: 38px; height: 34px; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-family: var(--sans);
+  }
+  .tbtn:active { background: var(--key-active); }
+  .tbtn[disabled] { opacity: 0.32; }
+  .tbtn.txt { font-size: 13px; font-weight: 500; width: auto; padding: 0 10px; }
+
+  /* Canvas */
+  #canvasWrap {
+    flex: 1 1 auto; position: relative; overflow: auto;
+    background: var(--canvas);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 20px 20px;
+    -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
+  }
+  #canvas {
+    position: relative; width: 1600px; height: 2400px; transform-origin: 0 0;
+  }
+  #linkLayer {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1;
+  }
+
+  /* Add-calculation button */
+  #addBtn {
+    position: absolute; display: none; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 50%; z-index: 3;
+    background: var(--block); border: 1px dashed var(--accent); color: var(--accent);
+    font-size: 22px; line-height: 1; cursor: pointer; padding: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); touch-action: none;
+  }
+  #addBtn:active { background: var(--key-active); }
+
+  /* Block */
+  .block {
+    position: absolute; z-index: 2;
+    background: var(--block); border: 1px solid var(--block-border);
+    border-radius: var(--radius); padding: 6px 8px 8px;
+    min-width: 64px; box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    touch-action: none;
+  }
+  .block.selected { border-color: var(--block-sel); box-shadow: 0 0 0 1px var(--block-sel); }
+  .block.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+  /* Delete (×) button */
+  .block-del {
+    position: absolute; top: -10px; right: -10px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--danger); color: #fff;
+    display: none; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1; cursor: pointer; z-index: 4;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+  .block.selected .block-del, .block.active .block-del { display: flex; }
+  @media (hover: hover) { .block:hover .block-del { display: flex; } }
+
+  /* Per-value captions */
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .cap {
+    font-size: 10px; color: var(--text-dim); line-height: 1.15;
+    max-width: 96px; text-align: center; outline: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-bottom: 1px dashed transparent;
+  }
+  .cap:empty { display: none; }
+  .block.active .cap:empty, .block.selected .cap:empty {
+    display: block; min-width: 14px; opacity: 0.45;
+  }
+  .block.active .cap:empty::before, .block.selected .cap:empty::before { content: "+"; }
+  .cap:focus {
+    display: block; min-width: 14px; opacity: 1;
+    border-bottom-color: var(--accent); color: var(--text);
+  }
+  .block.active .cap:focus:empty::before, .block.selected .cap:focus:empty::before { content: none; }
+
+  .expr {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px;
+    font-family: var(--mono); font-size: var(--fs, 22px); line-height: 1.3;
+  }
+  .term {
+    padding: 1px 3px; border-radius: 4px; min-width: 10px; text-align: center;
+  }
+  .term.number { color: var(--text); }
+  .term.number.sel { background: var(--accent); color: #fff; }
+  .term.operator { color: var(--op); padding: 1px 1px; }
+  .term.operator.sel { background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 4px; }
+  .term.linked {
+    background: var(--linked-bg); color: var(--linked-text);
+    border-radius: 4px; padding: 1px 5px;
+  }
+  .term.linked.sel { outline: 2px solid var(--accent); }
+  .eq { color: var(--text-dim); padding: 0 2px; }
+  .result {
+    color: var(--result); font-weight: 500; padding: 1px 6px;
+    background: var(--result-bg); border-radius: 4px; cursor: grab;
+  }
+  .result.sel { outline: 2px solid var(--accent); }
+  .result.empty { background: transparent; color: var(--text-dim); }
+
+  /* Ghost (drag-to-link) */
+  #ghost {
+    position: fixed; z-index: 100; pointer-events: none;
+    font-family: var(--mono); font-size: 22px; font-weight: 500;
+    background: var(--result-bg); color: var(--result);
+    border: 1px solid var(--accent); border-radius: 4px;
+    padding: 2px 8px; transform: translate(-50%, -50%); display: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .slot-target { outline: 2px dashed var(--accent) !important; outline-offset: 1px; }
+
+  /* Numpad */
+  #numpad {
+    flex: 0 0 auto; background: var(--pad-bg);
+    border-top: 1px solid var(--block-border);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    transition: transform 0.22s ease; z-index: 50;
+  }
+  #numpad.hidden { transform: translateY(calc(100% - 0px)); }
+  #padToggle {
+    position: absolute; top: -30px; right: 10px;
+    background: var(--pad-bg); border: 1px solid var(--block-border);
+    border-bottom: none; border-radius: var(--radius) var(--radius) 0 0;
+    height: 30px; padding: 0 12px; font-size: 12px; color: var(--text-dim);
+    display: flex; align-items: center; gap: 4px; cursor: pointer;
+    font-family: var(--sans);
+  }
+  #numpad { position: relative; }
+  .padgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .key {
+    background: var(--key); border: 1px solid var(--key-border);
+    border-radius: var(--radius); height: 50px;
+    font-family: var(--mono); font-size: 21px; color: var(--text);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .key:active { background: var(--key-active); }
+  .key.op { color: var(--op); font-weight: 500; }
+  .key.act { color: var(--accent); font-size: 17px; font-family: var(--sans); font-weight: 500; }
+  .key.eq {
+    grid-column: span 3; color: #fff; background: var(--accent);
+    border-color: var(--accent); font-weight: 600;
+  }
+  .key.eq:active { background: var(--block-sel); }
+  .key.del {
+    color: var(--danger); font-family: var(--sans); font-size: 14px; font-weight: 500;
+  }
+
+  /* Toast / confirm */
+  #toast {
+    position: fixed; left: 50%; bottom: 50%; transform: translateX(-50%);
+    background: var(--block); border: 1px solid var(--block-border);
+    border-radius: 10px; padding: 16px 18px; z-index: 200;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25); max-width: 280px; display: none;
+  }
+  #toast p { margin: 0 0 14px; font-size: 14px; line-height: 1.45; color: var(--text); }
+  #toast .row { display: flex; gap: 8px; justify-content: flex-end; }
+  #toast button {
+    border-radius: var(--radius); padding: 8px 14px; font-size: 13px;
+    font-family: var(--sans); font-weight: 500; cursor: pointer;
+    border: 1px solid var(--key-border); background: var(--key); color: var(--text);
+  }
+  #toast button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  #scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 199; display: none;
+  }
+  #hint {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    text-align: center; color: var(--text-dim); font-size: 14px; line-height: 1.6;
+    pointer-events: none; width: 240px;
+  }
+
+  /* Sidebar (variables) */
+  #sidebar {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(86vw, 320px);
+    background: var(--bg); border-left: 1px solid var(--block-border);
+    z-index: 40; display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform 0.22s ease;
+    box-shadow: -4px 0 16px rgba(0,0,0,0.15);
+  }
+  #sidebar.open { transform: none; }
+  #sidebarHead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+    border-bottom: 1px solid var(--block-border);
+    font-weight: 600; font-size: 15px;
+  }
+  #sidebarBody {
+    flex: 1 1 auto; overflow: auto;
+    padding: 4px 12px calc(16px + env(safe-area-inset-bottom));
+  }
+  .var-sec {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-dim); margin: 16px 2px 4px;
+  }
+  .var-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid var(--grid);
+  }
+  .var-name {
+    flex: 1 1 auto; min-width: 0; font-size: 14px; font-family: var(--sans);
+    border: none; background: transparent; color: var(--text);
+    outline: none; padding: 2px 0; border-bottom: 1px solid transparent;
+  }
+  .var-name:focus { border-bottom-color: var(--accent); }
+  .var-val {
+    flex: 0 0 auto; width: 88px; text-align: right; font-family: var(--mono);
+    font-size: 15px; color: var(--result); border: 1px solid var(--key-border);
+    background: var(--key); border-radius: var(--radius); padding: 5px 7px; outline: none;
+  }
+  .var-val:focus { border-color: var(--accent); }
+  .var-val.ro {
+    border-color: transparent; background: transparent; font-weight: 500;
+  }
+  .var-def {
+    flex-basis: 100%; font-family: var(--mono); font-size: 11.5px;
+    color: var(--text-dim); padding: 1px 0 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .var-empty {
+    color: var(--text-dim); font-size: 13px; line-height: 1.6;
+    text-align: center; padding: 28px 8px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <span class="title">Canvas Calc</span>
+    <button class="tbtn txt" id="varsBtn" aria-label="Variables">𝑥</button>
+    <button class="tbtn" id="undoBtn" aria-label="Undo">↶</button>
+    <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
+    <button class="tbtn txt" id="sizeBtn" aria-label="Text size">A</button>
+    <button class="tbtn" id="clearBtn" aria-label="Clear all">⌫</button>
+  </div>
+
+  <div id="canvasWrap">
+    <div id="canvas">
+      <svg id="linkLayer"></svg>
+      <div id="hint">Tap the + button to start a calculation,<br>or just type on the keypad below.</div>
+      <button id="addBtn" aria-label="Add calculation">+</button>
+    </div>
+  </div>
+
+  <div id="numpad">
+    <div id="padToggle">Hide keypad ▾</div>
+    <div class="padgrid" role="group" aria-label="Calculator keypad">
+      <div class="key" data-k="7" role="button" aria-label="7">7</div>
+      <div class="key" data-k="8" role="button" aria-label="8">8</div>
+      <div class="key" data-k="9" role="button" aria-label="9">9</div>
+      <div class="key op" data-k="/" role="button" aria-label="Divide">÷</div>
+      <div class="key" data-k="4" role="button" aria-label="4">4</div>
+      <div class="key" data-k="5" role="button" aria-label="5">5</div>
+      <div class="key" data-k="6" role="button" aria-label="6">6</div>
+      <div class="key op" data-k="*" role="button" aria-label="Multiply">×</div>
+      <div class="key" data-k="1" role="button" aria-label="1">1</div>
+      <div class="key" data-k="2" role="button" aria-label="2">2</div>
+      <div class="key" data-k="3" role="button" aria-label="3">3</div>
+      <div class="key op" data-k="-" role="button" aria-label="Subtract">−</div>
+      <div class="key" data-k="." role="button" aria-label="Decimal point">.</div>
+      <div class="key" data-k="0" role="button" aria-label="0">0</div>
+      <div class="key act" data-k="back" role="button" aria-label="Backspace">⌫</div>
+      <div class="key op" data-k="+" role="button" aria-label="Add">+</div>
+      <div class="key del" data-k="clear" role="button" aria-label="Clear canvas">Clear</div>
+      <div class="key eq" data-k="=" role="button" aria-label="Equals — finish this block">=</div>
+    </div>
+  </div>
+</div>
+
+<div id="sidebar" aria-hidden="true">
+  <div id="sidebarHead">
+    <span>Variables</span>
+    <button id="sidebarClose" class="tbtn" aria-label="Close variables">×</button>
+  </div>
+  <div id="sidebarBody"></div>
+</div>
+
+<div id="ghost"></div>
+<div id="scrim"></div>
+<div id="toast">
+  <p id="toastMsg"></p>
+  <div class="row" id="toastRow"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- State ----------
+  var state = { blocks: [], nextId: 1, fontSize: 22, nextTid: 1 };
+  var sel = { blockId: null, termIndex: null, kind: null }; // kind: 'number'|'result'|'linked'
+  var activeBlockId = null; // block currently being typed into
+  var history = [];
+  var future = [];
+  var SNAP = 20;
+  var FONT_SIZES = [18, 22, 28];
+
+  var canvas = document.getElementById('canvas');
+  var wrap = document.getElementById('canvasWrap');
+  var linkLayer = document.getElementById('linkLayer');
+  var hint = document.getElementById('hint');
+
+  // ---------- Persistence ----------
+  var saveTimer = null;
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try { localStorage.setItem('canvascalc.v1', JSON.stringify(state)); } catch (e) {}
+    }, 400);
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem('canvascalc.v1');
+      if (raw) { var s = JSON.parse(raw); if (s && s.blocks) state = s; }
+    } catch (e) {}
+    if (!state.fontSize) state.fontSize = 22;
+    ensureTids();
+  }
+
+  // Stable ids for number terms, so they can be referenced as linked variables.
+  function ensureTids() {
+    if (!state.nextTid) state.nextTid = 1;
+    state.blocks.forEach(function(b){
+      b.terms.forEach(function(t){ if (t.type==='number' && t.tid==null) t.tid = 't'+(state.nextTid++); });
+    });
+  }
+  function findTermByTid(b, tid) {
+    for (var i=0;i<b.terms.length;i++) { var t=b.terms[i]; if (t.type==='number' && t.tid===tid) return t; }
+    return null;
+  }
+
+  // ---------- History ----------
+  function snapshot() {
+    history.push(JSON.stringify({ blocks: state.blocks, nextId: state.nextId }));
+    if (history.length > 60) history.shift();
+    future = [];
+    updateUndoRedo();
+  }
+  function undo() {
+    if (!history.length) return;
+    future.push(JSON.stringify({ blocks: state.blocks, nextId: state.nextId }));
+    var s = JSON.parse(history.pop());
+    state.blocks = s.blocks; state.nextId = s.nextId;
+    clearSel(); activeBlockId = null; renderAll(); save(); updateUndoRedo();
+  }
+  function redo() {
+    if (!future.length) return;
+    history.push(JSON.stringify({ blocks: state.blocks, nextId: state.nextId }));
+    var s = JSON.parse(future.pop());
+    state.blocks = s.blocks; state.nextId = s.nextId;
+    clearSel(); activeBlockId = null; renderAll(); save(); updateUndoRedo();
+  }
+  function updateUndoRedo() {
+    document.getElementById('undoBtn').disabled = !history.length;
+    document.getElementById('redoBtn').disabled = !future.length;
+  }
+
+  // ---------- Model helpers ----------
+  function byId(id) { for (var i=0;i<state.blocks.length;i++) if (state.blocks[i].id===id) return state.blocks[i]; return null; }
+  function blocksMap() { var m={}; state.blocks.forEach(function(b){m[b.id]=b;}); return m; }
+
+  function newBlock(x, y) {
+    var b = { id: 'b' + (state.nextId++), x: x, y: y, label: '', terms: [] };
+    state.blocks.push(b);
+    return b;
+  }
+  function newNumber(value) { return { type:'number', value:value, tid:'t'+(state.nextTid++) }; }
+
+  // Value of a linked term: a referenced number term, or a block's result.
+  function linkedValue(t, map) {
+    var src = map[t.sourceId]; if (!src) return null;
+    if (t.sourceTid != null) {
+      var term = findTermByTid(src, t.sourceTid); if (!term) return null;
+      var v = parseFloat(term.value); return isNaN(v) ? 0 : v;
+    }
+    return resolve(src, map);
+  }
+  // Label accessor for a linked term's source (number term or block title).
+  function linkedSource(t, map) {
+    var src = map[t.sourceId]; if (!src) return null;
+    if (t.sourceTid != null) {
+      var term = findTermByTid(src, t.sourceTid); if (!term) return null;
+      return { getLabel:function(){ return term.label; }, setLabel:function(v){ term.label = v; } };
+    }
+    return { getLabel:function(){ return src.label; }, setLabel:function(v){ src.label = v; } };
+  }
+
+  // ---------- Evaluation ----------
+  function resolve(block, map, stack) {
+    stack = stack || {};
+    if (stack[block.id]) return null; // cycle
+    stack[block.id] = true;
+    var nums = [], ops = [];
+    for (var i=0;i<block.terms.length;i++) {
+      var t = block.terms[i];
+      if (t.type === 'operator') ops.push(t.value);
+      else if (t.type === 'number') { var v=parseFloat(t.value); nums.push(isNaN(v)?0:v); }
+      else if (t.type === 'linked') {
+        var src = map[t.sourceId];
+        if (!src) { nums.push(0); continue; }
+        if (t.sourceTid != null) {
+          var lt = findTermByTid(src, t.sourceTid);
+          var lv = lt ? parseFloat(lt.value) : NaN;
+          nums.push(isNaN(lv)?0:lv);
+        } else {
+          var sub = {}; for (var k in stack) sub[k]=stack[k];
+          var r = resolve(src, map, sub);
+          nums.push(r==null||isNaN(r)?0:r);
+        }
+      }
+    }
+    delete stack[block.id];
+    if (nums.length === 0) return null;
+    if (nums.length === 1 && ops.length === 0) return nums[0];
+    var values=[nums[0]], pending=[];
+    for (var j=0;j<ops.length;j++) {
+      var op=ops[j], nx=nums[j+1];
+      if (nx===undefined) break;
+      if (op==='*'||op==='/') { var p=values.pop(); values.push(op==='*'?p*nx:p/nx); }
+      else { pending.push(op); values.push(nx); }
+    }
+    var acc=values[0];
+    for (var m2=0;m2<pending.length;m2++) acc = pending[m2]==='+'?acc+values[m2+1]:acc-values[m2+1];
+    return acc;
+  }
+
+  function fmt(v) {
+    if (v===null||v===undefined) return '';
+    if (Number.isNaN(v)) return '—';
+    if (!isFinite(v)) return '∞';
+    var r = Math.round(v*1e10)/1e10;
+    if (Number.isInteger(r)) return String(r);
+    return String(parseFloat(r.toFixed(8)));
+  }
+
+  // ---------- Dependents ----------
+  function dependentsOf(id) {
+    var deps = [];
+    state.blocks.forEach(function(b){
+      if (b.id===id) return;
+      b.terms.forEach(function(t){ if (t.type==='linked' && t.sourceId===id) deps.push(b); });
+    });
+    return deps;
+  }
+
+  // ---------- Rendering ----------
+  function renderAll() {
+    // remove existing block DOM
+    var existing = canvas.querySelectorAll('.block');
+    existing.forEach(function(e){ e.remove(); });
+    hint.style.display = state.blocks.length ? 'none' : 'block';
+    var map = blocksMap();
+    state.blocks.forEach(function(b){ canvas.appendChild(renderBlock(b, map)); });
+    drawLinks(map);
+    updateUndoRedo();
+    syncSidebar();
+    positionAddBtn();
+  }
+
+  // The visually lowest block (greatest bottom edge) — where a new calc goes next.
+  function lowestBlock() {
+    var best = null, bestBottom = -Infinity;
+    state.blocks.forEach(function(b){
+      var el = canvas.querySelector('.block[data-id="'+b.id+'"]');
+      var bottom = b.y + (el ? el.offsetHeight : 40);
+      if (bottom > bestBottom) { bestBottom = bottom; best = b; }
+    });
+    return best;
+  }
+  // Position just below a block (or the default start spot when there are none).
+  function slotBelow(b) {
+    if (!b) return { x: 40, y: 30 };
+    var el = canvas.querySelector('.block[data-id="'+b.id+'"]');
+    return { x: b.x, y: b.y + (el ? el.offsetHeight : 40) + 12 };
+  }
+
+  // The "+ add" button sits below the lowest block, and hides while editing.
+  function positionAddBtn() {
+    var btn = document.getElementById('addBtn');
+    if (activeBlockId) { btn.style.display = 'none'; return; }
+    btn.style.display = 'flex';
+    var pt = slotBelow(lowestBlock());
+    btn.style.left = pt.x + 'px';
+    btn.style.top = pt.y + 'px';
+  }
+
+  // An editable caption that bonds a label to a value chip.
+  function makeCaption(getText, setText) {
+    var cap = document.createElement('span');
+    cap.className = 'cap';
+    cap.contentEditable = 'true';
+    cap.textContent = getText() || '';
+    cap.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+    cap.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); cap.blur(); } });
+    cap.addEventListener('blur', function(){
+      if (getText() !== cap.textContent) { snapshot(); setText(cap.textContent); save(); renderAll(); }
+    });
+    return cap;
+  }
+
+  function renderBlock(b, map) {
+    var el = document.createElement('div');
+    el.className = 'block';
+    if (sel.blockId===b.id && sel.kind==='result') el.className += ' selected';
+    if (activeBlockId===b.id) el.className += ' active';
+    el.style.left = b.x + 'px';
+    el.style.top = b.y + 'px';
+    el.style.setProperty('--fs', state.fontSize + 'px');
+    el.dataset.id = b.id;
+
+    // delete (×) button
+    var del = document.createElement('span');
+    del.className = 'block-del';
+    del.textContent = '×';
+    del.setAttribute('aria-label', 'Delete block');
+    del.addEventListener('pointerdown', function(e){ e.stopPropagation(); e.preventDefault(); });
+    del.addEventListener('click', function(e){ e.stopPropagation(); confirmDeleteBlock(byId(b.id)); });
+    el.appendChild(del);
+
+    // expression
+    var expr = document.createElement('div');
+    expr.className = 'expr';
+    b.terms.forEach(function(t, idx){
+      if (t.type==='operator') {
+        var op = document.createElement('span');
+        op.className = 'term operator';
+        if (sel.blockId===b.id && sel.termIndex===idx && sel.kind==='operator') op.className += ' sel';
+        op.textContent = ({'+':'+','-':'−','*':'×','/':'÷'})[t.value];
+        op.dataset.idx = idx;
+        expr.appendChild(op);
+        return;
+      }
+      var cell = document.createElement('span');
+      cell.className = 'cell';
+      var capGet, capSet;
+      if (t.type==='linked') {
+        // the linked term's label IS its source's label (kept in sync)
+        capGet = function(){ var s=linkedSource(t, blocksMap()); return s ? s.getLabel() : ''; };
+        capSet = function(v){ var s=linkedSource(t, blocksMap()); if(s) s.setLabel(v); };
+      } else {
+        capGet = function(){ return t.label; };
+        capSet = function(v){ var nb=byId(b.id); if(nb) nb.terms[idx].label = v; };
+      }
+      cell.appendChild(makeCaption(capGet, capSet));
+      var span = document.createElement('span');
+      if (sel.blockId===b.id && sel.termIndex===idx) span.className = ' sel';
+      if (t.type==='number') {
+        span.className = 'term number' + span.className;
+        span.textContent = t.value === '' ? '0' : t.value;
+      } else { // linked
+        span.className = 'term linked' + span.className;
+        var lv = linkedValue(t, map);
+        span.textContent = (lv==null) ? '?' : fmt(lv);
+        span.dataset.linked = '1';
+      }
+      span.dataset.idx = idx;
+      cell.appendChild(span);
+      expr.appendChild(cell);
+    });
+
+    // result (its caption doubles as the block title)
+    if (b.terms.length) {
+      var val = resolve(b, map);
+      var eq = document.createElement('span'); eq.className='eq'; eq.textContent='=';
+      expr.appendChild(eq);
+
+      var rcell = document.createElement('span');
+      rcell.className = 'cell';
+      rcell.appendChild(makeCaption(
+        function(){ return b.label; },
+        function(v){ var nb=byId(b.id); if(nb) nb.label = v; }
+      ));
+      var res = document.createElement('span');
+      res.className = 'result' + (val===null?' empty':'');
+      if (sel.blockId===b.id && sel.kind==='result') res.className += ' sel';
+      res.textContent = val===null ? '·' : fmt(val);
+      res.dataset.result = '1';
+      res.dataset.id = b.id;
+      rcell.appendChild(res);
+      expr.appendChild(rcell);
+    }
+
+    el.appendChild(expr);
+    return el;
+  }
+
+  function drawLinks(map) {
+    while (linkLayer.firstChild) linkLayer.removeChild(linkLayer.firstChild);
+    state.blocks.forEach(function(b){
+      b.terms.forEach(function(t, idx){
+        if (t.type!=='linked') return;
+        var src = map[t.sourceId]; if(!src) return;
+        var srcEl = canvas.querySelector('.block[data-id="'+src.id+'"]');
+        var dstEl = canvas.querySelector('.block[data-id="'+b.id+'"]');
+        if (!srcEl||!dstEl) return;
+        var srcRes;
+        if (t.sourceTid != null) {
+          var si=-1; for (var ii=0; ii<src.terms.length; ii++){ if (src.terms[ii].type==='number' && src.terms[ii].tid===t.sourceTid){ si=ii; break; } }
+          srcRes = si>=0 ? srcEl.querySelectorAll('.term')[si] : null;
+        } else {
+          srcRes = srcEl.querySelector('.result');
+        }
+        var dstTerm = dstEl.querySelectorAll('.term')[idx];
+        if (!srcRes||!dstTerm) return;
+        var srcBox = srcEl.getBoundingClientRect();
+        var dstBox = dstEl.getBoundingClientRect();
+        var rBox = srcRes.getBoundingClientRect();
+        var tBox = dstTerm.getBoundingClientRect();
+        var x1 = src.x + (rBox.left - srcBox.left) + rBox.width/2;
+        var y1 = src.y + (rBox.top - srcBox.top) + rBox.height/2;
+        var x2 = b.x + (tBox.left - dstBox.left) + tBox.width/2;
+        var y2 = b.y + (tBox.top - dstBox.top) + tBox.height/2;
+        var path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        var dx = Math.abs(x2-x1)*0.4;
+        path.setAttribute('d','M '+x1+' '+y1+' C '+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);
+        path.setAttribute('fill','none');
+        path.setAttribute('stroke','var(--accent)');
+        path.setAttribute('stroke-width','1.5');
+        path.setAttribute('stroke-dasharray','3 3');
+        path.setAttribute('opacity','0.6');
+        linkLayer.appendChild(path);
+      });
+    });
+  }
+
+  // ---------- Sidebar (variables) ----------
+  function opSym(v){ return ({'+':'+','-':'−','*':'×','/':'÷'})[v]; }
+  function labelOf(s){ return (s && s.trim()) ? s.trim() : ''; }
+
+  // Express a block's formula using the labels of its operands.
+  function blockDefinition(b, map) {
+    if (!b.terms.length) return '—';
+    var parts = [];
+    b.terms.forEach(function(t){
+      if (t.type==='operator') parts.push(opSym(t.value));
+      else if (t.type==='number') parts.push(labelOf(t.label) || (t.value===''?'0':t.value));
+      else if (t.type==='linked') {
+        var src = map[t.sourceId];
+        if (!src) { parts.push('?'); }
+        else if (t.sourceTid != null) {
+          var term = findTermByTid(src, t.sourceTid);
+          parts.push(term ? (labelOf(term.label) || (term.value===''?'0':term.value)) : '?');
+        } else {
+          parts.push(labelOf(src.label) || fmt(resolve(src, map)));
+        }
+      }
+    });
+    return parts.join(' ');
+  }
+
+  function collectVars() {
+    var inputs = [], results = [];
+    state.blocks.forEach(function(b){
+      b.terms.forEach(function(t, idx){
+        if (t.type==='number') inputs.push({ bid:b.id, idx:idx, t:t });
+      });
+      if (b.terms.length) results.push(b);
+    });
+    return { inputs:inputs, results:results };
+  }
+
+  function sidebarOpen(){ return document.getElementById('sidebar').classList.contains('open'); }
+
+  // Keep the sidebar above the keypad so the keypad stays usable.
+  function layoutSidebar() {
+    var sb = document.getElementById('sidebar');
+    var np = document.getElementById('numpad');
+    var h = np.classList.contains('hidden') ? 0 : np.offsetHeight;
+    sb.style.bottom = h + 'px';
+  }
+
+  function syncSidebar() {
+    if (!sidebarOpen()) return;
+    var sb = document.getElementById('sidebar');
+    // Don't rebuild (and steal focus) while editing a field in the sidebar.
+    if (sb.contains(document.activeElement)) refreshSidebarValues();
+    else renderSidebar();
+  }
+
+  function scheduleSidebarRebuild() {
+    setTimeout(function(){
+      var sb = document.getElementById('sidebar');
+      if (sb.classList.contains('open') && !sb.contains(document.activeElement)) renderSidebar();
+    }, 0);
+  }
+
+  function refreshSidebarValues() {
+    var map = blocksMap();
+    document.querySelectorAll('#sidebarBody .var-val[data-kind="result"]').forEach(function(el){
+      var b = byId(el.dataset.bid); if (b) el.textContent = fmt(resolve(b, map));
+    });
+    document.querySelectorAll('#sidebarBody .var-def').forEach(function(el){
+      var b = byId(el.dataset.bid); if (b) el.textContent = '= ' + blockDefinition(b, map);
+    });
+    document.querySelectorAll('#sidebarBody .var-val[data-kind="input"]').forEach(function(el){
+      if (el === document.activeElement) return;
+      var b = byId(el.dataset.bid); if (!b) return;
+      var t = b.terms[el.dataset.idx]; if (t) el.value = t.value;
+    });
+  }
+
+  function renderSidebar() {
+    var body = document.getElementById('sidebarBody');
+    var map = blocksMap();
+    var v = collectVars();
+    body.innerHTML = '';
+
+    if (!v.inputs.length && !v.results.length) {
+      var e = document.createElement('div'); e.className = 'var-empty';
+      e.textContent = 'No variables yet. Numbers and results show up here once you start a calculation — tap a name to label them.';
+      body.appendChild(e);
+      return;
+    }
+
+    function sec(label){ var d=document.createElement('div'); d.className='var-sec'; d.textContent=label; return d; }
+
+    if (v.inputs.length) {
+      body.appendChild(sec('Inputs'));
+      v.inputs.forEach(function(it){ body.appendChild(inputRow(it)); });
+    }
+    if (v.results.length) {
+      body.appendChild(sec('Results'));
+      v.results.forEach(function(b){ body.appendChild(resultRow(b, map)); });
+    }
+  }
+
+  function inputRow(it) {
+    var row = document.createElement('div'); row.className = 'var-row';
+
+    var name = document.createElement('input');
+    name.className = 'var-name'; name.value = it.t.label || '';
+    name.placeholder = 'unnamed';
+    name.addEventListener('focus', snapshot);
+    name.addEventListener('input', function(){
+      var b = byId(it.bid); if (!b) return;
+      var t = b.terms[it.idx]; if (t) { t.label = name.value; save(); renderAll(); }
+    });
+    name.addEventListener('blur', scheduleSidebarRebuild);
+
+    var val = document.createElement('input');
+    val.className = 'var-val'; val.value = it.t.value;
+    val.inputMode = 'decimal';
+    val.dataset.bid = it.bid; val.dataset.idx = it.idx; val.dataset.kind = 'input';
+    val.addEventListener('focus', snapshot);
+    val.addEventListener('input', function(){
+      var b = byId(it.bid); if (!b) return;
+      var t = b.terms[it.idx]; if (t) { t.value = val.value; save(); renderAll(); }
+    });
+
+    row.appendChild(name); row.appendChild(val);
+    return row;
+  }
+
+  function resultRow(b, map) {
+    var row = document.createElement('div'); row.className = 'var-row';
+
+    var name = document.createElement('input');
+    name.className = 'var-name'; name.value = b.label || '';
+    name.placeholder = 'unnamed';
+    name.addEventListener('focus', snapshot);
+    name.addEventListener('input', function(){
+      var nb = byId(b.id); if (nb) { nb.label = name.value; save(); renderAll(); }
+    });
+    name.addEventListener('blur', scheduleSidebarRebuild);
+
+    var val = document.createElement('span');
+    val.className = 'var-val ro'; val.dataset.bid = b.id; val.dataset.kind = 'result';
+    val.textContent = fmt(resolve(b, map));
+
+    var def = document.createElement('div');
+    def.className = 'var-def'; def.dataset.bid = b.id;
+    def.textContent = '= ' + blockDefinition(b, map);
+
+    row.appendChild(name); row.appendChild(val); row.appendChild(def);
+    return row;
+  }
+
+  // ---------- Selection ----------
+  function clearSel(){ sel = { blockId:null, termIndex:null, kind:null }; }
+
+  // ---------- Input handling ----------
+  function ensureActiveBlock() {
+    if (activeBlockId) { var b=byId(activeBlockId); if(b) return b; }
+    // create just below the lowest block (same spot as the + button)
+    var pt = slotBelow(lowestBlock());
+    snapshot();
+    var nb = newBlock(snap(pt.x), snap(pt.y));
+    activeBlockId = nb.id;
+    return nb;
+  }
+
+  function snap(v){ return Math.round(v/SNAP)*SNAP; }
+
+  function clearCanvas() {
+    if (!state.blocks.length) return;
+    confirmDialog('Clear the whole canvas? This removes every calculation.', function(){
+      snapshot(); state.blocks=[]; activeBlockId=null; clearSel(); renderAll(); save();
+    }, 'Clear all', true);
+  }
+
+  function pressKey(k) {
+    // Clear the whole canvas (with confirmation)
+    if (k==='clear') { clearCanvas(); return; }
+
+    // Delete the selected (or active) block
+    if (k==='del') {
+      confirmDeleteBlock(byId(sel.blockId) || (activeBlockId ? byId(activeBlockId) : null));
+      return;
+    }
+
+    // Finish the current block; next input starts a fresh one
+    if (k==='=') {
+      var ab = activeBlockId ? byId(activeBlockId) : null;
+      if (ab && ab.terms.length===0) { snapshot(); removeBlock(ab.id); save(); }
+      activeBlockId = null; clearSel(); renderAll();
+      return;
+    }
+
+    // Operator selected -> tap then press a new operator to change it
+    if (sel.kind==='operator' && sel.blockId && sel.termIndex!==null) {
+      var obk = byId(sel.blockId);
+      var ot = obk && obk.terms[sel.termIndex];
+      if (ot && ot.type==='operator') {
+        if (isOp(k)) { snapshot(); ot.value = k; save(); renderAll(); return; }
+        if (k==='back') { snapshot(); deleteTermAndSelectPrev(obk, sel.termIndex); save(); renderAll(); return; }
+        return; // ignore digits etc. while an operator is selected
+      }
+    }
+
+    // Number/linked term selected + operator -> insert it (and a fresh slot) right after,
+    // so you can build an expression in the middle (5 + [7] then "- 4" => 5 + 7 - 4 ...).
+    if ((sel.kind==='number' || sel.kind==='linked') && sel.blockId && sel.termIndex!==null && isOp(k)) {
+      var isb = byId(sel.blockId);
+      var ist = isb && isb.terms[sel.termIndex];
+      if (ist) {
+        snapshot();
+        if (ist.type==='number' && ist.value==='') ist.value='0';
+        isb.terms.splice(sel.termIndex+1, 0, { type:'operator', value:k }, newNumber(''));
+        sel.termIndex = sel.termIndex + 2; sel.kind = 'number';
+        activeBlockId = isb.id;
+        renderAll(); save(); return;
+      }
+    }
+
+    // Number/linked term selected -> edit digits, or backspace-chain (clear, then delete, stepping left)
+    if (sel.blockId && sel.termIndex!==null && (k>='0'&&k<='9' || k==='.' || k==='back')) {
+      var sb = byId(sel.blockId); if(!sb) return;
+      var term = sb.terms[sel.termIndex];
+      if (term && term.type==='number') {
+        if (k==='back') {
+          snapshot();
+          if (term.value !== '') { term.value = term.value.slice(0,-1); } // 55 -> 5 -> 0 (empty slot)
+          else { deleteTermAndSelectPrev(sb, sel.termIndex); }            // empty -> delete & step left
+          renderAll(); save(); return;
+        }
+        snapshot();
+        if (k==='.') { if(term.value.indexOf('.')<0) term.value += (term.value===''?'0.':'.'); }
+        else term.value += k;
+        renderAll(); save(); return;
+      }
+      if (term && term.type==='linked' && k==='back') {
+        snapshot();
+        deleteTermAndSelectPrev(sb, sel.termIndex); // unlink & step left
+        renderAll(); save(); return;
+      }
+    }
+
+    // Result selected + operator => create linked block below
+    if (sel.kind==='result' && sel.blockId && isOp(k)) {
+      var srcB = byId(sel.blockId); if(!srcB) return;
+      snapshot();
+      var nb = newBlock(snap(srcB.x), snap(srcB.y + 70));
+      nb.terms.push({ type:'linked', sourceId: srcB.id });
+      nb.terms.push({ type:'operator', value:k });
+      activeBlockId = nb.id; clearSel();
+      renderAll(); save(); return;
+    }
+
+    var b = ensureActiveBlock();
+    var terms = b.terms;
+    var last = terms[terms.length-1];
+
+    if (k==='back') {
+      snapshot();
+      if (!last) { /* empty block: delete it */
+        removeBlock(b.id); activeBlockId=null; renderAll(); save(); return;
+      }
+      if (last.type==='number') {
+        last.value = last.value.slice(0,-1);
+        if (last.value==='') terms.pop();
+      } else { terms.pop(); }
+      renderAll(); save(); return;
+    }
+
+    if (isOp(k)) {
+      snapshot();
+      if (!last) { terms.push(newNumber('0')); }
+      else if (last.type==='operator') { last.value = k; renderAll(); save(); return; }
+      else if (last.type==='number' && last.value==='') { last.value='0'; }
+      terms.push({ type:'operator', value:k });
+      renderAll(); save(); return;
+    }
+
+    // digit or dot
+    snapshot();
+    if (!last || last.type==='operator' || last.type==='linked') {
+      terms.push(newNumber(k==='.'?'0.':k));
+    } else if (last.type==='number') {
+      if (k==='.') { if(last.value.indexOf('.')<0) last.value += (last.value===''?'0.':'.'); }
+      else last.value += k;
+    }
+    renderAll(); save();
+  }
+
+  function isOp(k){ return k==='+'||k==='-'||k==='*'||k==='/'; }
+
+  function removeBlock(id) {
+    state.blocks = state.blocks.filter(function(b){ return b.id!==id; });
+    // break links pointing to it
+    state.blocks.forEach(function(b){
+      b.terms = b.terms.filter(function(t){ return !(t.type==='linked'&&t.sourceId===id); });
+    });
+    if (activeBlockId===id) activeBlockId=null;
+  }
+
+  // Remove a term and move the selection to the previous one (for the backspace chain).
+  function deleteTermAndSelectPrev(b, idx) {
+    b.terms.splice(idx, 1);
+    if (b.terms.length === 0) { removeBlock(b.id); clearSel(); return; }
+    var prev = idx - 1;
+    if (prev >= 0) {
+      var pt = b.terms[prev];
+      sel.blockId = b.id; sel.termIndex = prev;
+      sel.kind = pt.type==='operator' ? 'operator' : (pt.type==='linked' ? 'linked' : 'number');
+      activeBlockId = b.id;
+    } else {
+      clearSel(); activeBlockId = b.id;
+    }
+  }
+
+  function confirmDeleteBlock(b) {
+    if (!b) return;
+    // Empty block: nothing to lose, delete without asking.
+    if (!b.terms.length) {
+      snapshot(); removeBlock(b.id); clearSel(); renderAll(); save();
+      return;
+    }
+    var deps = dependentsOf(b.id);
+    var msg = deps.length
+      ? deps.length+' other calculation'+(deps.length>1?'s':'')+' link to this result. Deleting it will break '+(deps.length>1?'those links':'that link')+'.'
+      : 'Delete this calculation?';
+    confirmDialog(msg, function(){
+      snapshot(); removeBlock(b.id); clearSel(); renderAll(); save();
+    }, 'Delete', true);
+  }
+
+  // ---------- Toast / confirm ----------
+  function confirmDialog(msg, onYes, yesLabel, danger) {
+    var t=document.getElementById('toast'), sc=document.getElementById('scrim');
+    document.getElementById('toastMsg').textContent = msg;
+    var row=document.getElementById('toastRow'); row.innerHTML='';
+    var cancel=document.createElement('button'); cancel.textContent='Cancel';
+    var ok=document.createElement('button'); ok.textContent=yesLabel||'OK'; if(danger) ok.className='danger';
+    cancel.onclick=function(){ t.style.display='none'; sc.style.display='none'; };
+    ok.onclick=function(){ t.style.display='none'; sc.style.display='none'; onYes(); };
+    row.appendChild(cancel); row.appendChild(ok);
+    t.style.display='block'; sc.style.display='block';
+  }
+
+  // ---------- Pointer: canvas tap, block drag, term select, link drag ----------
+  var pointer = { mode:null, startX:0, startY:0, block:null, moved:false, linkSrc:null, pendingSelect:null };
+  var ghost = document.getElementById('ghost');
+
+  wrap.addEventListener('pointerdown', function(e){
+    var target = e.target;
+
+    // result chip -> potential link drag or select
+    var resEl = target.closest && target.closest('.result');
+    if (resEl && !resEl.classList.contains('empty')) {
+      pointer.mode='maybe-link'; pointer.startX=e.clientX; pointer.startY=e.clientY;
+      pointer.linkSrc = { sourceId: resEl.dataset.id, sourceTid: null }; pointer.moved=false;
+      pointer.ghostText = resEl.textContent; pointer.pendingSelect = null;
+      return;
+    }
+
+    // number term -> potential link drag (duplicate as a variable) or select
+    var termEl = target.closest && target.closest('.term');
+    if (termEl && termEl.classList.contains('number')) {
+      var nblk = termEl.closest('.block');
+      var nbid = nblk.dataset.id;
+      var nidx = parseInt(termEl.dataset.idx,10);
+      var nsrc = byId(nbid);
+      var ntid = (nsrc && nsrc.terms[nidx]) ? nsrc.terms[nidx].tid : null;
+      pointer.mode='maybe-link'; pointer.startX=e.clientX; pointer.startY=e.clientY; pointer.moved=false;
+      pointer.linkSrc = { sourceId: nbid, sourceTid: ntid };
+      pointer.ghostText = termEl.textContent;
+      pointer.pendingSelect = { blockId: nbid, termIndex: nidx, kind: 'number' };
+      return;
+    }
+    // linked term -> select (for unlink via backspace)
+    if (termEl && termEl.classList.contains('linked')) {
+      var lblk = termEl.closest('.block');
+      sel.blockId = lblk.dataset.id;
+      sel.termIndex = parseInt(termEl.dataset.idx,10);
+      sel.kind = 'linked';
+      activeBlockId = sel.blockId;
+      renderAll();
+      e.preventDefault();
+      return;
+    }
+    // operator term -> select (tap then press a new operator to change it)
+    if (termEl && termEl.classList.contains('operator')) {
+      var oblk = termEl.closest('.block');
+      sel.blockId = oblk.dataset.id;
+      sel.termIndex = parseInt(termEl.dataset.idx,10);
+      sel.kind = 'operator';
+      activeBlockId = sel.blockId;
+      renderAll();
+      e.preventDefault();
+      return;
+    }
+
+    // caption -> let contenteditable handle (also stops propagation itself)
+    if (target.closest && target.closest('.cap')) { return; }
+
+    // block body -> drag block
+    var bEl = target.closest && target.closest('.block');
+    if (bEl) {
+      pointer.mode='drag-block'; pointer.block=byId(bEl.dataset.id);
+      pointer.startX=e.clientX; pointer.startY=e.clientY;
+      pointer.origX=pointer.block.x; pointer.origY=pointer.block.y; pointer.moved=false;
+      // select result of this block
+      sel.blockId=pointer.block.id; sel.kind='result'; sel.termIndex=null;
+      renderAll();
+      bEl.setPointerCapture && bEl.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // empty canvas -> tap to create block here (on pointerup if no scroll)
+    pointer.mode='maybe-tap';
+    pointer.startX=e.clientX; pointer.startY=e.clientY; pointer.moved=false;
+    pointer.tapCanvasX = e.clientX; pointer.tapCanvasY = e.clientY;
+  });
+
+  wrap.addEventListener('pointermove', function(e){
+    if (!pointer.mode) return;
+    var dx=e.clientX-pointer.startX, dy=e.clientY-pointer.startY;
+    if (Math.abs(dx)>6||Math.abs(dy)>6) pointer.moved=true;
+
+    if (pointer.mode==='maybe-link' && pointer.moved) {
+      pointer.mode='linking';
+      ghost.style.display='block'; ghost.textContent=pointer.ghostText;
+    }
+    if (pointer.mode==='linking') {
+      ghost.style.left=e.clientX+'px'; ghost.style.top=e.clientY+'px';
+      // highlight potential target slot
+      clearTargets();
+      var under = document.elementFromPoint(e.clientX, e.clientY);
+      var slot = under && under.closest && under.closest('.term.number');
+      var bUnder = under && under.closest && under.closest('.block');
+      if (slot) slot.classList.add('slot-target');
+      else if (bUnder && bUnder.dataset.id!==pointer.linkSrc.sourceId) bUnder.classList.add('slot-target');
+      e.preventDefault();
+      return;
+    }
+    if (pointer.mode==='drag-block' && pointer.block) {
+      pointer.block.x = snap(pointer.origX+dx);
+      pointer.block.y = snap(pointer.origY+dy);
+      var el = canvas.querySelector('.block[data-id="'+pointer.block.id+'"]');
+      if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
+      drawLinks(blocksMap());
+      e.preventDefault();
+      return;
+    }
+  });
+
+  wrap.addEventListener('pointerup', function(e){
+    if (pointer.mode==='linking') {
+      var under = document.elementFromPoint(e.clientX, e.clientY);
+      var slot = under && under.closest && under.closest('.term.number');
+      var bUnder = under && under.closest && under.closest('.block');
+      var ls = pointer.linkSrc, srcId = ls.sourceId;
+      // number-term references are constants -> can never form a value cycle
+      function cyc(targetId){ return ls.sourceTid==null && createsCycle(targetId, srcId); }
+      function newLink(){ return { type:'linked', sourceId: srcId, sourceTid: ls.sourceTid }; }
+      clearTargets();
+      ghost.style.display='none';
+
+      if (slot && bUnder && bUnder.dataset.id!==srcId) {
+        // replace that number term with a linked term
+        var tb = byId(bUnder.dataset.id);
+        var ti = parseInt(slot.dataset.idx,10);
+        if (tb && !cyc(tb.id)) {
+          snapshot();
+          tb.terms[ti] = newLink();
+          activeBlockId=tb.id; clearSel(); renderAll(); save();
+        } else { flashCycle(); }
+      } else if (bUnder && bUnder.dataset.id!==srcId) {
+        // dropped on a block but not a number slot -> append linked term
+        var tb2 = byId(bUnder.dataset.id);
+        if (tb2 && !cyc(tb2.id)) {
+          snapshot();
+          var lastT = tb2.terms[tb2.terms.length-1];
+          if (lastT && lastT.type!=='operator') tb2.terms.push({type:'operator', value:'+'});
+          tb2.terms.push(newLink());
+          activeBlockId=tb2.id; clearSel(); renderAll(); save();
+        } else { flashCycle(); }
+      } else if (!bUnder) {
+        // dropped on empty canvas -> new block linked to source
+        var pt = toCanvas(e.clientX, e.clientY);
+        snapshot();
+        var nb = newBlock(snap(pt.x), snap(pt.y));
+        nb.terms.push(newLink());
+        activeBlockId=nb.id; clearSel(); renderAll(); save();
+      }
+      pointer={mode:null}; return;
+    }
+
+    if (pointer.mode==='maybe-link' && !pointer.moved) {
+      if (pointer.pendingSelect) {
+        // tap on a number term -> select it for editing
+        sel.blockId = pointer.pendingSelect.blockId;
+        sel.termIndex = pointer.pendingSelect.termIndex;
+        sel.kind = pointer.pendingSelect.kind;
+        activeBlockId = sel.blockId;
+      } else {
+        // tap on a result -> select it
+        sel.blockId=pointer.linkSrc.sourceId; sel.kind='result'; sel.termIndex=null;
+        activeBlockId=pointer.linkSrc.sourceId;
+      }
+      renderAll();
+      pointer={mode:null}; return;
+    }
+
+    if (pointer.mode==='drag-block') {
+      if (pointer.moved) { snapshot(); save(); }
+      pointer={mode:null}; return;
+    }
+
+    if (pointer.mode==='maybe-tap' && !pointer.moved) {
+      // tap on empty canvas -> close current edition; the + button reappears
+      if (activeBlockId) {
+        var fb = byId(activeBlockId);
+        if (fb && fb.terms.length===0) { snapshot(); removeBlock(fb.id); save(); }
+      }
+      activeBlockId=null; clearSel(); renderAll();
+      pointer={mode:null}; return;
+    }
+    pointer={mode:null};
+  });
+
+  function clearTargets(){ canvas.querySelectorAll('.slot-target').forEach(function(e){e.classList.remove('slot-target');}); }
+  function toCanvas(clientX, clientY){
+    var r = canvas.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
+  }
+
+  function createsCycle(targetBlockId, newSourceId) {
+    // would target depend (directly/indirectly) on itself if it links newSource?
+    if (targetBlockId===newSourceId) return true;
+    var map = blocksMap();
+    function deps(id, seen){
+      if (seen[id]) return false; seen[id]=true;
+      var b=map[id]; if(!b) return false;
+      for (var i=0;i<b.terms.length;i++){
+        var t=b.terms[i];
+        if (t.type==='linked' && t.sourceTid==null){
+          if (t.sourceId===targetBlockId) return true;
+          if (deps(t.sourceId, seen)) return true;
+        }
+      }
+      return false;
+    }
+    return deps(newSourceId, {});
+  }
+  function flashCycle(){
+    confirmDialog('Can\u2019t link these \u2014 it would create a loop where a result depends on itself.', function(){}, 'Got it');
+    document.getElementById('toastRow').firstChild.style.display='none';
+  }
+
+  // ---------- Add-calculation button ----------
+  (function(){
+    var btn = document.getElementById('addBtn');
+    btn.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var x = parseInt(btn.style.left,10); if (isNaN(x)) x = 40;
+      var y = parseInt(btn.style.top,10);  if (isNaN(y)) y = 30;
+      snapshot();
+      var nb = newBlock(snap(x), snap(y));
+      activeBlockId = nb.id; clearSel(); renderAll(); save();
+    });
+  })();
+
+  // ---------- Long-press to delete block ----------
+  var lpTimer=null;
+  canvas.addEventListener('pointerdown', function(e){
+    var bEl = e.target.closest && e.target.closest('.block');
+    var onTerm = e.target.closest && e.target.closest('.term, .result, .cap, .block-del');
+    if (bEl && !onTerm) {
+      lpTimer = setTimeout(function(){
+        confirmDeleteBlock(byId(bEl.dataset.id));
+      }, 550);
+    }
+  });
+  canvas.addEventListener('pointermove', function(){ clearTimeout(lpTimer); });
+  canvas.addEventListener('pointerup', function(){ clearTimeout(lpTimer); });
+
+  // ---------- Numpad ----------
+  document.querySelector('.padgrid').addEventListener('pointerdown', function(e){
+    var key = e.target.closest('.key'); if(!key) return;
+    e.preventDefault(); // fire immediately; don't wait for (and risk losing) the click
+    pressKey(key.dataset.k);
+  });
+  document.getElementById('padToggle').addEventListener('click', function(){
+    var np=document.getElementById('numpad');
+    np.classList.toggle('hidden');
+    this.innerHTML = np.classList.contains('hidden') ? 'Show keypad ▴' : 'Hide keypad ▾';
+    layoutSidebar();
+  });
+  window.addEventListener('resize', function(){ if (sidebarOpen()) layoutSidebar(); });
+
+  // ---------- Toolbar ----------
+  document.getElementById('undoBtn').onclick = undo;
+  document.getElementById('redoBtn').onclick = redo;
+  document.getElementById('clearBtn').onclick = clearCanvas;
+  document.getElementById('sizeBtn').onclick = function(){
+    var i = FONT_SIZES.indexOf(state.fontSize); i=(i+1)%FONT_SIZES.length;
+    state.fontSize = FONT_SIZES[i]; save(); renderAll();
+    this.style.fontSize = (12+i*2)+'px';
+  };
+  document.getElementById('varsBtn').onclick = function(){
+    var sb = document.getElementById('sidebar');
+    var open = sb.classList.toggle('open');
+    sb.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (open) { layoutSidebar(); renderSidebar(); }
+  };
+  document.getElementById('sidebarClose').onclick = function(){
+    var sb = document.getElementById('sidebar');
+    sb.classList.remove('open'); sb.setAttribute('aria-hidden', 'true');
+  };
+
+  // physical keyboard support (nice for desktop testing)
+  window.addEventListener('keydown', function(e){
+    var ae = document.activeElement;
+    if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
+    var k=e.key;
+    if (k>='0'&&k<='9') pressKey(k);
+    else if (k==='.') pressKey('.');
+    else if (k==='+'||k==='-'||k==='*'||k==='/') pressKey(k);
+    else if (k==='Backspace') { e.preventDefault(); pressKey('back'); }
+    else if (k==='='||k==='Enter') { e.preventDefault(); pressKey('='); }
+    else if (k==='Delete') { e.preventDefault(); pressKey('del'); }
+    else if (k==='z'&&(e.metaKey||e.ctrlKey)) { e.preventDefault(); e.shiftKey?redo():undo(); }
+  });
+
+  // prevent pinch zoom / double tap zoom
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+  var lastTouch=0;
+  document.addEventListener('touchend', function(e){
+    // never swallow taps on interactive controls (keypad, toolbar buttons)
+    if (e.target.closest && e.target.closest('.key, .tbtn, #padToggle, #toast button')) { lastTouch=Date.now(); return; }
+    var now=Date.now(); if(now-lastTouch<300) e.preventDefault(); lastTouch=now;
+  }, {passive:false});
+
+  // ---------- Init ----------
+  load();
+  if (state.fontSize) {
+    var i=FONT_SIZES.indexOf(state.fontSize); if(i<0){i=1;state.fontSize=22;}
+    document.getElementById('sizeBtn').style.fontSize=(12+i*2)+'px';
+  }
+  renderAll();
+})();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
