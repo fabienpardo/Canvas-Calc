@@ -433,9 +433,20 @@
   <div class="row" id="toastRow"></div>
 </div>
 
+<script src="engine.js"></script>
 <script>
 (function () {
   "use strict";
+
+  // ---------- Pure engine (see engine.js) ----------
+  var E = window.CanvasEngine;
+  var findTermByTid = E.findTermByTid, linkedValue = E.linkedValue, linkedSource = E.linkedSource,
+      tokenize = E.tokenize, evalTokens = E.evalTokens, resolve = E.resolve,
+      fmt = E.fmt, groupDisplay = E.groupDisplay, opSym = E.opSym, labelOf = E.labelOf,
+      blockDefinition = E.blockDefinition, parseExpression = E.parseExpression,
+      NUM_GROUP = E.NUM_GROUP, NUM_DECIMAL = E.NUM_DECIMAL;
+  // App wrapper injects the current block map into the pure cycle check.
+  function createsCycle(targetId, srcId) { return E.createsCycle(targetId, srcId, blocksMap()); }
 
   // ---------- State ----------
   var state = { blocks: [], nextId: 1, fontSize: 22, nextTid: 1, showGrid: false, zoom: 1 };
@@ -480,11 +491,6 @@
       b.terms.forEach(function(t){ if (t.type==='number' && t.tid==null) t.tid = 't'+(state.nextTid++); });
     });
   }
-  function findTermByTid(b, tid) {
-    for (var i=0;i<b.terms.length;i++) { var t=b.terms[i]; if (t.type==='number' && t.tid===tid) return t; }
-    return null;
-  }
-
   // ---------- History ----------
   function snapshot() {
     history.push(JSON.stringify({ blocks: state.blocks, nextId: state.nextId }));
@@ -521,133 +527,6 @@
     return b;
   }
   function newNumber(value) { return { type:'number', value:value, tid:'t'+(state.nextTid++) }; }
-
-  // Value of a linked term: a referenced number term, or a block's result.
-  function linkedValue(t, map) {
-    var src = map[t.sourceId]; if (!src) return null;
-    if (t.sourceTid != null) {
-      var term = findTermByTid(src, t.sourceTid); if (!term) return null;
-      var v = parseFloat(term.value); return isNaN(v) ? 0 : v;
-    }
-    return resolve(src, map);
-  }
-  // Label accessor for a linked term's source (number term or block title).
-  function linkedSource(t, map) {
-    var src = map[t.sourceId]; if (!src) return null;
-    if (t.sourceTid != null) {
-      var term = findTermByTid(src, t.sourceTid); if (!term) return null;
-      return { getLabel:function(){ return term.label; }, setLabel:function(v){ term.label = v; } };
-    }
-    return { getLabel:function(){ return src.label; }, setLabel:function(v){ src.label = v; } };
-  }
-
-  // ---------- Evaluation ----------
-  // Build a token stream from a block's terms, resolving linked operands to numbers.
-  function tokenize(block, map, stack) {
-    var tokens = [];
-    block.terms.forEach(function(t){
-      if (t.type==='operator') tokens.push({ op: t.value });
-      else if (t.type==='paren') tokens.push({ paren: t.value });
-      else if (t.type==='number') { var v=parseFloat(t.value); tokens.push({ num: isNaN(v)?0:v }); }
-      else if (t.type==='linked') {
-        var src = map[t.sourceId], val = 0;
-        if (src) {
-          if (t.sourceTid != null) {
-            var lt = findTermByTid(src, t.sourceTid);
-            var lv = lt ? parseFloat(lt.value) : NaN; val = isNaN(lv)?0:lv;
-          } else {
-            var sub = {}; for (var k in stack) sub[k]=stack[k];
-            var r = resolve(src, map, sub); val = (r==null||isNaN(r))?0:r;
-          }
-        }
-        tokens.push({ num: val });
-      }
-    });
-    return tokens;
-  }
-
-  // Tolerant recursive-descent evaluator: + - * / and parentheses.
-  // Trailing operators, empty parens, and stray tokens are skipped gracefully.
-  function evalTokens(tokens) {
-    var pos = 0;
-    function peek(){ return tokens[pos]; }
-    function parseExpr(){
-      var v = parseTerm();
-      while (peek() && (peek().op==='+' || peek().op==='-')) {
-        var op = tokens[pos++].op, rhs = parseTerm();
-        if (rhs==null) break;
-        v = (v==null?0:v) + (op==='+' ? rhs : -rhs);
-      }
-      return v;
-    }
-    function parseTerm(){
-      var v = parseFactor();
-      while (peek() && (peek().op==='*' || peek().op==='/')) {
-        var op = tokens[pos++].op, rhs = parseFactor();
-        if (rhs==null) break;
-        v = op==='*' ? (v==null?0:v)*rhs : (v==null?0:v)/rhs;
-      }
-      return v;
-    }
-    function parseFactor(){
-      var t = peek();
-      if (!t) return null;
-      if (t.paren==='(') {
-        pos++;
-        var v = parseExpr();
-        if (peek() && peek().paren===')') pos++;
-        return v==null ? 0 : v;
-      }
-      if (t.num!==undefined) { pos++; return t.num; }
-      // stray operator or ')' -> skip and continue
-      pos++;
-      return parseFactor();
-    }
-    if (!tokens.length) return null;
-    return parseExpr();
-  }
-
-  function resolve(block, map, stack) {
-    stack = stack || {};
-    if (stack[block.id]) return null; // cycle
-    stack[block.id] = true;
-    var tokens = tokenize(block, map, stack);
-    delete stack[block.id];
-    return evalTokens(tokens);
-  }
-
-  // Locale-aware separators (used for live grouping while typing).
-  var NUM_GROUP = ',', NUM_DECIMAL = '.';
-  try {
-    new Intl.NumberFormat().formatToParts(11111.1).forEach(function(p){
-      if (p.type==='group') NUM_GROUP = p.value;
-      if (p.type==='decimal') NUM_DECIMAL = p.value;
-    });
-  } catch (e) {}
-  var GROUPED_FMT = (function(){ try { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 10 }); } catch(e){ return null; } })();
-
-  function fmt(v) {
-    if (v===null||v===undefined) return '';
-    if (Number.isNaN(v)) return '—';
-    if (!isFinite(v)) return '∞';
-    var r = Math.round(v*1e10)/1e10;
-    if (GROUPED_FMT) return GROUPED_FMT.format(r);
-    if (Number.isInteger(r)) return String(r);
-    return String(parseFloat(r.toFixed(8)));
-  }
-
-  // Group an in-progress raw number string ("1234.5" -> "1,234.5"), preserving a trailing dot.
-  function groupDisplay(raw) {
-    if (raw === '' || raw == null) return '0';
-    var neg = raw.charAt(0)==='-';
-    var s = neg ? raw.slice(1) : raw;
-    var dot = s.indexOf('.');
-    var intPart = dot<0 ? s : s.slice(0, dot);
-    var rest = dot<0 ? '' : s.slice(dot+1); // digits after the decimal, as typed
-    var grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, NUM_GROUP);
-    var out = grouped + (dot<0 ? '' : NUM_DECIMAL + rest);
-    return (neg ? '-' : '') + out;
-  }
 
   // ---------- Link colors ----------
   // Distinct colors assigned per linked source, to visually group references.
@@ -941,31 +820,6 @@
   }
 
   // ---------- Sidebar (variables) ----------
-  function opSym(v){ return ({'+':'+','-':'−','*':'×','/':'÷'})[v]; }
-  function labelOf(s){ return (s && s.trim()) ? s.trim() : ''; }
-
-  // Express a block's formula using the labels of its operands.
-  function blockDefinition(b, map) {
-    if (!b.terms.length) return '—';
-    var parts = [];
-    b.terms.forEach(function(t){
-      if (t.type==='operator') parts.push(opSym(t.value));
-      else if (t.type==='paren') parts.push(t.value);
-      else if (t.type==='number') parts.push(labelOf(t.label) || (t.value===''?'0':t.value));
-      else if (t.type==='linked') {
-        var src = map[t.sourceId];
-        if (!src) { parts.push('?'); }
-        else if (t.sourceTid != null) {
-          var term = findTermByTid(src, t.sourceTid);
-          parts.push(term ? (labelOf(term.label) || (term.value===''?'0':term.value)) : '?');
-        } else {
-          parts.push(labelOf(src.label) || fmt(resolve(src, map)));
-        }
-      }
-    });
-    return parts.join(' ');
-  }
-
   function collectVars() {
     var inputs = [], results = [];
     state.blocks.forEach(function(b){
@@ -1129,39 +983,6 @@
 
   // ---------- Copy / paste ----------
   // Parse clipboard text into terms (numbers, operators, parens); strips separators.
-  function parseExpression(text) {
-    if (text == null) return [];
-    var s = String(text);
-    s = s.split(NUM_GROUP).join('');
-    if (NUM_DECIMAL !== '.') s = s.split(NUM_DECIMAL).join('.');
-    s = s.replace(/[×✕]/g,'*').replace(/[÷]/g,'/').replace(/[−–—]/g,'-').replace(/,/g,'');
-    var terms = [], i = 0;
-    while (i < s.length) {
-      var c = s.charAt(i);
-      if (/\s/.test(c)) { i++; continue; }
-      if (c==='(' || c===')') { terms.push({ type:'paren', value:c }); i++; continue; }
-      if (c==='+' || c==='*' || c==='/') { terms.push({ type:'operator', value:c }); i++; continue; }
-      if (c==='-') {
-        var prev = terms[terms.length-1];
-        var isSign = !prev || prev.type==='operator' || (prev.type==='paren' && prev.value==='(');
-        if (isSign) {
-          var j=i+1, num='-';
-          while (j<s.length && /[0-9.]/.test(s.charAt(j))) { num+=s.charAt(j); j++; }
-          if (num==='-') { terms.push({ type:'operator', value:'-' }); i++; }
-          else { terms.push(newNumber(num)); i=j; }
-        } else { terms.push({ type:'operator', value:'-' }); i++; }
-        continue;
-      }
-      if (/[0-9.]/.test(c)) {
-        var k2=i, n='';
-        while (k2<s.length && /[0-9.]/.test(s.charAt(k2))) { n+=s.charAt(k2); k2++; }
-        terms.push(newNumber(n)); i=k2; continue;
-      }
-      i++; // skip anything else
-    }
-    return terms;
-  }
-
   // Plain-text expression for a block (used when copying a result/block).
   function expressionText(b) {
     return b.terms.map(function(t){
@@ -1191,7 +1012,10 @@
     if (!terms.length) return;
     var b = ensureActiveBlock(); // snapshots if it creates a block
     snapshot();
-    terms.forEach(function(t){ b.terms.push(t); });
+    terms.forEach(function(t){
+      if (t.type==='number' && t.tid==null) t.tid = 't'+(state.nextTid++); // engine returns tid-less numbers
+      b.terms.push(t);
+    });
     activeBlockId = b.id; clearSel(); renderAll(); save();
   }
 
@@ -1588,24 +1412,6 @@
     return { x: (clientX - r.left)/zoom, y: (clientY - r.top)/zoom };
   }
 
-  function createsCycle(targetBlockId, newSourceId) {
-    // would target depend (directly/indirectly) on itself if it links newSource?
-    if (targetBlockId===newSourceId) return true;
-    var map = blocksMap();
-    function deps(id, seen){
-      if (seen[id]) return false; seen[id]=true;
-      var b=map[id]; if(!b) return false;
-      for (var i=0;i<b.terms.length;i++){
-        var t=b.terms[i];
-        if (t.type==='linked' && t.sourceTid==null){
-          if (t.sourceId===targetBlockId) return true;
-          if (deps(t.sourceId, seen)) return true;
-        }
-      }
-      return false;
-    }
-    return deps(newSourceId, {});
-  }
   function flashCycle(){
     confirmDialog('Can\u2019t link these \u2014 it would create a loop where a result depends on itself.', function(){}, 'Got it');
     document.getElementById('toastRow').firstChild.style.display='none';
