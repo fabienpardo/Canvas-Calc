@@ -109,6 +109,7 @@
   .menu-item:active { background: var(--key-active); }
   .menu-check { width: 16px; color: var(--accent); opacity: 0; }
   .menu-item[aria-checked="true"] .menu-check { opacity: 1; }
+  .menu-sep { height: 1px; background: var(--block-border); margin: 5px 6px; }
 
   /* Canvas */
   #canvasWrap {
@@ -194,6 +195,7 @@
   .term.number.sel { background: var(--accent); color: #fff; }
   .term.operator { color: var(--op); padding: 1px 1px; }
   .term.operator.sel { background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 4px; }
+  .term.paren { color: var(--text-dim); padding: 1px 2px; }
   .term.linked {
     background: var(--linked-bg); color: var(--linked-text);
     border-radius: 4px; padding: 1px 5px;
@@ -343,6 +345,13 @@
     <div class="menu-wrap">
       <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋯</button>
       <div id="menu" role="menu" hidden>
+        <button class="menu-item" id="copyItem" role="menuitem">
+          <span class="menu-check"></span><span>Copy selection</span>
+        </button>
+        <button class="menu-item" id="pasteItem" role="menuitem">
+          <span class="menu-check"></span><span>Paste</span>
+        </button>
+        <div class="menu-sep"></div>
         <button class="menu-item" id="gridToggle" role="menuitemcheckbox" aria-checked="false">
           <span class="menu-check">✓</span><span>Show grid</span>
         </button>
@@ -377,6 +386,9 @@
       <div class="key" data-k="0" role="button" aria-label="0">0</div>
       <div class="key act" data-k="back" role="button" aria-label="Backspace">⌫</div>
       <div class="key op" data-k="+" role="button" aria-label="Add">+</div>
+      <div class="key op" data-k="(" role="button" aria-label="Open parenthesis">(</div>
+      <div class="key op" data-k=")" role="button" aria-label="Close parenthesis">)</div>
+      <div class="key op" data-k="neg" role="button" aria-label="Plus / minus sign" style="grid-column: span 2;">±</div>
       <div class="key del" data-k="clear" role="button" aria-label="Clear canvas">Clear</div>
       <div class="key eq" data-k="=" role="button" aria-label="Equals — finish this block">=</div>
     </div>
@@ -503,42 +515,78 @@
   }
 
   // ---------- Evaluation ----------
+  // Build a token stream from a block's terms, resolving linked operands to numbers.
+  function tokenize(block, map, stack) {
+    var tokens = [];
+    block.terms.forEach(function(t){
+      if (t.type==='operator') tokens.push({ op: t.value });
+      else if (t.type==='paren') tokens.push({ paren: t.value });
+      else if (t.type==='number') { var v=parseFloat(t.value); tokens.push({ num: isNaN(v)?0:v }); }
+      else if (t.type==='linked') {
+        var src = map[t.sourceId], val = 0;
+        if (src) {
+          if (t.sourceTid != null) {
+            var lt = findTermByTid(src, t.sourceTid);
+            var lv = lt ? parseFloat(lt.value) : NaN; val = isNaN(lv)?0:lv;
+          } else {
+            var sub = {}; for (var k in stack) sub[k]=stack[k];
+            var r = resolve(src, map, sub); val = (r==null||isNaN(r))?0:r;
+          }
+        }
+        tokens.push({ num: val });
+      }
+    });
+    return tokens;
+  }
+
+  // Tolerant recursive-descent evaluator: + - * / and parentheses.
+  // Trailing operators, empty parens, and stray tokens are skipped gracefully.
+  function evalTokens(tokens) {
+    var pos = 0;
+    function peek(){ return tokens[pos]; }
+    function parseExpr(){
+      var v = parseTerm();
+      while (peek() && (peek().op==='+' || peek().op==='-')) {
+        var op = tokens[pos++].op, rhs = parseTerm();
+        if (rhs==null) break;
+        v = (v==null?0:v) + (op==='+' ? rhs : -rhs);
+      }
+      return v;
+    }
+    function parseTerm(){
+      var v = parseFactor();
+      while (peek() && (peek().op==='*' || peek().op==='/')) {
+        var op = tokens[pos++].op, rhs = parseFactor();
+        if (rhs==null) break;
+        v = op==='*' ? (v==null?0:v)*rhs : (v==null?0:v)/rhs;
+      }
+      return v;
+    }
+    function parseFactor(){
+      var t = peek();
+      if (!t) return null;
+      if (t.paren==='(') {
+        pos++;
+        var v = parseExpr();
+        if (peek() && peek().paren===')') pos++;
+        return v==null ? 0 : v;
+      }
+      if (t.num!==undefined) { pos++; return t.num; }
+      // stray operator or ')' -> skip and continue
+      pos++;
+      return parseFactor();
+    }
+    if (!tokens.length) return null;
+    return parseExpr();
+  }
+
   function resolve(block, map, stack) {
     stack = stack || {};
     if (stack[block.id]) return null; // cycle
     stack[block.id] = true;
-    var nums = [], ops = [];
-    for (var i=0;i<block.terms.length;i++) {
-      var t = block.terms[i];
-      if (t.type === 'operator') ops.push(t.value);
-      else if (t.type === 'number') { var v=parseFloat(t.value); nums.push(isNaN(v)?0:v); }
-      else if (t.type === 'linked') {
-        var src = map[t.sourceId];
-        if (!src) { nums.push(0); continue; }
-        if (t.sourceTid != null) {
-          var lt = findTermByTid(src, t.sourceTid);
-          var lv = lt ? parseFloat(lt.value) : NaN;
-          nums.push(isNaN(lv)?0:lv);
-        } else {
-          var sub = {}; for (var k in stack) sub[k]=stack[k];
-          var r = resolve(src, map, sub);
-          nums.push(r==null||isNaN(r)?0:r);
-        }
-      }
-    }
+    var tokens = tokenize(block, map, stack);
     delete stack[block.id];
-    if (nums.length === 0) return null;
-    if (nums.length === 1 && ops.length === 0) return nums[0];
-    var values=[nums[0]], pending=[];
-    for (var j=0;j<ops.length;j++) {
-      var op=ops[j], nx=nums[j+1];
-      if (nx===undefined) break;
-      if (op==='*'||op==='/') { var p=values.pop(); values.push(op==='*'?p*nx:p/nx); }
-      else { pending.push(op); values.push(nx); }
-    }
-    var acc=values[0];
-    for (var m2=0;m2<pending.length;m2++) acc = pending[m2]==='+'?acc+values[m2+1]:acc-values[m2+1];
-    return acc;
+    return evalTokens(tokens);
   }
 
   // Locale-aware separators (used for live grouping while typing).
@@ -574,6 +622,26 @@
     return (neg ? '-' : '') + out;
   }
 
+  // ---------- Link colors ----------
+  // Distinct colors assigned per linked source, to visually group references.
+  var LINK_PALETTE = ['#c9772f','#3f8f6b','#7b5ea7','#b8456b','#3d7bb0','#9a7b1f','#5a8f3d','#b0568f'];
+  var linkColorMap = {};
+  function srcKey(sourceId, sourceTid) { return sourceId + '|' + (sourceTid==null ? '@result' : sourceTid); }
+  function computeLinkColors() {
+    var order = [], seen = {};
+    state.blocks.forEach(function(b){
+      b.terms.forEach(function(t){
+        if (t.type==='linked') {
+          var key = srcKey(t.sourceId, t.sourceTid);
+          if (!seen[key]) { seen[key] = true; order.push(key); }
+        }
+      });
+    });
+    var map = {};
+    order.forEach(function(key, i){ map[key] = LINK_PALETTE[i % LINK_PALETTE.length]; });
+    return map;
+  }
+
   // ---------- Dependents ----------
   function dependentsOf(id) {
     var deps = [];
@@ -591,6 +659,7 @@
     existing.forEach(function(e){ e.remove(); });
     hint.style.display = state.blocks.length ? 'none' : 'block';
     var map = blocksMap();
+    linkColorMap = computeLinkColors();
     state.blocks.forEach(function(b){ canvas.appendChild(renderBlock(b, map)); });
     drawLinks(map);
     updateUndoRedo();
@@ -682,6 +751,14 @@
         expr.appendChild(op);
         return;
       }
+      if (t.type==='paren') {
+        var pp = document.createElement('span');
+        pp.className = 'term paren';
+        pp.textContent = t.value;
+        pp.dataset.idx = idx;
+        expr.appendChild(pp);
+        return;
+      }
       var cell = document.createElement('span');
       cell.className = 'cell';
       var capGet, capSet;
@@ -699,11 +776,16 @@
       if (t.type==='number') {
         span.className = 'term number' + span.className;
         span.textContent = groupDisplay(t.value);
+        var nkey = srcKey(b.id, t.tid);          // colored underline if this input is linked elsewhere
+        if (linkColorMap[nkey]) span.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[nkey];
       } else { // linked
         span.className = 'term linked' + span.className;
         var lv = linkedValue(t, map);
         span.textContent = (lv==null) ? '?' : fmt(lv);
         span.dataset.linked = '1';
+        var lkey = srcKey(t.sourceId, t.sourceTid);
+        var lc = linkColorMap[lkey];
+        if (lc) { span.style.color = lc; span.style.background = lc + '22'; }
       }
       span.dataset.idx = idx;
       cell.appendChild(span);
@@ -728,6 +810,8 @@
       res.textContent = val===null ? '·' : fmt(val);
       res.dataset.result = '1';
       res.dataset.id = b.id;
+      var rkey = srcKey(b.id, null);            // colored underline if this result is linked elsewhere
+      if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[rkey];
       rcell.appendChild(res);
       expr.appendChild(rcell);
     }
@@ -766,10 +850,10 @@
         var dx = Math.abs(x2-x1)*0.4;
         path.setAttribute('d','M '+x1+' '+y1+' C '+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);
         path.setAttribute('fill','none');
-        path.setAttribute('stroke','var(--accent)');
+        path.setAttribute('stroke', linkColorMap[srcKey(t.sourceId, t.sourceTid)] || 'var(--accent)');
         path.setAttribute('stroke-width','1.5');
         path.setAttribute('stroke-dasharray','3 3');
-        path.setAttribute('opacity','0.6');
+        path.setAttribute('opacity','0.75');
         linkLayer.appendChild(path);
       });
     });
@@ -785,6 +869,7 @@
     var parts = [];
     b.terms.forEach(function(t){
       if (t.type==='operator') parts.push(opSym(t.value));
+      else if (t.type==='paren') parts.push(t.value);
       else if (t.type==='number') parts.push(labelOf(t.label) || (t.value===''?'0':t.value));
       else if (t.type==='linked') {
         var src = map[t.sourceId];
@@ -961,6 +1046,74 @@
     }, 'Clear all', true);
   }
 
+  // ---------- Copy / paste ----------
+  // Parse clipboard text into terms (numbers, operators, parens); strips separators.
+  function parseExpression(text) {
+    if (text == null) return [];
+    var s = String(text);
+    s = s.split(NUM_GROUP).join('');
+    if (NUM_DECIMAL !== '.') s = s.split(NUM_DECIMAL).join('.');
+    s = s.replace(/[×✕]/g,'*').replace(/[÷]/g,'/').replace(/[−–—]/g,'-').replace(/,/g,'');
+    var terms = [], i = 0;
+    while (i < s.length) {
+      var c = s.charAt(i);
+      if (/\s/.test(c)) { i++; continue; }
+      if (c==='(' || c===')') { terms.push({ type:'paren', value:c }); i++; continue; }
+      if (c==='+' || c==='*' || c==='/') { terms.push({ type:'operator', value:c }); i++; continue; }
+      if (c==='-') {
+        var prev = terms[terms.length-1];
+        var isSign = !prev || prev.type==='operator' || (prev.type==='paren' && prev.value==='(');
+        if (isSign) {
+          var j=i+1, num='-';
+          while (j<s.length && /[0-9.]/.test(s.charAt(j))) { num+=s.charAt(j); j++; }
+          if (num==='-') { terms.push({ type:'operator', value:'-' }); i++; }
+          else { terms.push(newNumber(num)); i=j; }
+        } else { terms.push({ type:'operator', value:'-' }); i++; }
+        continue;
+      }
+      if (/[0-9.]/.test(c)) {
+        var k2=i, n='';
+        while (k2<s.length && /[0-9.]/.test(s.charAt(k2))) { n+=s.charAt(k2); k2++; }
+        terms.push(newNumber(n)); i=k2; continue;
+      }
+      i++; // skip anything else
+    }
+    return terms;
+  }
+
+  // Plain-text expression for a block (used when copying a result/block).
+  function expressionText(b) {
+    return b.terms.map(function(t){
+      if (t.type==='operator') return t.value;
+      if (t.type==='paren') return t.value;
+      if (t.type==='number') return t.value===''?'0':t.value;
+      if (t.type==='linked') { var lv=linkedValue(t, blocksMap()); return lv==null?'0':String(lv); }
+      return '';
+    }).join(' ');
+  }
+
+  // Text for the current selection (number/linked value, or a block's expression).
+  function currentSelectionText() {
+    if (sel.blockId!=null && sel.termIndex!=null && (sel.kind==='number' || sel.kind==='linked')) {
+      var b=byId(sel.blockId), t=b&&b.terms[sel.termIndex]; if(!t) return null;
+      if (t.type==='number') return t.value===''?'0':t.value;
+      var lv=linkedValue(t, blocksMap()); return lv==null?null:String(lv);
+    }
+    var rb = (sel.kind==='result' && sel.blockId!=null) ? byId(sel.blockId)
+           : (activeBlockId ? byId(activeBlockId) : null);
+    return rb && rb.terms.length ? expressionText(rb) : null;
+  }
+
+  // Insert parsed terms into the active block (or a new one).
+  function pasteText(text) {
+    var terms = parseExpression(text);
+    if (!terms.length) return;
+    var b = ensureActiveBlock(); // snapshots if it creates a block
+    snapshot();
+    terms.forEach(function(t){ b.terms.push(t); });
+    activeBlockId = b.id; clearSel(); renderAll(); save();
+  }
+
   function pressKey(k) {
     // Clear the whole canvas (with confirmation)
     if (k==='clear') { clearCanvas(); return; }
@@ -976,6 +1129,33 @@
       var ab = activeBlockId ? byId(activeBlockId) : null;
       if (ab && ab.terms.length===0) { snapshot(); removeBlock(ab.id); save(); }
       activeBlockId = null; clearSel(); renderAll();
+      return;
+    }
+
+    // ± : toggle the sign of the selected number, else the last number typed
+    if (k==='neg') {
+      var nb_=null, ni=-1;
+      if (sel.kind==='number' && sel.blockId!=null && sel.termIndex!=null) { nb_=byId(sel.blockId); ni=sel.termIndex; }
+      else if (activeBlockId) {
+        var ab2=byId(activeBlockId);
+        if (ab2) for (var z=ab2.terms.length-1; z>=0; z--) { if (ab2.terms[z].type==='number'){ nb_=ab2; ni=z; break; } }
+      }
+      if (nb_ && ni>=0 && nb_.terms[ni] && nb_.terms[ni].type==='number') {
+        snapshot();
+        var nv = nb_.terms[ni].value;
+        nb_.terms[ni].value = (nv.charAt(0)==='-') ? nv.slice(1) : ('-' + (nv===''?'0':nv));
+        renderAll(); save();
+      }
+      return;
+    }
+
+    // Parentheses: append to the active block
+    if (k==='(' || k===')') {
+      var pb = ensureActiveBlock();
+      snapshot();
+      pb.terms.push({ type:'paren', value:k });
+      clearSel(); activeBlockId = pb.id;
+      renderAll(); save();
       return;
     }
 
@@ -1066,7 +1246,7 @@
 
     // digit or dot
     snapshot();
-    if (!last || last.type==='operator' || last.type==='linked') {
+    if (!last || last.type==='operator' || last.type==='linked' || last.type==='paren') {
       terms.push(newNumber(k==='.'?'0.':k));
     } else if (last.type==='number') {
       if (k==='.') { if(last.value.indexOf('.')<0) last.value += (last.value===''?'0.':'.'); }
@@ -1424,7 +1604,32 @@
     document.getElementById('gridToggle').addEventListener('click', function(){
       state.showGrid = !state.showGrid; applyGrid(); save(); closeMenu();
     });
+    document.getElementById('copyItem').addEventListener('click', function(){
+      var t = currentSelectionText();
+      if (t!=null && t!=='' && navigator.clipboard) navigator.clipboard.writeText(t).catch(function(){});
+      closeMenu();
+    });
+    document.getElementById('pasteItem').addEventListener('click', function(){
+      closeMenu();
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(pasteText).catch(function(){});
+      }
+    });
   })();
+
+  // Desktop copy/paste via keyboard (events fire on Cmd/Ctrl+C / +V).
+  document.addEventListener('copy', function(e){
+    var ae = document.activeElement;
+    if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
+    var t = currentSelectionText();
+    if (t!=null && t!=='') { e.clipboardData.setData('text/plain', t); e.preventDefault(); }
+  });
+  document.addEventListener('paste', function(e){
+    var ae = document.activeElement;
+    if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
+    var t = e.clipboardData.getData('text/plain');
+    if (t) { e.preventDefault(); pasteText(t); }
+  });
 
   // physical keyboard support (nice for desktop testing)
   window.addEventListener('keydown', function(e){
@@ -1434,6 +1639,7 @@
     if (k>='0'&&k<='9') pressKey(k);
     else if (k==='.') pressKey('.');
     else if (k==='+'||k==='-'||k==='*'||k==='/') pressKey(k);
+    else if (k==='('||k===')') pressKey(k);
     else if (k==='Backspace') { e.preventDefault(); pressKey('back'); }
     else if (k==='='||k==='Enter') { e.preventDefault(); pressKey('='); }
     else if (k==='Delete') { e.preventDefault(); pressKey('del'); }
