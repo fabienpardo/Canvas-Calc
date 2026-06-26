@@ -822,7 +822,7 @@
         var op = document.createElement('span');
         op.className = 'term operator';
         if (sel.blockId===b.id && sel.termIndex===idx && sel.kind==='operator') op.className += ' sel';
-        op.textContent = ({'+':'+','-':'−','*':'×','/':'÷'})[t.value];
+        op.textContent = opSym(t.value);
         op.dataset.idx = idx;
         expr.appendChild(op);
         return;
