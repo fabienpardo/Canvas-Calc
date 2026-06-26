@@ -91,15 +91,36 @@
   .tbtn[disabled] { opacity: 0.32; }
   .tbtn.txt { font-size: 13px; font-weight: 500; width: auto; padding: 0 10px; }
 
+  /* Overflow menu */
+  .menu-wrap { position: relative; }
+  #menu {
+    position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px;
+    background: var(--block); border: 1px solid var(--block-border);
+    border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    padding: 5px; z-index: 60;
+  }
+  #menu[hidden] { display: none; }
+  .menu-item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    border: none; background: transparent; color: var(--text);
+    font-family: var(--sans); font-size: 14px; text-align: left;
+    padding: 9px 10px; border-radius: var(--radius); cursor: pointer;
+  }
+  .menu-item:active { background: var(--key-active); }
+  .menu-check { width: 16px; color: var(--accent); opacity: 0; }
+  .menu-item[aria-checked="true"] .menu-check { opacity: 1; }
+
   /* Canvas */
   #canvasWrap {
     flex: 1 1 auto; position: relative; overflow: auto;
     background: var(--canvas);
+    -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
+  }
+  #canvasWrap.grid-on {
     background-image:
       linear-gradient(var(--grid) 1px, transparent 1px),
       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
     background-size: 20px 20px;
-    -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
   }
   #canvas {
     position: relative; width: 1600px; height: 2400px; transform-origin: 0 0;
@@ -145,9 +166,10 @@
   /* Per-value captions */
   .cell { display: flex; flex-direction: column; align-items: center; gap: 1px; }
   .cap {
-    font-size: 10px; color: var(--text-dim); line-height: 1.15;
-    max-width: 96px; text-align: center; outline: none;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: 10px; color: var(--text-dim); line-height: 1.2;
+    max-width: 150px; text-align: center; outline: none;
+    overflow-wrap: anywhere; word-break: break-word;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
     border-bottom: 1px dashed transparent;
   }
   .cap:empty { display: none; }
@@ -156,7 +178,7 @@
   }
   .block.active .cap:empty::before, .block.selected .cap:empty::before { content: "+"; }
   .cap:focus {
-    display: block; min-width: 14px; opacity: 1;
+    display: block; min-width: 14px; opacity: 1; -webkit-line-clamp: none;
     border-bottom-color: var(--accent); color: var(--text);
   }
   .block.active .cap:focus:empty::before, .block.selected .cap:focus:empty::before { content: none; }
@@ -318,6 +340,14 @@
     <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
     <button class="tbtn txt" id="sizeBtn" aria-label="Text size">A</button>
     <button class="tbtn" id="clearBtn" aria-label="Clear all">⌫</button>
+    <div class="menu-wrap">
+      <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋯</button>
+      <div id="menu" role="menu" hidden>
+        <button class="menu-item" id="gridToggle" role="menuitemcheckbox" aria-checked="false">
+          <span class="menu-check">✓</span><span>Show grid</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <div id="canvasWrap">
@@ -373,7 +403,7 @@
   "use strict";
 
   // ---------- State ----------
-  var state = { blocks: [], nextId: 1, fontSize: 22, nextTid: 1 };
+  var state = { blocks: [], nextId: 1, fontSize: 22, nextTid: 1, showGrid: false };
   var sel = { blockId: null, termIndex: null, kind: null }; // kind: 'number'|'result'|'linked'
   var activeBlockId = null; // block currently being typed into
   var history = [];
@@ -400,6 +430,7 @@
       if (raw) { var s = JSON.parse(raw); if (s && s.blocks) state = s; }
     } catch (e) {}
     if (!state.fontSize) state.fontSize = 22;
+    if (state.showGrid === undefined) state.showGrid = false;
     ensureTids();
   }
 
@@ -510,13 +541,37 @@
     return acc;
   }
 
+  // Locale-aware separators (used for live grouping while typing).
+  var NUM_GROUP = ',', NUM_DECIMAL = '.';
+  try {
+    new Intl.NumberFormat().formatToParts(11111.1).forEach(function(p){
+      if (p.type==='group') NUM_GROUP = p.value;
+      if (p.type==='decimal') NUM_DECIMAL = p.value;
+    });
+  } catch (e) {}
+  var GROUPED_FMT = (function(){ try { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 10 }); } catch(e){ return null; } })();
+
   function fmt(v) {
     if (v===null||v===undefined) return '';
     if (Number.isNaN(v)) return '—';
     if (!isFinite(v)) return '∞';
     var r = Math.round(v*1e10)/1e10;
+    if (GROUPED_FMT) return GROUPED_FMT.format(r);
     if (Number.isInteger(r)) return String(r);
     return String(parseFloat(r.toFixed(8)));
+  }
+
+  // Group an in-progress raw number string ("1234.5" -> "1,234.5"), preserving a trailing dot.
+  function groupDisplay(raw) {
+    if (raw === '' || raw == null) return '0';
+    var neg = raw.charAt(0)==='-';
+    var s = neg ? raw.slice(1) : raw;
+    var dot = s.indexOf('.');
+    var intPart = dot<0 ? s : s.slice(0, dot);
+    var rest = dot<0 ? '' : s.slice(dot+1); // digits after the decimal, as typed
+    var grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, NUM_GROUP);
+    var out = grouped + (dot<0 ? '' : NUM_DECIMAL + rest);
+    return (neg ? '-' : '') + out;
   }
 
   // ---------- Dependents ----------
@@ -575,8 +630,19 @@
     var cap = document.createElement('span');
     cap.className = 'cap';
     cap.contentEditable = 'true';
-    cap.textContent = getText() || '';
-    cap.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+    var txt = getText() || '';
+    cap.textContent = txt;
+    if (txt) cap.title = txt; // full name on hover when clamped
+    // Single tap edits: focus immediately (don't wait for a second tap to select the block first).
+    cap.addEventListener('pointerdown', function(e){
+      e.stopPropagation();
+      if (document.activeElement !== cap) {
+        e.preventDefault();
+        cap.focus();
+        var r = document.createRange(); r.selectNodeContents(cap); r.collapse(false);
+        var sn = window.getSelection(); sn.removeAllRanges(); sn.addRange(r);
+      }
+    });
     cap.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); cap.blur(); } });
     cap.addEventListener('blur', function(){
       if (getText() !== cap.textContent) { snapshot(); setText(cap.textContent); save(); renderAll(); }
@@ -632,7 +698,7 @@
       if (sel.blockId===b.id && sel.termIndex===idx) span.className = ' sel';
       if (t.type==='number') {
         span.className = 'term number' + span.className;
-        span.textContent = t.value === '' ? '0' : t.value;
+        span.textContent = groupDisplay(t.value);
       } else { // linked
         span.className = 'term linked' + span.className;
         var lv = linkedValue(t, map);
@@ -781,7 +847,7 @@
     document.querySelectorAll('#sidebarBody .var-val[data-kind="input"]').forEach(function(el){
       if (el === document.activeElement) return;
       var b = byId(el.dataset.bid); if (!b) return;
-      var t = b.terms[el.dataset.idx]; if (t) el.value = t.value;
+      var t = b.terms[el.dataset.idx]; if (t) el.value = groupDisplay(t.value);
     });
   }
 
@@ -824,13 +890,24 @@
     name.addEventListener('blur', scheduleSidebarRebuild);
 
     var val = document.createElement('input');
-    val.className = 'var-val'; val.value = it.t.value;
+    val.className = 'var-val'; val.value = groupDisplay(it.t.value); // grouped while unfocused
     val.inputMode = 'decimal';
     val.dataset.bid = it.bid; val.dataset.idx = it.idx; val.dataset.kind = 'input';
-    val.addEventListener('focus', snapshot);
+    val.addEventListener('focus', function(){
+      snapshot();
+      var b = byId(it.bid), t = b && b.terms[it.idx];
+      if (t) val.value = t.value; // show raw for editing
+    });
     val.addEventListener('input', function(){
       var b = byId(it.bid); if (!b) return;
-      var t = b.terms[it.idx]; if (t) { t.value = val.value; save(); renderAll(); }
+      var t = b.terms[it.idx]; if (!t) return;
+      t.value = val.value.split(NUM_GROUP).join('').split(NUM_DECIMAL).join('.'); // strip separators
+      save(); renderAll();
+    });
+    val.addEventListener('blur', function(){
+      var b = byId(it.bid), t = b && b.terms[it.idx];
+      if (t) val.value = groupDisplay(t.value);
+      scheduleSidebarRebuild();
     });
 
     row.appendChild(name); row.appendChild(val);
@@ -1326,6 +1403,29 @@
     sb.classList.remove('open'); sb.setAttribute('aria-hidden', 'true');
   };
 
+  // ---------- Overflow menu ----------
+  function applyGrid() {
+    document.getElementById('canvasWrap').classList.toggle('grid-on', !!state.showGrid);
+    var gt = document.getElementById('gridToggle');
+    gt.setAttribute('aria-checked', state.showGrid ? 'true' : 'false');
+  }
+  (function(){
+    var menuBtn = document.getElementById('menuBtn');
+    var menu = document.getElementById('menu');
+    function openMenu(){ menu.hidden = false; menuBtn.setAttribute('aria-expanded','true'); }
+    function closeMenu(){ menu.hidden = true; menuBtn.setAttribute('aria-expanded','false'); }
+    menuBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if (menu.hidden) openMenu(); else closeMenu();
+    });
+    document.addEventListener('pointerdown', function(e){
+      if (!menu.hidden && !e.target.closest('.menu-wrap')) closeMenu();
+    });
+    document.getElementById('gridToggle').addEventListener('click', function(){
+      state.showGrid = !state.showGrid; applyGrid(); save(); closeMenu();
+    });
+  })();
+
   // physical keyboard support (nice for desktop testing)
   window.addEventListener('keydown', function(e){
     var ae = document.activeElement;
@@ -1345,7 +1445,7 @@
   var lastTouch=0;
   document.addEventListener('touchend', function(e){
     // never swallow taps on interactive controls (keypad, toolbar buttons)
-    if (e.target.closest && e.target.closest('.key, .tbtn, #padToggle, #toast button')) { lastTouch=Date.now(); return; }
+    if (e.target.closest && e.target.closest('.key, .tbtn, #padToggle, #toast button, .menu-item')) { lastTouch=Date.now(); return; }
     var now=Date.now(); if(now-lastTouch<300) e.preventDefault(); lastTouch=now;
   }, {passive:false});
 
@@ -1355,6 +1455,7 @@
     var i=FONT_SIZES.indexOf(state.fontSize); if(i<0){i=1;state.fontSize=22;}
     document.getElementById('sizeBtn').style.fontSize=(12+i*2)+'px';
   }
+  applyGrid();
   renderAll();
 })();
 
