@@ -32,6 +32,17 @@
       if (Object.prototype.hasOwnProperty.call(result, 'activeBlockId')) deps.setActiveBlockId(result.activeBlockId);
     }
 
+    function linkedSourceNumber(term) {
+      if (!term || term.type !== 'linked' || term.sourceTid == null) return null;
+      var src = deps.byId(term.sourceId);
+      if (!src) return null;
+      for (var i = 0; i < src.terms.length; i++) {
+        var candidate = src.terms[i];
+        if (candidate.type === 'number' && candidate.tid === term.sourceTid) return candidate;
+      }
+      return null;
+    }
+
     // Remove a term and move the selection to the previous one (backspace chain).
     function deleteTermAndSelectPrev(b, idx) {
       applyEditSelection(Editing.deleteTermAndSelectPrev(b, idx));
@@ -99,20 +110,27 @@
         return;
       }
 
-      // ± : toggle the sign of the selected number, else the last number typed
+      // ± : toggle the selected number/link source, else the last number typed
       if (k === 'neg') {
         var nSel = deps.getSelection();
-        var nb_ = null, ni = -1;
-        if (nSel.kind === 'number' && nSel.blockId != null && nSel.termIndex != null) { nb_ = deps.byId(nSel.blockId); ni = nSel.termIndex; }
-        else {
+        var nt = null, nb_ = null, ni = -1;
+        if (nSel.blockId != null && nSel.termIndex != null) {
+          nb_ = deps.byId(nSel.blockId);
+          ni = nSel.termIndex;
+          if (nb_ && nb_.terms[ni]) {
+            if (nSel.kind === 'number' && nb_.terms[ni].type === 'number') nt = nb_.terms[ni];
+            else if (nSel.kind === 'linked') nt = linkedSourceNumber(nb_.terms[ni]);
+          }
+          if (!nt) return;
+        } else {
           var nActive = deps.getActiveBlockId();
           if (nActive) {
             var ab2 = deps.byId(nActive);
-            if (ab2) for (var z = ab2.terms.length - 1; z >= 0; z--) { if (ab2.terms[z].type === 'number') { nb_ = ab2; ni = z; break; } }
+            if (ab2) for (var z = ab2.terms.length - 1; z >= 0; z--) { if (ab2.terms[z].type === 'number') { nt = ab2.terms[z]; break; } }
           }
         }
-        if (nb_ && ni >= 0 && nb_.terms[ni] && nb_.terms[ni].type === 'number') {
-          deps.commit(function () { Editing.toggleNumberSign(nb_.terms[ni]); });
+        if (nt) {
+          deps.commit(function () { Editing.toggleNumberSign(nt); });
         }
         return;
       }

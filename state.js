@@ -24,6 +24,11 @@
     return (isFinite(n) && n > 0) ? n : fallback;
   }
 
+  function fontSize(v) {
+    v = positiveInt(v, 22);
+    return (v === 18 || v === 22 || v === 28) ? v : 22;
+  }
+
   function cloneData(input) {
     if (!input || typeof input !== 'object') return input;
     return JSON.parse(JSON.stringify(input));
@@ -82,7 +87,7 @@
         }],
         activeCanvasId: 'c1',
         nextCanvasId: 2,
-        fontSize: s.fontSize || 22,
+        fontSize: fontSize(s.fontSize),
         showGrid: !!s.showGrid
       };
     }
@@ -101,7 +106,7 @@
       state.nextCanvasId = Math.max(state.nextCanvasId, idNumber(c.id, 'c') + 1);
     }
     c.zoom = positiveNumber(c.zoom, 1);
-    if (!c.title) c.title = 'Canvas';
+    if (typeof c.title !== 'string' || !c.title) c.title = 'Canvas';
     if (!Array.isArray(c.blocks)) c.blocks = [];
     var usedBlockIds = {};
     c.blocks = c.blocks.filter(function (b) { return b && typeof b === 'object'; });
@@ -153,8 +158,8 @@
     if (!state.activeCanvasId || !state.canvases.some(function (c) { return c.id === state.activeCanvasId; })) {
       state.activeCanvasId = state.canvases[0].id;
     }
-    if (!state.fontSize) state.fontSize = 22;
-    if (state.showGrid === undefined) state.showGrid = false;
+    state.fontSize = fontSize(state.fontSize);
+    state.showGrid = !!state.showGrid;
     ensureTids(state);
     return state;
   }

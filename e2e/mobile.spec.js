@@ -1,12 +1,12 @@
 const { test, expect, devices } = require('@playwright/test');
-const { fresh, press, type, lastBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
 
 // Run this file under a mobile (touch, narrow-viewport) profile.
 test.use({ ...devices['Pixel 7'] });
 
 test('mobile: create a block and evaluate', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '6 * 7');
   await expect(lastBlock(page).locator('.result')).toHaveText('42');
 });

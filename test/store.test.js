@@ -48,7 +48,7 @@ test('commit can opt out of snapshot and save (selection-only redraw)', () => {
   assert.deepEqual(log, { snapshot: 0, render: 1, save: 0 });
 });
 
-test('commit always re-renders even when mutate throws is not swallowed', () => {
+test('commit does not swallow mutation errors or render/save after them', () => {
   const { store, log } = make();
   assert.throws(() => store.commit(() => { throw new Error('boom'); }));
   assert.deepEqual(log, { snapshot: 1, render: 0, save: 0 }); // render/save skipped on throw

@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- maximum-scale/user-scalable disable the browser's own zoom (incl. iOS's
+     auto-zoom when focusing a sub-16px field, which left users stranded since
+     the canvas uses touch-action:none). The app owns zoom via its own pinch
+     handler and zoom controls. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a1714">
 <link rel="manifest" href="manifest.webmanifest">
@@ -49,9 +53,13 @@
     <div id="canvasSizer">
       <div id="canvas">
         <svg id="linkLayer"></svg>
-        <div id="hint">Tap the + button to start a calculation,<br>or just type on the keypad below.</div>
         <button id="addBtn" aria-label="Add calculation">+</button>
       </div>
+    </div>
+    <div id="hint">
+      <div class="hint-mark">+</div>
+      <div class="hint-title">Start a calculation</div>
+      <div class="hint-sub">Tap <b>+</b> to add a block, or just type on the keypad below.</div>
     </div>
   </div>
 
@@ -98,6 +106,7 @@
 </div>
 
 <div id="ghost"></div>
+<div id="saveWarning" role="status" aria-live="polite">Changes may not be saved on this device.</div>
 <div id="scrim"></div>
 <div id="toast" role="dialog" aria-modal="true" aria-labelledby="toastMsg">
   <p id="toastMsg"></p>

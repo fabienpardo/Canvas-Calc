@@ -42,10 +42,22 @@
 
   // ---------- Persistence ----------
   var saveTimer = null;
+  var saveFailed = false;
+  var saveWarning = document.getElementById('saveWarning');
+  function setSaveFailed(failed) {
+    if (saveFailed === failed) return;
+    saveFailed = failed;
+    if (saveWarning) saveWarning.style.display = failed ? 'block' : 'none';
+  }
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
-      try { localStorage.setItem('canvascalc.v1', JSON.stringify(state)); } catch (e) {}
+      try {
+        localStorage.setItem('canvascalc.v1', JSON.stringify(state));
+        setSaveFailed(false);
+      } catch (e) {
+        setSaveFailed(true);
+      }
     }, 400);
   }
   function load() {
@@ -116,6 +128,7 @@
     linkedSource: linkedSource,
     linkedValue: linkedValue,
     resolve: resolve,
+    isComplete: E.isComplete,
     fmt: fmt,
     groupDisplay: groupDisplay,
     opSym: opSym,
@@ -212,7 +225,9 @@
   // The "+ add" button sits below the lowest block, and hides while editing.
   function positionAddBtn() {
     var btn = document.getElementById('addBtn');
-    if (store.getActiveBlockId()) { btn.style.display = 'none'; return; }
+    // Hidden while editing, and on an empty canvas (the hint card's "+" adds the
+    // first block there instead of a redundant button floating top-left).
+    if (store.getActiveBlockId() || !cur().blocks.length) { btn.style.display = 'none'; return; }
     btn.style.display = 'flex';
     var pt = slotBelow(lowestBlock());
     btn.style.left = pt.x + 'px';
@@ -293,12 +308,25 @@
   // ---------- Toast / confirm ----------
   function confirmDialog(msg, onYes, yesLabel, danger) {
     var t=document.getElementById('toast'), sc=document.getElementById('scrim');
+    var prevFocus = document.activeElement;
     document.getElementById('toastMsg').textContent = msg;
     var row=document.getElementById('toastRow'); row.innerHTML='';
     var cancel=document.createElement('button'); cancel.textContent='Cancel';
     var ok=document.createElement('button'); ok.textContent=yesLabel||'OK'; if(danger) ok.className='danger';
-    function close(){ t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true); }
-    function onKey(e){ if(e.key==='Escape'){ e.preventDefault(); close(); } }
+    function close(){
+      t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true);
+      if (prevFocus && prevFocus.focus) prevFocus.focus();
+    }
+    function onKey(e){
+      if(e.key==='Escape'){ e.preventDefault(); close(); return; }
+      if(e.key==='Tab'){
+        var buttons = [cancel, ok];
+        var curIdx = buttons.indexOf(document.activeElement);
+        if (curIdx < 0) return;
+        e.preventDefault();
+        buttons[(curIdx + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
+      }
+    }
     cancel.onclick=function(){ close(); };
     ok.onclick=function(){ close(); onYes(); };
     row.appendChild(cancel); row.appendChild(ok);
@@ -363,6 +391,12 @@
   });
 
   // ---------- Add-calculation button ----------
+  function addBlockAt(x, y) {
+    store.commit(function(){
+      var nb = newBlock(snap(x), snap(y));
+      store.setActiveBlockId(nb.id); store.clearSelection();
+    });
+  }
   (function(){
     var btn = document.getElementById('addBtn');
     btn.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
@@ -370,11 +404,15 @@
       e.stopPropagation();
       var x = parseInt(btn.style.left,10); if (isNaN(x)) x = 40;
       var y = parseInt(btn.style.top,10);  if (isNaN(y)) y = 30;
-      store.commit(function(){
-        var nb = newBlock(snap(x), snap(y));
-        store.setActiveBlockId(nb.id); store.clearSelection();
-      });
+      addBlockAt(x, y);
     });
+    // On an empty canvas the toolbar add-button is hidden and the hint card's
+    // "+" mark is the add control instead (see positionAddBtn).
+    var hintMark = document.querySelector('.hint-mark');
+    if (hintMark) {
+      hintMark.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+      hintMark.addEventListener('click', function(e){ e.stopPropagation(); addBlockAt(40, 30); });
+    }
   })();
 
   // ---------- Numpad ----------

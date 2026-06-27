@@ -21,29 +21,24 @@
 3. **E2E smoke (few)** — a real browser for touch geometry the unit tests can't
    reach: drag, drag-to-link drop accuracy, pinch/zoom math, scrolling.
 
-## Enabling step (required, small): extract a pure engine
+## Core structure: pure modules
 
-Today all logic lives in one IIFE inside `index.html`, so the functions can't be
-imported. The one structural change this strategy needs is to pull the **no-DOM**
-logic into `engine.js`:
+The no-DOM logic is split into importable browser/Node modules, so the same files
+run in the shipped app and under `node --test`:
 
-- `index.html` loads it with `<script src="engine.js"></script>` (no build step),
-  and it's added to the SW precache list.
-- A small UMD tail (`if (typeof module!=='undefined') module.exports = …; else
-  window.CanvasEngine = …;`) lets the *same file* run in the browser and under
-  `node --test`.
+- `engine.js`, `state.js`, `editing.js`, `input.js`, `history.js`, and `store.js`
+  use a small UMD tail (`if (typeof module !== 'undefined') module.exports = …;
+  else window.CanvasX = …`).
+- `index.html` loads those modules with `<script>` tags (no build step), and
+  `sw.js` precaches them.
 
-This is deliberately **only the pure engine**, not the full module split the
-reviewer suggested — it's small, low-risk, and unlocks ~70% of the value.
-
-**Engine surface (pure — no `document`/`window`):**
+**Engine surface (pure; no `document`/`window`):**
 - `tokenize(block, map, stack)`, `evalTokens(tokens)`, `resolve(block, map)`
 - `fmt(v)`, `groupDisplay(raw)`, `parseExpression(text)`
 - `createsCycle(...)`, `blockDefinition(block, map)`, `linkedValue/linkedSource`,
   `findTermByTid`
-- term constructors (`newNumber`, …) and `deleteTermAndSelectPrev` reworked to
-  operate on a passed-in block/array (return the new selection) instead of
-  touching module globals.
+- editing reducers operate on passed-in blocks/arrays and return selection
+  changes instead of touching module globals.
 
 **Determinism note:** locale separators are read from `Intl` at runtime. Make
 them injectable (pass `{group, decimal}`, default `,`/`.`) so formatting tests
@@ -59,6 +54,15 @@ don't depend on the CI machine's locale.
   a block drag, simulate two-pointer pinch.
 - **CI:** GitHub Actions — `node --test` on every push/PR (fast, required);
   Playwright as a separate, optional job.
+
+## Local commands
+
+```bash
+npm ci
+npm test
+npx playwright install chromium
+npm run test:e2e
+```
 
 ## Unit test catalog (the core)
 
@@ -82,7 +86,8 @@ don't depend on the CI machine's locale.
 ### Clipboard parsing (`parseExpression`)
 - `"1,234 + 5*(2)"` → terms → evaluates to `1244`
 - Glyph normalization `× ÷ −`; sign-minus vs operator-minus; strips group
-  separators; ignores junk characters
+  separators; rejects unsupported or malformed pasted text instead of silently
+  skipping characters
 
 ### Model mutations
 - Backspace chain: `55 → 5 → 0(empty) → deleted → prev operator → deleted → prev number`
@@ -108,10 +113,10 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 ## Status
 
 ### Implemented
-- **Unit (`node --test`, 61 tests):** `test/engine.test.js` — evaluation
+- **Unit (`node --test`):** `test/engine.test.js` — evaluation
   (precedence, parens, division, negatives, tolerant states, div-by-zero,
   linked cascade, number-term links, cycle detection incl. indirect +
-  number-link exemption, missing-source), formatting, clipboard parsing,
+  number-link exemption, missing-source), formatting, strict clipboard parsing,
   definitions; `test/state.test.js` — saved-state migration, normalization,
   id repair, lookups; `test/editing.test.js` — expression editing reducers
   (selected insertion, operator replacement, backspace chain, linked unlink,
@@ -124,7 +129,8 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   `test/sw.test.js` — service-worker
   precache (incl. `app.js`, `state.js`, `engine.js`, `render.js`,
   `interactions.js`, `canvases.js`, `editing.js`, `input.js`, `history.js`, and
-  `store.js`), `res.ok` guard, non-GET ignored, old-cache cleanup.
+  `store.js`), asset-revision hash guard, `res.ok` guard, non-GET ignored,
+  old-cache cleanup.
 - **E2E (Playwright, 44 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, sidebar inline
@@ -142,12 +148,9 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   - `e2e/mobile.spec.js` — mobile (Pixel 7) smoke + viewport fit.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
-### Planned
-- Extract undo/redo history into a module with focused unit tests.
-- Split the remaining toolbar/overflow/keypad event wiring out of `index.html`
-  once the editing controller boundary settles.
-
 ### Backlog (nice to have)
+- Split the variables sidebar out of `render.js` if future UI work makes that
+  module painful to change.
 - Make `fmt` separators injectable (today only `groupDisplay`/`parseExpression`
   are; `fmt` uses `Intl` with the runtime locale — tests read `NUM_GROUP` to stay
   robust, but decimals/spaces could still vary across environments).

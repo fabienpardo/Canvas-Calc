@@ -148,10 +148,31 @@ test('parseExpression: sign minus vs operator minus', () => {
   assert.equal(evalExpr(E.parseExpression('10 - 3', ',', '.')), 7);
   assert.equal(evalExpr(E.parseExpression('-5 + 2', ',', '.')), -3);
   assert.equal(evalExpr(E.parseExpression('(-5)', ',', '.')), -5);
+  assert.equal(evalExpr(E.parseExpression('-(2 + 3)', ',', '.')), -5);
 });
 
-test('parseExpression: ignores junk characters', () => {
-  assert.equal(evalExpr(E.parseExpression('abc 5', ',', '.')), 5);
+test('parseExpression: unary minus before parens keeps grouping after * and /', () => {
+  assert.equal(evalExpr(E.parseExpression('10 / -(2 + 3)', ',', '.')), -2);
+  assert.equal(evalExpr(E.parseExpression('6 * -(1 + 2)', ',', '.')), -18);
+  assert.equal(evalExpr(E.parseExpression('12 / -(2) / -(3)', ',', '.')), 2);
+  assert.equal(evalExpr(E.parseExpression('-(4 + -(1 + 1))', ',', '.')), -2);
+});
+
+test('isComplete: a block shows a result only past a bare value / mid-entry', () => {
+  assert.equal(E.isComplete([]), false);
+  assert.equal(E.isComplete([num(5)]), false);              // lone literal number
+  assert.equal(E.isComplete([num(5), op('+')]), false);     // trailing operator
+  assert.equal(E.isComplete([num(5), op('+'), num(5)]), true);
+  assert.equal(E.isComplete([num(5), op('+'), par('(')]), false); // open paren tail
+  assert.equal(E.isComplete([linkResult('a')]), true);      // lone alias keeps its result
+});
+
+test('parseExpression: rejects unsupported or malformed pasted text', () => {
+  assert.deepEqual(E.parseExpression('abc 5', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('2(3+4)', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('1e3 + 2', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('1..2 + 3', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('5 +', ',', '.'), []);
   assert.deepEqual(E.parseExpression('', ',', '.'), []);
 });
 

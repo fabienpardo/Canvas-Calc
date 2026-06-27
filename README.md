@@ -48,6 +48,17 @@ On desktop, the number keys, operators, `.`, `(`, `)`, `=`/Enter, Backspace,
 Cmd/Ctrl+C/V (copy/paste), and Cmd/Ctrl+Z (Shift for redo) all work for quick
 testing.
 
+## Run tests
+
+```bash
+npm ci
+npm test
+npx playwright install chromium
+npm run test:e2e
+```
+
+CI installs the browser dependencies for Playwright automatically.
+
 ## Deploy to GitHub Pages
 
 1. Create a repo and push the contents of this folder to the root (or to a
@@ -63,11 +74,11 @@ subpath.
 
 ## Updating
 
-The service worker (`sw.js`) precaches the app shell with a version string at the
-top, like `const CACHE = 'canvas-calc-v10';`. When you change any file, bump that
-version (`v10`, `v11`, ...) so returning visitors get the new build instead of the
-cached one. (Navigations are network-first, so HTML updates land without a bump;
-bumping guarantees cached assets refresh too.)
+The service worker (`sw.js`) precaches the app shell with `ASSET_REVISION` in the
+cache name. `test/sw.test.js` verifies that revision against the current cached
+asset contents, so `npm test` will fail if a cached file changes without updating
+the revision. Navigations are network-first; the revision guarantees cached JS,
+CSS, icons, and manifest assets refresh too.
 
 ## Files
 

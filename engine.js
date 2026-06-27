@@ -111,6 +111,19 @@
     return parseExpr();
   }
 
+  // A block shows a result once it represents more than a bare value and isn't
+  // mid-entry. So "5" and "5 +" show nothing; "5 + 5" does. A lone *linked*
+  // reference keeps its result on purpose — it's an alias, and that result is
+  // the handle used to chain further references off it.
+  function isComplete(terms) {
+    if (!terms || !terms.length) return false;
+    var last = terms[terms.length - 1];
+    if (last.type === 'operator') return false;                 // trailing operator: still typing
+    if (last.type === 'paren' && last.value === '(') return false;
+    if (terms.length === 1 && terms[0].type === 'number') return false; // bare literal, not a calc
+    return true;
+  }
+
   function resolve(block, map, stack) {
     stack = stack || {};
     if (stack[block.id]) return null; // cycle
@@ -193,8 +206,34 @@
   }
 
   // ---------- Clipboard parsing ----------
-  // Parse text into terms (numbers, operators, parens); strips separators.
-  // Number terms come back WITHOUT a tid — the caller assigns one when inserting.
+  function normalizeParsedNumber(raw) {
+    if (raw.charAt(0) === '.') return '0' + raw;
+    if (raw.slice(0, 2) === '-.') return '-0' + raw.slice(1);
+    return raw;
+  }
+
+  function readNumber(s, i, sign) {
+    var start = i, n = sign || '', dots = 0, digits = 0;
+    while (i < s.length && /[0-9.]/.test(s.charAt(i))) {
+      var c = s.charAt(i);
+      if (c === '.') dots++;
+      else digits++;
+      if (dots > 1) return null;
+      n += c; i++;
+    }
+    if (!digits) return null;
+    return { term: { type: 'number', value: normalizeParsedNumber(n) }, next: i, start: start };
+  }
+
+  function nextNonSpace(s, i) {
+    while (i < s.length && /\s/.test(s.charAt(i))) i++;
+    return s.charAt(i);
+  }
+
+  // Parse pasted text into terms (numbers, operators, parens); strips separators.
+  // Paste parsing is strict: unsupported syntax returns [] instead of silently
+  // creating a plausible-looking wrong calculation. Number terms come back
+  // WITHOUT a tid — the caller assigns one when inserting.
   function parseExpression(text, group, decimal) {
     group = group == null ? NUM_GROUP : group;
     decimal = decimal == null ? NUM_DECIMAL : decimal;
@@ -203,30 +242,52 @@
     s = s.split(group).join('');
     if (decimal !== '.') s = s.split(decimal).join('.');
     s = s.replace(/[×✕]/g, '*').replace(/[÷]/g, '/').replace(/[−–—]/g, '-').replace(/,/g, '');
-    var terms = [], i = 0;
+    var terms = [], i = 0, expectOperand = true, depth = 0, wrapClose = [], pendingWrap = false;
     while (i < s.length) {
       var c = s.charAt(i);
       if (/\s/.test(c)) { i++; continue; }
-      if (c === '(' || c === ')') { terms.push({ type: 'paren', value: c }); i++; continue; }
-      if (c === '+' || c === '*' || c === '/') { terms.push({ type: 'operator', value: c }); i++; continue; }
+      if (c === '(') {
+        if (!expectOperand) return [];
+        terms.push({ type: 'paren', value: c }); depth++;
+        wrapClose.push(pendingWrap); pendingWrap = false; i++; continue;
+      }
+      if (c === ')') {
+        if (expectOperand || depth <= 0) return [];
+        terms.push({ type: 'paren', value: c }); depth--;
+        // Close the synthetic group that wrapped a unary minus before '(' so the
+        // negation binds to the whole parenthesised value (e.g. 10 / -(2+3)).
+        if (wrapClose.length && wrapClose.pop()) { terms.push({ type: 'paren', value: c }); depth--; }
+        i++; expectOperand = false; continue;
+      }
+      if (c === '+' || c === '*' || c === '/') {
+        if (expectOperand) return [];
+        terms.push({ type: 'operator', value: c }); i++; expectOperand = true; continue;
+      }
       if (c === '-') {
-        var prev = terms[terms.length - 1];
-        var isSign = !prev || prev.type === 'operator' || (prev.type === 'paren' && prev.value === '(');
-        if (isSign) {
-          var j = i + 1, num = '-';
-          while (j < s.length && /[0-9.]/.test(s.charAt(j))) { num += s.charAt(j); j++; }
-          if (num === '-') { terms.push({ type: 'operator', value: '-' }); i++; }
-          else { terms.push({ type: 'number', value: num }); i = j; }
-        } else { terms.push({ type: 'operator', value: '-' }); i++; }
+        if (expectOperand && nextNonSpace(s, i + 1) === '(') {
+          // Rewrite -( ... ) as ( -1 * ( ... ) ) to preserve grouping/precedence.
+          terms.push({ type: 'paren', value: '(' }, { type: 'number', value: '-1' }, { type: 'operator', value: '*' });
+          depth++; pendingWrap = true; i++; continue;
+        }
+        if (expectOperand) {
+          var signed = readNumber(s, i + 1, '-');
+          if (!signed) return [];
+          terms.push(signed.term); i = signed.next; expectOperand = false;
+        } else {
+          terms.push({ type: 'operator', value: '-' }); i++; expectOperand = true;
+        }
         continue;
       }
       if (/[0-9.]/.test(c)) {
-        var k2 = i, n = '';
-        while (k2 < s.length && /[0-9.]/.test(s.charAt(k2))) { n += s.charAt(k2); k2++; }
-        terms.push({ type: 'number', value: n }); i = k2; continue;
+        if (!expectOperand) return [];
+        var parsed = readNumber(s, i, '');
+        if (!parsed) return [];
+        terms.push(parsed.term); i = parsed.next; expectOperand = false; continue;
       }
-      i++; // skip anything else
+      return [];
     }
+    if (expectOperand && terms.length) return [];
+    if (depth !== 0) return [];
     return terms;
   }
 
@@ -235,6 +296,7 @@
     findTermByTid: findTermByTid,
     linkedValue: linkedValue, linkedSource: linkedSource,
     tokenize: tokenize, evalTokens: evalTokens, resolve: resolve,
+    isComplete: isComplete,
     createsCycle: createsCycle,
     fmt: fmt, groupDisplay: groupDisplay,
     opSym: opSym, labelOf: labelOf, blockDefinition: blockDefinition,

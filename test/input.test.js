@@ -144,6 +144,37 @@ test('currentSelectionText returns the selected number, else the active block ex
   assert.equal(h.ctl.currentSelectionText(), '9 + 1');
 });
 
+test('plus-minus toggles a selected linked source number, not the active fallback', () => {
+  const h = harness();
+  const src = h.canvas.blocks[0] = {
+    id: 'b1',
+    x: 0,
+    y: 0,
+    label: '',
+    terms: [
+      { type: 'number', value: '58', tid: 't1' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '76', tid: 't2' }
+    ]
+  };
+  const dst = h.canvas.blocks[1] = {
+    id: 'b2',
+    x: 0,
+    y: 0,
+    label: '',
+    terms: [
+      { type: 'linked', sourceId: src.id, sourceTid: 't1' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '2554', tid: 't3' }
+    ]
+  };
+  h.state.activeBlockId = dst.id;
+  h.state.sel = { blockId: dst.id, termIndex: 0, kind: 'linked' };
+  h.ctl.pressKey('neg');
+  assert.equal(src.terms[0].value, '-58');
+  assert.equal(dst.terms[2].value, '2554');
+});
+
 test('backspace clears a selected number, then deletes it, stepping left', () => {
   const h = harness();
   ['4', '2', '+', '7'].forEach((k) => h.ctl.pressKey(k));

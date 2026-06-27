@@ -52,7 +52,7 @@
         parts.push('l', t.sourceId, t.sourceTid == null ? '@' : t.sourceTid, lbl || '',
           lv == null ? '?' : lv, linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || '');
       });
-      if (b.terms.length) {
+      if (deps.isComplete(b.terms)) {
         var val = deps.resolve(b, map);
         parts.push('=', val == null ? '·' : val, linkColorMap[deps.srcKey(b.id, null)] || '');
       }
@@ -76,7 +76,7 @@
 
     function renderAll() {
       if (cur().id !== lastCanvasId) { resetBlocks(); lastCanvasId = cur().id; }
-      deps.hint.style.display = cur().blocks.length ? 'none' : 'block';
+      deps.hint.style.display = cur().blocks.length ? 'none' : '';
       var map = deps.blocksMap();
       linkColorMap = computeLinkColors();
 
@@ -150,6 +150,7 @@
       var el = doc.createElement('div');
       var selection = sel();
       el.className = 'block';
+      if (!b.terms.length) el.className += ' empty-draft';
       if (selection.blockId===b.id && selection.kind==='result') el.className += ' selected';
       if (deps.getActiveBlockId()===b.id) el.className += ' active';
       el.style.left = b.x + 'px';
@@ -212,14 +213,27 @@
           span.dataset.linked = '1';
           var lkey = deps.srcKey(t.sourceId, t.sourceTid);
           var lc = linkColorMap[lkey];
-          if (lc) { span.style.color = lc; span.style.background = lc + '22'; }
+          if (lc) {
+            span.style.color = lc;
+            span.style.background = lc + '1f';
+            span.style.boxShadow = 'inset 0 0 0 1px ' + lc + '59';
+          }
         }
         span.dataset.idx = idx;
         cell.appendChild(span);
         expr.appendChild(cell);
       });
 
-      if (b.terms.length) {
+      // Caret at the live input position when free-typing into the active block
+      // (no specific term tapped), so the eye lands on the operand being entered
+      // rather than the bright result chip that follows.
+      if (deps.getActiveBlockId()===b.id && sel().blockId !== b.id && b.terms.length) {
+        var caret = doc.createElement('span');
+        caret.className = 'expr-caret';
+        expr.appendChild(caret);
+      }
+
+      if (deps.isComplete(b.terms)) {
         var val = deps.resolve(b, map);
         var eq = doc.createElement('span'); eq.className='eq'; eq.textContent='=';
         expr.appendChild(eq);
@@ -276,15 +290,25 @@
           var y1 = src.y + so.y + srcRes.offsetHeight/2;
           var x2 = b.x + to.x + dstTerm.offsetWidth/2;
           var y2 = b.y + to.y + dstTerm.offsetHeight/2;
-          var path = doc.createElementNS('http://www.w3.org/2000/svg','path');
+          var svgNS = 'http://www.w3.org/2000/svg';
+          var col = linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || 'var(--accent)';
+          var path = doc.createElementNS(svgNS,'path');
           var dx = Math.abs(x2-x1)*0.4;
           path.setAttribute('d','M '+x1+' '+y1+' C '+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);
           path.setAttribute('fill','none');
-          path.setAttribute('stroke', linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || 'var(--accent)');
-          path.setAttribute('stroke-width','1.5');
-          path.setAttribute('stroke-dasharray','3 3');
-          path.setAttribute('opacity','0.75');
+          path.setAttribute('stroke', col);
+          path.setAttribute('stroke-width','2');
+          path.setAttribute('stroke-linecap','round');
+          path.setAttribute('stroke-dasharray','0.1 6');
+          path.setAttribute('opacity','0.8');
           deps.linkLayer.appendChild(path);
+          // Solid endpoint dots anchor the dotted link to its source and target.
+          [[x1,y1,2.5],[x2,y2,3]].forEach(function(p){
+            var dot = doc.createElementNS(svgNS,'circle');
+            dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('r', p[2]);
+            dot.setAttribute('fill', col);
+            deps.linkLayer.appendChild(dot);
+          });
         });
       });
     }
@@ -295,7 +319,7 @@
         b.terms.forEach(function(t, idx){
           if (t.type==='number') inputs.push({ bid:b.id, idx:idx, t:t });
         });
-        if (b.terms.length) results.push(b);
+        if (deps.isComplete(b.terms)) results.push(b);
       });
       return { inputs:inputs, results:results };
     }
@@ -306,6 +330,9 @@
       var h = deps.numpad.classList.contains('hidden') ? 0 : deps.numpad.offsetHeight;
       deps.sidebar.style.bottom = h + 'px';
       deps.zoomCtl.style.bottom = (h + 10) + 'px';
+      // The empty-canvas hint is a band over the visible canvas (toolbar to
+      // keypad), so its contents centre in the space the user actually sees.
+      if (deps.hint) deps.hint.style.bottom = h + 'px';
     }
 
     function syncSidebar() {

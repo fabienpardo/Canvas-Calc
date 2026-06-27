@@ -28,7 +28,9 @@
 
     function flashCycle(){
       deps.confirmDialog('Can\u2019t link these \u2014 it would create a loop where a result depends on itself.', function(){}, 'Got it');
-      doc.getElementById('toastRow').firstChild.style.display='none';
+      var row = doc.getElementById('toastRow');
+      row.firstChild.style.display='none';
+      row.lastChild.focus();
     }
 
     deps.wrap.addEventListener('pointerdown', function(e){

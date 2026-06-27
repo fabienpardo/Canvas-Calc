@@ -29,8 +29,9 @@
     // Apply a model mutation, then the standard render/save policy.
     //   opts.snapshot (default true): push an undo step before mutating.
     //   opts.save     (default true): persist after mutating.
-    // The view is always re-rendered. Pass {snapshot:false, save:false} for a
-    // selection-only change that needs a redraw but no history/persistence.
+    // If mutate() throws, the error is not swallowed and render/save are skipped.
+    // Pass {snapshot:false, save:false} for a selection-only change that needs a
+    // redraw but no history/persistence.
     function commit(mutate, opts) {
       opts = opts || {};
       if (opts.snapshot !== false) deps.snapshot();
