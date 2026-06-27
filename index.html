@@ -7,7 +7,7 @@
      the canvas uses touch-action:none). The app owns zoom via its own pinch
      handler and zoom controls. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#1a1714">
+<meta name="theme-color" content="#f8fafc">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -27,11 +27,9 @@
       </button>
       <div id="canvasMenu" hidden></div>
     </div>
-    <button class="tbtn txt" id="varsBtn" aria-label="Variables">𝑥</button>
+    <button class="tbtn txt" id="varsBtn" aria-label="Variables" aria-pressed="false">𝑥</button>
     <button class="tbtn" id="undoBtn" aria-label="Undo">↶</button>
     <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
-    <button class="tbtn txt" id="sizeBtn" aria-label="Text size">A</button>
-    <button class="tbtn" id="clearBtn" aria-label="Clear all">⌫</button>
     <div class="menu-wrap">
       <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋯</button>
       <div id="menu" role="menu" hidden>
@@ -42,8 +40,14 @@
           <span class="menu-check"></span><span>Paste</span>
         </button>
         <div class="menu-sep"></div>
+        <button class="menu-item" id="sizeBtn" role="menuitem">
+          <span class="menu-check">A</span><span>Text size</span>
+        </button>
         <button class="menu-item" id="gridToggle" role="menuitemcheckbox" aria-checked="false">
           <span class="menu-check">✓</span><span>Show grid</span>
+        </button>
+        <button class="menu-item danger-item" id="clearBtn" role="menuitem">
+          <span class="menu-check">⌫</span><span>Clear canvas</span>
         </button>
       </div>
     </div>
@@ -59,7 +63,7 @@
     <div id="hint">
       <div class="hint-mark">+</div>
       <div class="hint-title">Start a calculation</div>
-      <div class="hint-sub">Tap <b>+</b> to add a block, or just type on the keypad below.</div>
+      <div class="hint-sub">Tap <b>+</b> or type on the keypad.</div>
     </div>
   </div>
 
@@ -70,7 +74,7 @@
   </div>
 
   <div id="numpad">
-    <div id="padToggle">Hide keypad ▾</div>
+    <button id="padToggle" type="button" aria-label="Hide keypad" aria-expanded="true"><span></span></button>
     <div class="padgrid" role="group" aria-label="Calculator keypad">
       <button type="button" class="key" data-k="7" aria-label="7">7</button>
       <button type="button" class="key" data-k="8" aria-label="8">8</button>

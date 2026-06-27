@@ -92,6 +92,7 @@ test('clear canvas then undo restores all blocks', async ({ page }) => {
   await addBlock(page); await type(page, '1'); await press(page, '=');
   await addBlock(page); await type(page, '2'); await press(page, '=');
   await expect(page.locator('.block')).toHaveCount(2);
+  await page.locator('#menuBtn').click();
   await page.locator('#clearBtn').click();
   await page.locator('#toastRow button.danger').click(); // confirm Clear all
   await expect(page.locator('.block')).toHaveCount(0);
