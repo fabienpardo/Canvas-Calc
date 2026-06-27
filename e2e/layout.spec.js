@@ -34,6 +34,20 @@ test('desktop keypad shifts left when variables sidebar is open', async ({ page 
   await page.locator('#varsBtn').click();
   const pad = await page.locator('#numpad').boundingBox();
   const sidebar = await page.locator('#sidebar').boundingBox();
+  const zc = await page.locator('#zoomCtl').boundingBox();
+  expect(zc.x + zc.width).toBeLessThanOrEqual(pad.x - 8);
   expect(pad.x + pad.width).toBeLessThanOrEqual(sidebar.x - 8);
   await expect(page.locator('#varsBtn')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('desktop sidebar-open keypad adapts on narrow viewports', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 700 });
+  await fresh(page);
+  await page.locator('#varsBtn').click();
+  const pad = await page.locator('#numpad').boundingBox();
+  const sidebar = await page.locator('#sidebar').boundingBox();
+  const zc = await page.locator('#zoomCtl').boundingBox();
+  expect(pad.width).toBeGreaterThanOrEqual(240);
+  expect(zc.x + zc.width).toBeLessThanOrEqual(pad.x - 8);
+  expect(pad.x + pad.width).toBeLessThanOrEqual(sidebar.x - 8);
 });

@@ -335,7 +335,7 @@
     position: fixed; left: 0; right: 0; bottom: 0;
     background: var(--pad-bg);
     border-top: 1px solid var(--block-border);
-    padding: 8px 8px max(8px, min(env(safe-area-inset-bottom), 18px));
+    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
     transition: transform 0.22s ease; z-index: 50;
     box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.10);
     backdrop-filter: blur(18px);
@@ -398,7 +398,9 @@
     .padgrid { max-width: none; gap: 7px; }
     .key { height: 43px; }
     body.sidebar-open #numpad {
-      right: min(calc(min(88vw, 360px) + 18px), calc(100vw - 378px));
+      right: calc(min(88vw, 360px) + 18px);
+      width: min(360px, calc(100vw - min(88vw, 360px) - 168px));
+      min-width: 240px;
     }
   }
 
