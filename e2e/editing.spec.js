@@ -44,6 +44,8 @@ test('backspace on a fresh empty block deletes the block', async ({ page }) => {
   await fresh(page);
   await page.locator('#addBtn').click();
   await expect(page.locator('.block')).toHaveCount(1);
+  await expect(lastBlock(page)).toHaveClass(/empty-draft/);
+  await expect(lastBlock(page).locator('.block-del')).toBeHidden();
   await press(page, 'back');
   await expect(page.locator('.block')).toHaveCount(0);
 });

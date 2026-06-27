@@ -150,6 +150,7 @@
       var el = doc.createElement('div');
       var selection = sel();
       el.className = 'block';
+      if (!b.terms.length) el.className += ' empty-draft';
       if (selection.blockId===b.id && selection.kind==='result') el.className += ' selected';
       if (deps.getActiveBlockId()===b.id) el.className += ' active';
       el.style.left = b.x + 'px';

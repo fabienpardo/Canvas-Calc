@@ -198,6 +198,15 @@
   }
   .block.selected { border-color: var(--block-sel); box-shadow: 0 0 0 1px var(--block-sel); }
   .block.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .block.empty-draft {
+    min-width: 112px; min-height: 32px; padding: 0 10px;
+    border-style: dashed; display: flex; align-items: center;
+    box-shadow: none; background: var(--block);
+  }
+  .block.empty-draft .expr::before {
+    content: ""; display: block; width: 72px; height: 12px;
+    border-radius: 4px; background: var(--key-active);
+  }
 
   /* Delete (×) button */
   .block-del {
@@ -210,6 +219,7 @@
   }
   .block.selected .block-del, .block.active .block-del { display: flex; }
   @media (hover: hover) { .block:hover .block-del { display: flex; } }
+  .block.empty-draft .block-del { display: none; }
 
   /* Per-value captions */
   .cell { display: flex; flex-direction: column; align-items: center; gap: 1px; }
