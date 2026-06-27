@@ -224,6 +224,15 @@
         expr.appendChild(cell);
       });
 
+      // Caret at the live input position when free-typing into the active block
+      // (no specific term tapped), so the eye lands on the operand being entered
+      // rather than the bright result chip that follows.
+      if (deps.getActiveBlockId()===b.id && sel().blockId !== b.id && b.terms.length) {
+        var caret = doc.createElement('span');
+        caret.className = 'expr-caret';
+        expr.appendChild(caret);
+      }
+
       if (deps.isComplete(b.terms)) {
         var val = deps.resolve(b, map);
         var eq = doc.createElement('span'); eq.className='eq'; eq.textContent='=';
