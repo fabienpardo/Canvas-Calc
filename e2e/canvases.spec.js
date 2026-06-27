@@ -3,6 +3,7 @@ const { fresh, press, type, lastBlock, seed } = require('./helpers');
 
 const openMenu = (page) => page.locator('#canvasBtn').click();
 const switchTo = (page, title) => page.locator('#canvasMenu button.cv-name', { hasText: title }).click();
+const savedStateMatches = (page, predicate) => page.waitForFunction(predicate);
 
 test('a new canvas is isolated; switching back preserves content', async ({ page }) => {
   await fresh(page);
@@ -46,7 +47,13 @@ test('renaming the current canvas persists across reload', async ({ page }) => {
   await openMenu(page);
   await page.locator('#canvasMenu input.cv-name').fill('Taxes');
   await expect(page.locator('#canvasName')).toHaveText('Taxes');
-  await page.waitForTimeout(500); // let the debounced save flush
+  await savedStateMatches(page, () => {
+    try {
+      return JSON.parse(localStorage.getItem('canvascalc.v1')).canvases.some((c) => c.title === 'Taxes');
+    } catch (e) {
+      return false;
+    }
+  });
   await page.reload();
   await expect(page.locator('#canvasName')).toHaveText('Taxes');
 });
@@ -70,7 +77,15 @@ test('multiple canvases persist across reload', async ({ page }) => {
   await openMenu(page);
   await page.locator('#canvasMenu .cv-new').click();
   await page.locator('#addBtn').click(); await type(page, '8'); await press(page, '=');
-  await page.waitForTimeout(500);
+  await savedStateMatches(page, () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('canvascalc.v1'));
+      return saved.canvases.length === 2 &&
+        saved.canvases.some((c) => (c.blocks || []).some((b) => (b.terms || []).some((t) => t.value === '8')));
+    } catch (e) {
+      return false;
+    }
+  });
   await page.reload();
   await openMenu(page);
   await expect(page.locator('#canvasMenu .cv-row')).toHaveCount(2);

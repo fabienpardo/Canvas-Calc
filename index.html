@@ -573,6 +573,11 @@
   // ---------- Model helpers ----------
   function byId(id) { return State.byId(cur(), id); }
   function blocksMap() { return State.blocksMap(cur()); }
+  function blockEl(id) {
+    var els = canvas.querySelectorAll('.block');
+    for (var i=0; i<els.length; i++) if (els[i].dataset.id === id) return els[i];
+    return null;
+  }
 
   function newBlock(x, y) {
     var c = cur();
@@ -632,7 +637,7 @@
   function updateViewport() {
     var pad = 600, maxR = 0, maxB = 0;
     cur().blocks.forEach(function(b){
-      var el = canvas.querySelector('.block[data-id="'+b.id+'"]');
+      var el = blockEl(b.id);
       maxR = Math.max(maxR, b.x + (el ? el.offsetWidth : 120));
       maxB = Math.max(maxB, b.y + (el ? el.offsetHeight : 60));
     });
@@ -680,7 +685,7 @@
   function lowestBlock() {
     var best = null, bestBottom = -Infinity;
     cur().blocks.forEach(function(b){
-      var el = canvas.querySelector('.block[data-id="'+b.id+'"]');
+      var el = blockEl(b.id);
       var bottom = b.y + (el ? el.offsetHeight : 40);
       if (bottom > bestBottom) { bestBottom = bottom; best = b; }
     });
@@ -689,7 +694,7 @@
   // Position just below a block (or the default start spot when there are none).
   function slotBelow(b) {
     if (!b) return { x: 40, y: 30 };
-    var el = canvas.querySelector('.block[data-id="'+b.id+'"]');
+    var el = blockEl(b.id);
     return { x: b.x, y: b.y + (el ? el.offsetHeight : 40) + 12 };
   }
 
@@ -843,8 +848,8 @@
       b.terms.forEach(function(t, idx){
         if (t.type!=='linked') return;
         var src = map[t.sourceId]; if(!src) return;
-        var srcEl = canvas.querySelector('.block[data-id="'+src.id+'"]');
-        var dstEl = canvas.querySelector('.block[data-id="'+b.id+'"]');
+        var srcEl = blockEl(src.id);
+        var dstEl = blockEl(b.id);
         if (!srcEl||!dstEl) return;
         var srcRes;
         if (t.sourceTid != null) {
@@ -1450,7 +1455,6 @@
     // empty canvas -> tap to create block here (on pointerup if no scroll)
     pointer.mode='maybe-tap';
     pointer.startX=e.clientX; pointer.startY=e.clientY; pointer.moved=false;
-    pointer.tapCanvasX = e.clientX; pointer.tapCanvasY = e.clientY;
   });
 
   wrap.addEventListener('pointermove', function(e){
@@ -1479,7 +1483,7 @@
       if (!pointer.snapshotted) { snapshot(); pointer.snapshotted = true; } // capture pre-drag position
       pointer.block.x = snap(pointer.origX+dx/zoom);
       pointer.block.y = snap(pointer.origY+dy/zoom);
-      var el = canvas.querySelector('.block[data-id="'+pointer.block.id+'"]');
+      var el = blockEl(pointer.block.id);
       if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
       drawLinks(blocksMap());
       e.preventDefault();

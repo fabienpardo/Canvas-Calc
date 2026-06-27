@@ -64,6 +64,15 @@ test('number values from saved state are coerced before rendering', async ({ pag
   await expect(page.locator('.block .result')).toHaveText('1,234');
 });
 
+test('selector-breaking saved block ids do not crash rendering', async ({ page }) => {
+  await seed(page, {
+    canvases: [{ id: 'c1', blocks: [{ id: 'b"bad]', x: 60, y: 60, terms: [{ type: 'number', value: '8' }] }] }],
+    activeCanvasId: 'c1'
+  });
+  await expect(page.locator('.block .result')).toHaveText('8');
+  await expect(page.locator('#addBtn')).toBeVisible();
+});
+
 test('stale saved counters are advanced past existing ids', async ({ page }) => {
   await seed(page, {
     canvases: [{ id: 'c1', nextId: 1, nextTid: 1, blocks: [{ id: 'b5', x: 60, y: 60, terms: [{ type: 'number', value: '5', tid: 't7' }] }] }],
@@ -73,7 +82,15 @@ test('stale saved counters are advanced past existing ids', async ({ page }) => 
   await page.locator('#addBtn').click();
   await expect(page.locator('.block').last()).toHaveAttribute('data-id', 'b6');
   await page.locator('.padgrid .key[data-k="9"]').click();
-  await page.waitForTimeout(500);
+  await page.waitForFunction(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('canvascalc.v1'));
+      const terms = saved.canvases[0].blocks.flatMap((b) => b.terms || []).filter((t) => t.type === 'number');
+      return terms.map((t) => t.tid).join(',') === 't7,t8';
+    } catch (e) {
+      return false;
+    }
+  });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('canvascalc.v1')));
   const terms = saved.canvases[0].blocks.flatMap((b) => b.terms || []).filter((t) => t.type === 'number');
   expect(terms.map((t) => t.tid)).toEqual(['t7', 't8']);

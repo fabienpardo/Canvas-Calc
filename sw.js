@@ -1,4 +1,4 @@
-const CACHE = 'canvas-calc-v5';
+const CACHE = 'canvas-calc-v6';
 const ASSETS = [
   './',
   './index.html',

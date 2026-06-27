@@ -15,12 +15,14 @@ test('normalizeState migrates the old single-canvas shape', () => {
   const state = S.normalizeState({
     blocks: [{ id: 'b1', x: 60, y: 60, terms: [{ type: 'number', value: '6' }] }],
     nextId: 2,
+    zoom: '1.2',
     fontSize: 28,
     showGrid: true
   });
   assert.equal(state.canvases.length, 1);
   assert.equal(state.canvases[0].title, 'Canvas 1');
   assert.equal(state.canvases[0].blocks[0].terms[0].tid, 't1');
+  assert.equal(state.canvases[0].zoom, 1.2);
   assert.equal(state.fontSize, 28);
   assert.equal(state.showGrid, true);
 });
@@ -79,4 +81,28 @@ test('byId and blocksMap use the active canvas data shape', () => {
   assert.equal(S.byId(canvas, 'b2').id, 'b2');
   assert.equal(S.byId(canvas, 'gone'), null);
   assert.deepEqual(Object.keys(S.blocksMap(canvas)), ['b1', 'b2']);
+});
+
+test('normalizeState does not mutate its input', () => {
+  const input = {
+    canvases: [{ id: 'c1', blocks: [{ id: 'b1', terms: [{ type: 'number', value: 7 }] }] }],
+    activeCanvasId: 'c1'
+  };
+  const before = JSON.parse(JSON.stringify(input));
+  const state = S.normalizeState(input);
+  assert.deepEqual(input, before);
+  assert.equal(state.canvases[0].blocks[0].terms[0].value, '7');
+  assert.equal(state.canvases[0].blocks[0].terms[0].tid, 't1');
+});
+
+test('normalizeState defaults invalid zoom values', () => {
+  const state = S.normalizeState({
+    canvases: [
+      { id: 'c1', zoom: '0', blocks: [] },
+      { id: 'c2', zoom: 'nope', blocks: [] },
+      { id: 'c3', zoom: 1.75, blocks: [] }
+    ],
+    activeCanvasId: 'c1'
+  });
+  assert.deepEqual(state.canvases.map((c) => c.zoom), [1, 1, 1.75]);
 });

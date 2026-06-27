@@ -19,6 +19,16 @@
     return (isFinite(n) && n > 0) ? n : fallback;
   }
 
+  function positiveNumber(v, fallback) {
+    var n = Number(v);
+    return (isFinite(n) && n > 0) ? n : fallback;
+  }
+
+  function cloneData(input) {
+    if (!input || typeof input !== 'object') return input;
+    return JSON.parse(JSON.stringify(input));
+  }
+
   function idNumber(id, prefix) {
     if (typeof id !== 'string') return 0;
     var m = new RegExp('^' + prefix + '(\\d+)$').exec(id);
@@ -68,7 +78,7 @@
           blocks: s.blocks || [],
           nextId: s.nextId || 1,
           nextTid: s.nextTid || 1,
-          zoom: (s.zoom && !isNaN(s.zoom)) ? s.zoom : 1
+          zoom: positiveNumber(s.zoom, 1)
         }],
         activeCanvasId: 'c1',
         nextCanvasId: 2,
@@ -90,7 +100,7 @@
       usedCanvasIds[c.id] = true;
       state.nextCanvasId = Math.max(state.nextCanvasId, idNumber(c.id, 'c') + 1);
     }
-    if (!c.zoom || isNaN(c.zoom)) c.zoom = 1;
+    c.zoom = positiveNumber(c.zoom, 1);
     if (!c.title) c.title = 'Canvas';
     if (!Array.isArray(c.blocks)) c.blocks = [];
     var usedBlockIds = {};
@@ -132,7 +142,7 @@
   }
 
   function normalizeState(input) {
-    var state = migrateState(input);
+    var state = migrateState(cloneData(input));
     if (!state || typeof state !== 'object') state = {};
     if (!Array.isArray(state.canvases) || !state.canvases.length) state.canvases = [freshCanvas('c1', 'Canvas 1')];
     state.nextCanvasId = positiveInt(state.nextCanvasId, state.canvases.length + 1);
