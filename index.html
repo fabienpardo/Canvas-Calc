@@ -483,6 +483,7 @@
 <script src="state.js"></script>
 <script src="engine.js"></script>
 <script src="render.js"></script>
+<script src="interactions.js"></script>
 <script>
 (function () {
   "use strict";
@@ -717,6 +718,8 @@
 
   // ---------- Selection ----------
   function clearSel(){ sel = { blockId:null, termIndex:null, kind:null }; }
+  function setSel(next){ sel = { blockId:next.blockId, termIndex:next.termIndex, kind:next.kind }; }
+  function setActiveBlock(id){ activeBlockId = id; }
 
   // ---------- Input handling ----------
   function ensureActiveBlock() {
@@ -1065,206 +1068,32 @@
     cancel.focus();
   }
 
-  // ---------- Pointer: canvas tap, block drag, term select, link drag ----------
-  var pointer = { mode:null, startX:0, startY:0, block:null, moved:false, linkSrc:null, pendingSelect:null };
-  var ghost = document.getElementById('ghost');
-
-  wrap.addEventListener('pointerdown', function(e){
-    if (pinching()) return;
-    var target = e.target;
-    if (target.closest && target.closest('#zoomCtl')) return; // let zoom buttons handle themselves
-
-    // result chip -> potential link drag or select
-    var resEl = target.closest && target.closest('.result');
-    if (resEl && !resEl.classList.contains('empty')) {
-      pointer.mode='maybe-link'; pointer.startX=e.clientX; pointer.startY=e.clientY;
-      pointer.linkSrc = { sourceId: resEl.dataset.id, sourceTid: null }; pointer.moved=false;
-      pointer.ghostText = resEl.textContent; pointer.pendingSelect = null;
-      return;
-    }
-
-    // number term -> potential link drag (duplicate as a variable) or select
-    var termEl = target.closest && target.closest('.term');
-    if (termEl && termEl.classList.contains('number')) {
-      var nblk = termEl.closest('.block');
-      var nbid = nblk.dataset.id;
-      var nidx = parseInt(termEl.dataset.idx,10);
-      var nsrc = byId(nbid);
-      var ntid = (nsrc && nsrc.terms[nidx]) ? nsrc.terms[nidx].tid : null;
-      pointer.mode='maybe-link'; pointer.startX=e.clientX; pointer.startY=e.clientY; pointer.moved=false;
-      pointer.linkSrc = { sourceId: nbid, sourceTid: ntid };
-      pointer.ghostText = termEl.textContent;
-      pointer.pendingSelect = { blockId: nbid, termIndex: nidx, kind: 'number' };
-      return;
-    }
-    // linked term -> select (for unlink via backspace)
-    if (termEl && termEl.classList.contains('linked')) {
-      var lblk = termEl.closest('.block');
-      sel.blockId = lblk.dataset.id;
-      sel.termIndex = parseInt(termEl.dataset.idx,10);
-      sel.kind = 'linked';
-      activeBlockId = sel.blockId;
-      renderAll();
-      e.preventDefault();
-      return;
-    }
-    // operator term -> select (tap then press a new operator to change it)
-    if (termEl && termEl.classList.contains('operator')) {
-      var oblk = termEl.closest('.block');
-      sel.blockId = oblk.dataset.id;
-      sel.termIndex = parseInt(termEl.dataset.idx,10);
-      sel.kind = 'operator';
-      activeBlockId = sel.blockId;
-      renderAll();
-      e.preventDefault();
-      return;
-    }
-
-    // caption -> let contenteditable handle (also stops propagation itself)
-    if (target.closest && target.closest('.cap')) { return; }
-
-    // block body -> drag block
-    var bEl = target.closest && target.closest('.block');
-    if (bEl) {
-      pointer.mode='drag-block'; pointer.block=byId(bEl.dataset.id);
-      pointer.startX=e.clientX; pointer.startY=e.clientY;
-      pointer.origX=pointer.block.x; pointer.origY=pointer.block.y;
-      pointer.moved=false; pointer.snapshotted=false;
-      // select this block's result — update classes in place so bEl stays connected
-      // (a full renderAll() here would detach bEl before setPointerCapture).
-      sel.blockId=pointer.block.id; sel.kind='result'; sel.termIndex=null;
-      canvas.querySelectorAll('.selected, .sel').forEach(function(x){ x.classList.remove('selected','sel'); });
-      bEl.classList.add('selected');
-      var rc = bEl.querySelector('.result'); if (rc) rc.classList.add('sel');
-      bEl.setPointerCapture && bEl.setPointerCapture(e.pointerId);
-      return;
-    }
-
-    // empty canvas -> tap to create block here (on pointerup if no scroll)
-    pointer.mode='maybe-tap';
-    pointer.startX=e.clientX; pointer.startY=e.clientY; pointer.moved=false;
+  CanvasInteractions.create({
+    document: document,
+    window: window,
+    canvas: canvas,
+    wrap: wrap,
+    ghost: document.getElementById('ghost'),
+    byId: byId,
+    blockEl: blockEl,
+    blocksMap: blocksMap,
+    drawLinks: drawLinks,
+    snapshot: snapshot,
+    save: save,
+    renderAll: renderAll,
+    clearSelection: clearSel,
+    setSelection: setSel,
+    getActiveBlockId: function(){ return activeBlockId; },
+    setActiveBlockId: setActiveBlock,
+    getZoom: function(){ return zoom; },
+    snap: snap,
+    newBlock: newBlock,
+    removeBlock: removeBlock,
+    createsCycle: createsCycle,
+    confirmDialog: confirmDialog,
+    confirmDeleteBlock: confirmDeleteBlock,
+    zoomAround: zoomAround
   });
-
-  wrap.addEventListener('pointermove', function(e){
-    if (pinching()) return;
-    if (!pointer.mode) return;
-    var dx=e.clientX-pointer.startX, dy=e.clientY-pointer.startY;
-    if (Math.abs(dx)>6||Math.abs(dy)>6) pointer.moved=true;
-
-    if (pointer.mode==='maybe-link' && pointer.moved) {
-      pointer.mode='linking';
-      ghost.style.display='block'; ghost.textContent=pointer.ghostText;
-    }
-    if (pointer.mode==='linking') {
-      ghost.style.left=e.clientX+'px'; ghost.style.top=e.clientY+'px';
-      // highlight potential target slot
-      clearTargets();
-      var under = document.elementFromPoint(e.clientX, e.clientY);
-      var slot = under && under.closest && under.closest('.term.number');
-      var bUnder = under && under.closest && under.closest('.block');
-      if (slot) slot.classList.add('slot-target');
-      else if (bUnder && bUnder.dataset.id!==pointer.linkSrc.sourceId) bUnder.classList.add('slot-target');
-      e.preventDefault();
-      return;
-    }
-    if (pointer.mode==='drag-block' && pointer.block) {
-      if (!pointer.snapshotted) { snapshot(); pointer.snapshotted = true; } // capture pre-drag position
-      pointer.block.x = snap(pointer.origX+dx/zoom);
-      pointer.block.y = snap(pointer.origY+dy/zoom);
-      var el = blockEl(pointer.block.id);
-      if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
-      drawLinks(blocksMap());
-      e.preventDefault();
-      return;
-    }
-  });
-
-  wrap.addEventListener('pointerup', function(e){
-    if (pinching()) { pointer={mode:null}; return; }
-    if (pointer.mode==='linking') {
-      var under = document.elementFromPoint(e.clientX, e.clientY);
-      var slot = under && under.closest && under.closest('.term.number');
-      var bUnder = under && under.closest && under.closest('.block');
-      var ls = pointer.linkSrc, srcId = ls.sourceId;
-      // number-term references are constants -> can never form a value cycle
-      function cyc(targetId){ return ls.sourceTid==null && createsCycle(targetId, srcId); }
-      function newLink(){ return { type:'linked', sourceId: srcId, sourceTid: ls.sourceTid }; }
-      clearTargets();
-      ghost.style.display='none';
-
-      if (slot && bUnder && bUnder.dataset.id!==srcId) {
-        // replace that number term with a linked term
-        var tb = byId(bUnder.dataset.id);
-        var ti = parseInt(slot.dataset.idx,10);
-        if (tb && !cyc(tb.id)) {
-          snapshot();
-          tb.terms[ti] = newLink();
-          activeBlockId=tb.id; clearSel(); renderAll(); save();
-        } else { flashCycle(); }
-      } else if (bUnder && bUnder.dataset.id!==srcId) {
-        // dropped on a block but not a number slot -> append linked term
-        var tb2 = byId(bUnder.dataset.id);
-        if (tb2 && !cyc(tb2.id)) {
-          snapshot();
-          var lastT = tb2.terms[tb2.terms.length-1];
-          if (lastT && lastT.type!=='operator') tb2.terms.push({type:'operator', value:'+'});
-          tb2.terms.push(newLink());
-          activeBlockId=tb2.id; clearSel(); renderAll(); save();
-        } else { flashCycle(); }
-      } else if (!bUnder) {
-        // dropped on empty canvas -> new block linked to source
-        var pt = toCanvas(e.clientX, e.clientY);
-        snapshot();
-        var nb = newBlock(snap(pt.x), snap(pt.y));
-        nb.terms.push(newLink());
-        activeBlockId=nb.id; clearSel(); renderAll(); save();
-      }
-      pointer={mode:null}; return;
-    }
-
-    if (pointer.mode==='maybe-link' && !pointer.moved) {
-      if (pointer.pendingSelect) {
-        // tap on a number term -> select it for editing
-        sel.blockId = pointer.pendingSelect.blockId;
-        sel.termIndex = pointer.pendingSelect.termIndex;
-        sel.kind = pointer.pendingSelect.kind;
-        activeBlockId = sel.blockId;
-      } else {
-        // tap on a result -> select it
-        sel.blockId=pointer.linkSrc.sourceId; sel.kind='result'; sel.termIndex=null;
-        activeBlockId=pointer.linkSrc.sourceId;
-      }
-      renderAll();
-      pointer={mode:null}; return;
-    }
-
-    if (pointer.mode==='drag-block') {
-      if (pointer.moved) { save(); } // snapshot already taken on first movement
-      pointer={mode:null}; return;
-    }
-
-    if (pointer.mode==='maybe-tap' && !pointer.moved) {
-      // tap on empty canvas -> close current edition; the + button reappears
-      if (activeBlockId) {
-        var fb = byId(activeBlockId);
-        if (fb && fb.terms.length===0) { snapshot(); removeBlock(fb.id); save(); }
-      }
-      activeBlockId=null; clearSel(); renderAll();
-      pointer={mode:null}; return;
-    }
-    pointer={mode:null};
-  });
-
-  function clearTargets(){ canvas.querySelectorAll('.slot-target').forEach(function(e){e.classList.remove('slot-target');}); }
-  function toCanvas(clientX, clientY){
-    var r = canvas.getBoundingClientRect();
-    return { x: (clientX - r.left)/zoom, y: (clientY - r.top)/zoom };
-  }
-
-  function flashCycle(){
-    confirmDialog('Can\u2019t link these \u2014 it would create a loop where a result depends on itself.', function(){}, 'Got it');
-    document.getElementById('toastRow').firstChild.style.display='none';
-  }
 
   // ---------- Add-calculation button ----------
   (function(){
@@ -1279,20 +1108,6 @@
       activeBlockId = nb.id; clearSel(); renderAll(); save();
     });
   })();
-
-  // ---------- Long-press to delete block ----------
-  var lpTimer=null;
-  canvas.addEventListener('pointerdown', function(e){
-    var bEl = e.target.closest && e.target.closest('.block');
-    var onTerm = e.target.closest && e.target.closest('.term, .result, .cap, .block-del');
-    if (bEl && !onTerm) {
-      lpTimer = setTimeout(function(){
-        confirmDeleteBlock(byId(bEl.dataset.id));
-      }, 550);
-    }
-  });
-  canvas.addEventListener('pointermove', function(){ clearTimeout(lpTimer); });
-  canvas.addEventListener('pointerup', function(){ clearTimeout(lpTimer); });
 
   // ---------- Numpad ----------
   document.querySelector('.padgrid').addEventListener('pointerdown', function(e){
@@ -1386,42 +1201,6 @@
   document.getElementById('zoomOut').addEventListener('click', function(){ zoomByCenter(1/1.2); });
   document.getElementById('zoomLevel').addEventListener('click', resetZoom);
 
-  // Trackpad / ctrl+wheel zoom, anchored at the cursor
-  wrap.addEventListener('wheel', function(e){
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    var r = wrap.getBoundingClientRect();
-    zoomAround(zoom * (e.deltaY < 0 ? 1.1 : 1/1.1), e.clientX - r.left, e.clientY - r.top);
-  }, { passive:false });
-
-  // Two-finger pinch zoom (capture phase so it pre-empts drag/tap handlers)
-  var pinchPts = {}, pinch = null;
-  function pinchCount(){ return Object.keys(pinchPts).length; }
-  wrap.addEventListener('pointerdown', function(e){
-    if (e.pointerType!=='touch') return;
-    pinchPts[e.pointerId] = { x:e.clientX, y:e.clientY };
-    if (pinchCount()===2) {
-      var ids=Object.keys(pinchPts), a=pinchPts[ids[0]], b=pinchPts[ids[1]];
-      pinch = { dist: Math.hypot(b.x-a.x, b.y-a.y), z: zoom };
-      pointer = { mode:null }; ghost.style.display='none'; clearTargets(); // cancel any drag/link
-    }
-  }, true);
-  wrap.addEventListener('pointermove', function(e){
-    if (!pinchPts[e.pointerId]) return;
-    pinchPts[e.pointerId] = { x:e.clientX, y:e.clientY };
-    if (pinch && pinchCount()>=2) {
-      e.preventDefault();
-      var ids=Object.keys(pinchPts), a=pinchPts[ids[0]], b=pinchPts[ids[1]];
-      var dist = Math.hypot(b.x-a.x, b.y-a.y);
-      var r = wrap.getBoundingClientRect();
-      zoomAround(pinch.z * (dist/pinch.dist), (a.x+b.x)/2 - r.left, (a.y+b.y)/2 - r.top);
-    }
-  }, true);
-  function endPinch(e){ delete pinchPts[e.pointerId]; if (pinchCount()<2) pinch=null; }
-  wrap.addEventListener('pointerup', endPinch, true);
-  wrap.addEventListener('pointercancel', endPinch, true);
-  function pinching(){ return !!pinch; }
-
   // physical keyboard support (nice for desktop testing)
   window.addEventListener('keydown', function(e){
     var ae = document.activeElement;
@@ -1436,15 +1215,6 @@
     else if (k==='Delete') { e.preventDefault(); pressKey('del'); }
     else if (k==='z'&&(e.metaKey||e.ctrlKey)) { e.preventDefault(); e.shiftKey?redo():undo(); }
   });
-
-  // prevent pinch zoom / double tap zoom
-  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
-  var lastTouch=0;
-  document.addEventListener('touchend', function(e){
-    // never swallow taps on interactive controls (keypad, toolbar buttons)
-    if (e.target.closest && e.target.closest('.key, .tbtn, #padToggle, #toast button, .menu-item, .cv-btn, #canvasMenu')) { lastTouch=Date.now(); return; }
-    var now=Date.now(); if(now-lastTouch<300) e.preventDefault(); lastTouch=now;
-  }, {passive:false});
 
   // ---------- Init ----------
   load();

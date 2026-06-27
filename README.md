@@ -77,6 +77,7 @@ bumping guarantees cached assets refresh too.)
 | `engine.js` | Pure calculation/formatting/parsing engine (no DOM; unit-tested). |
 | `state.js` | Pure state normalization and lookup helpers (no DOM; unit-tested). |
 | `render.js` | DOM rendering, link drawing, and variables sidebar helpers. |
+| `interactions.js` | Canvas pointer, drag/link, long-press, wheel, and touch interaction wiring. |
 | `manifest.webmanifest` | PWA metadata (name, icons, standalone display). |
 | `sw.js` | Service worker; offline caching. |
 | `test/`, `e2e/` | Unit tests (`node --test`) and Playwright e2e; see TESTING.md. |
