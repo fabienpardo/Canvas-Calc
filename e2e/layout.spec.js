@@ -17,7 +17,14 @@ test('the canvas extends behind the keypad (keypad is an overlay)', async ({ pag
   const pad = await page.locator('#numpad').boundingBox();
   // the canvas viewport reaches at/below the top of the keypad, so content can sit behind it
   expect(wrap.y + wrap.height).toBeGreaterThan(pad.y + 5);
-  // and the zoom control stays above the keypad
+});
+
+test('desktop keypad is compact and does not cover the left zoom control', async ({ page }) => {
+  await fresh(page);
+  const vw = page.viewportSize().width;
+  const pad = await page.locator('#numpad').boundingBox();
+  expect(pad.width).toBeLessThanOrEqual(380);
+  expect(pad.x + pad.width).toBeLessThanOrEqual(vw - 8);
   const zc = await page.locator('#zoomCtl').boundingBox();
-  expect(zc.y + zc.height).toBeLessThanOrEqual(pad.y + 1);
+  expect(zc.x + zc.width).toBeLessThan(pad.x);
 });

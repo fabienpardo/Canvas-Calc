@@ -428,26 +428,36 @@
   });
   document.getElementById('padToggle').addEventListener('click', function(){
     var np=document.getElementById('numpad');
-    np.classList.toggle('hidden');
-    this.textContent = np.classList.contains('hidden') ? 'Show keypad ▴' : 'Hide keypad ▾';
+    var hidden = np.classList.toggle('hidden');
+    this.setAttribute('aria-label', hidden ? 'Show keypad' : 'Hide keypad');
+    this.setAttribute('aria-expanded', hidden ? 'false' : 'true');
     layoutOverlays();
   });
   window.addEventListener('resize', function(){ updateViewport(); layoutOverlays(); });
 
   // ---------- Toolbar ----------
+  function closeOverflowMenu() {
+    var menu = document.getElementById('menu');
+    var menuBtn = document.getElementById('menuBtn');
+    if (menu) menu.hidden = true;
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+  }
   document.getElementById('undoBtn').onclick = undo;
   document.getElementById('redoBtn').onclick = redo;
-  document.getElementById('clearBtn').onclick = clearCanvas;
+  document.getElementById('clearBtn').onclick = function(){ closeOverflowMenu(); clearCanvas(); };
   document.getElementById('sizeBtn').onclick = function(){
     var i = FONT_SIZES.indexOf(state.fontSize); i=(i+1)%FONT_SIZES.length;
     state.fontSize = FONT_SIZES[i]; save(); renderAll();
-    this.style.fontSize = (12+i*2)+'px';
+    var mark = this.querySelector('.menu-check');
+    if (mark) mark.style.fontSize = (12+i*2)+'px';
+    closeOverflowMenu();
   };
   document.getElementById('varsBtn').onclick = function(){
     var sb = document.getElementById('sidebar');
     var open = sb.classList.toggle('open');
     sb.setAttribute('aria-hidden', open ? 'false' : 'true');
     if (open) { layoutOverlays(); renderSidebar(); }
+    closeOverflowMenu();
   };
   document.getElementById('sidebarClose').onclick = function(){
     var sb = document.getElementById('sidebar');
@@ -526,7 +536,8 @@
   load();
   if (state.fontSize) {
     var i=FONT_SIZES.indexOf(state.fontSize); if(i<0){i=1;state.fontSize=22;}
-    document.getElementById('sizeBtn').style.fontSize=(12+i*2)+'px';
+    var sizeMark = document.querySelector('#sizeBtn .menu-check');
+    if (sizeMark) sizeMark.style.fontSize=(12+i*2)+'px';
   }
   applyGrid();
   applyCanvasName();

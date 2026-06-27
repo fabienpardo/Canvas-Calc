@@ -327,9 +327,11 @@
     function sidebarOpen(){ return deps.sidebar.classList.contains('open'); }
 
     function layoutOverlays() {
-      var h = deps.numpad.classList.contains('hidden') ? 0 : deps.numpad.offsetHeight;
+      var win = doc.defaultView || window;
+      var wide = win.matchMedia && win.matchMedia('(min-width: 760px)').matches;
+      var h = (!wide && !deps.numpad.classList.contains('hidden')) ? deps.numpad.offsetHeight : 0;
       deps.sidebar.style.bottom = h + 'px';
-      deps.zoomCtl.style.bottom = (h + 10) + 'px';
+      deps.zoomCtl.style.bottom = (wide ? 18 : h + 12) + 'px';
       // The empty-canvas hint is a band over the visible canvas (toolbar to
       // keypad), so its contents centre in the space the user actually sees.
       if (deps.hint) deps.hint.style.bottom = h + 'px';
