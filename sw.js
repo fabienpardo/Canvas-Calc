@@ -1,7 +1,8 @@
-const CACHE = 'canvas-calc-v13';
+const CACHE = 'canvas-calc-v14';
 const ASSETS = [
   './',
   './index.html',
+  './styles.css',
   './app.js',
   './state.js',
   './engine.js',

@@ -73,7 +73,8 @@ bumping guarantees cached assets refresh too.)
 
 | File | Purpose |
 |------|---------|
-| `index.html` | App shell — markup and styles only; loads the modules below via `<script>` tags. |
+| `index.html` | App shell — markup only; links `styles.css` and loads the modules below via `<script>` tags. |
+| `styles.css` | All app styles (theme variables, layout, blocks, keypad, sidebar). |
 | `app.js` | Application controller and bootstrap: wires the modules to the DOM, owns shared view state, persistence, viewport/zoom, toolbar, menu, and keyboard input. |
 | `engine.js` | Pure calculation/formatting/parsing engine (no DOM; unit-tested). |
 | `state.js` | Pure state normalization and lookup helpers (no DOM; unit-tested). |
