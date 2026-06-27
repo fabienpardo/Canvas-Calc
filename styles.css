@@ -199,13 +199,26 @@
   .block.selected { border-color: var(--block-sel); box-shadow: 0 0 0 1px var(--block-sel); }
   .block.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .block.empty-draft {
-    min-width: 112px; min-height: 32px; padding: 0 10px;
-    border-style: dashed; display: flex; align-items: center;
+    min-width: 96px; min-height: 36px; padding: 0 12px;
+    border-style: dashed; border-color: var(--accent);
+    display: flex; align-items: center;
     box-shadow: none; background: var(--block);
   }
+  .block.empty-draft .expr {
+    align-items: center; color: var(--text-dim);
+    font-size: calc(var(--fs, 22px) * 0.62);
+  }
   .block.empty-draft .expr::before {
-    content: ""; display: block; width: 72px; height: 12px;
-    border-radius: 4px; background: var(--key-active);
+    content: "Type a number…"; white-space: nowrap;
+  }
+  .block.empty-draft .expr::after {
+    content: ""; width: 2px; height: calc(var(--fs, 22px) * 0.85);
+    margin-left: 1px; background: var(--accent); border-radius: 1px;
+    animation: caretBlink 1.05s step-end infinite;
+  }
+  @keyframes caretBlink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .block.empty-draft .expr::after { animation: none; }
   }
 
   /* Delete (×) button */
@@ -339,11 +352,26 @@
     background: var(--danger); color: #fff; font-size: 13px; line-height: 1.35;
     box-shadow: 0 4px 14px rgba(0,0,0,0.22);
   }
+  /* Empty-canvas hint — a band spanning the visible canvas (the surface it sits
+     over is a scrolled 1600×2400 element, so it can't be centred relative to
+     that). It fills #canvasWrap with its bottom raised above the keypad
+     (set by layoutOverlays) and centres its contents in what the user sees. */
   #hint {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    text-align: center; color: var(--text-dim); font-size: 14px; line-height: 1.6;
-    pointer-events: none; width: 240px;
+    position: absolute; inset: 0; z-index: 4;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; color: var(--text-dim); pointer-events: none;
+    padding: 0 24px;
   }
+  .hint-mark {
+    width: 52px; height: 52px; border-radius: 50%; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; line-height: 1; color: var(--accent);
+    background: var(--block); border: 1.5px dashed var(--accent);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .hint-title { font-size: 16px; font-weight: 600; color: var(--text); }
+  .hint-sub { font-size: 13.5px; line-height: 1.55; margin-top: 5px; }
+  .hint-sub b { color: var(--accent); font-weight: 600; }
 
   /* Sidebar (variables) */
   #sidebar {

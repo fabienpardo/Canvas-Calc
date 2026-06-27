@@ -111,6 +111,22 @@
     return parseExpr();
   }
 
+  // A block shows a result only once it is a finished calculation: it must
+  // contain at least one operator and end on an operand (not a trailing
+  // operator or an open paren). So "5" and "5 +" show nothing; "5 + 5" does.
+  function isComplete(terms) {
+    if (!terms || !terms.length) return false;
+    var hasOp = false, last = null;
+    for (var i = 0; i < terms.length; i++) {
+      if (terms[i].type === 'operator') hasOp = true;
+      last = terms[i];
+    }
+    if (!hasOp) return false;
+    if (last.type === 'operator') return false;
+    if (last.type === 'paren' && last.value === '(') return false;
+    return true;
+  }
+
   function resolve(block, map, stack) {
     stack = stack || {};
     if (stack[block.id]) return null; // cycle
@@ -283,6 +299,7 @@
     findTermByTid: findTermByTid,
     linkedValue: linkedValue, linkedSource: linkedSource,
     tokenize: tokenize, evalTokens: evalTokens, resolve: resolve,
+    isComplete: isComplete,
     createsCycle: createsCycle,
     fmt: fmt, groupDisplay: groupDisplay,
     opSym: opSym, labelOf: labelOf, blockDefinition: blockDefinition,

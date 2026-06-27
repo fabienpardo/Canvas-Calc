@@ -128,6 +128,7 @@
     linkedSource: linkedSource,
     linkedValue: linkedValue,
     resolve: resolve,
+    isComplete: E.isComplete,
     fmt: fmt,
     groupDisplay: groupDisplay,
     opSym: opSym,
