@@ -291,6 +291,12 @@
   .term.number { color: var(--text); }
   .term.number.sel { background: var(--accent); color: #fff; }
   .term.operator { color: var(--op); padding: 1px 2px; font-weight: 650; }
+  /* Placeholder where an operator is expected between two adjacent operands. */
+  .op-missing {
+    align-self: center; margin: 0 2px; padding: 0 5px;
+    color: var(--op); font-weight: 700;
+    border: 1px dashed var(--op); border-radius: 6px; opacity: 0.85;
+  }
   .term.operator.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; }
   .term.paren { color: var(--text-dim); padding: 1px 2px; }
   .term.linked {
@@ -305,6 +311,8 @@
   }
   .result.sel { outline: 2px solid var(--accent); }
   .result.empty { background: transparent; color: var(--text-dim); }
+  /* Reserved slot for a calc still being typed: muted "?" placeholder, no grab. */
+  .result.pending { background: transparent; color: var(--text-dim); cursor: default; }
   /* While a block is being typed into, the result is a live preview: drop the
      filled pill so the input caret reads as the focus, not the answer. */
   .block.active .result:not(.sel) { background: transparent; }

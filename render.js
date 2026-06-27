@@ -52,9 +52,15 @@
         parts.push('l', t.sourceId, t.sourceTid == null ? '@' : t.sourceTid, lbl || '',
           lv == null ? '?' : lv, linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || '');
       });
-      if (deps.isComplete(b.terms)) {
-        var val = deps.resolve(b, map);
-        parts.push('=', val == null ? '·' : val, linkColorMap[deps.srcKey(b.id, null)] || '');
+      var missIdx = deps.missingOperatorIndex(b.terms);
+      parts.push('m' + missIdx); // missing-operator marker position
+      if (deps.hasResultSlot(b.terms)) {
+        if (missIdx >= 0) {
+          parts.push('=?'); // malformed: missing operator
+        } else {
+          var val = deps.resolve(b, map);
+          parts.push('=', val == null ? '·' : val, linkColorMap[deps.srcKey(b.id, null)] || '');
+        }
       }
       return parts.join(SEP);
     }
@@ -169,8 +175,17 @@
 
       var expr = doc.createElement('div');
       expr.className = 'expr';
+      var missIdx = deps.missingOperatorIndex(b.terms);
       b.terms.forEach(function(t, idx){
         selection = sel();
+        // A gap where an operator is expected (two operands with none between).
+        if (idx === missIdx) {
+          var gap = doc.createElement('span');
+          gap.className = 'op-missing';
+          gap.textContent = '?';
+          gap.title = 'Operator missing';
+          expr.appendChild(gap);
+        }
         if (t.type==='operator') {
           var op = doc.createElement('span');
           op.className = 'term operator';
@@ -233,8 +248,9 @@
         expr.appendChild(caret);
       }
 
-      if (deps.isComplete(b.terms)) {
-        var val = deps.resolve(b, map);
+      if (deps.hasResultSlot(b.terms)) {
+        var malformed = missIdx >= 0;
+        var val = malformed ? null : deps.resolve(b, map);
         var eq = doc.createElement('span'); eq.className='eq'; eq.textContent='=';
         expr.appendChild(eq);
 
@@ -246,13 +262,20 @@
         ));
         var res = doc.createElement('span');
         selection = sel();
-        res.className = 'result' + (val===null?' empty':'');
-        if (selection.blockId===b.id && selection.kind==='result') res.className += ' sel';
-        res.textContent = val===null ? '·' : deps.fmt(val);
-        res.dataset.result = '1';
-        res.dataset.id = b.id;
-        var rkey = deps.srcKey(b.id, null);
-        if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[rkey];
+        if (malformed) {
+          // Missing an operator: show "?" (not a draggable/linkable result) so a
+          // half-finished expression never reads as a real answer.
+          res.className = 'result pending';
+          res.textContent = '?';
+        } else {
+          res.className = 'result' + (val===null?' empty':'');
+          if (selection.blockId===b.id && selection.kind==='result') res.className += ' sel';
+          res.textContent = val===null ? '·' : deps.fmt(val);
+          res.dataset.result = '1';
+          res.dataset.id = b.id;
+          var rkey = deps.srcKey(b.id, null);
+          if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[rkey];
+        }
         rcell.appendChild(res);
         expr.appendChild(rcell);
       }
@@ -281,7 +304,7 @@
             var si=-1; for (var ii=0; ii<src.terms.length; ii++){ if (src.terms[ii].type==='number' && src.terms[ii].tid===t.sourceTid){ si=ii; break; } }
             srcRes = si>=0 ? srcEl.querySelectorAll('.term')[si] : null;
           } else {
-            srcRes = srcEl.querySelector('.result');
+            srcRes = srcEl.querySelector('.result:not(.pending)');
           }
           var dstTerm = dstEl.querySelectorAll('.term')[idx];
           if (!srcRes||!dstTerm) return;
@@ -319,7 +342,7 @@
         b.terms.forEach(function(t, idx){
           if (t.type==='number') inputs.push({ bid:b.id, idx:idx, t:t });
         });
-        if (deps.isComplete(b.terms)) results.push(b);
+        if (deps.isComplete(b.terms) && deps.missingOperatorIndex(b.terms) < 0) results.push(b);
       });
       return { inputs:inputs, results:results };
     }

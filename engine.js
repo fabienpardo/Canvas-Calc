@@ -124,6 +124,45 @@
     return true;
   }
 
+  // Whether a block reserves a result slot at all. The slot appears once a
+  // second operand exists (so "5 +" still shows nothing) and then stays put — a
+  // trailing operator like "5 + 8 +" keeps the pill (it still resolves to 13).
+  // A lone linked reference keeps its slot too (it's an alias for that result).
+  function hasResultSlot(terms) {
+    if (!terms || !terms.length) return false;
+    if (terms.length === 1) return terms[0].type === 'linked';
+    var operands = 0;
+    for (var i = 0; i < terms.length; i++) {
+      if (terms[i].type === 'number' || terms[i].type === 'linked') {
+        if (++operands >= 2) return true;
+      }
+    }
+    return false;
+  }
+
+  // Index of the operand (or '(') that directly follows a completed operand with
+  // no operator between them — i.e. where an operator is missing ("5 + 8 3" ->
+  // index of the second "8"/"3"). Returns -1 when the sequence is well-formed.
+  // A trailing operator is fine; only adjacency that would silently drop an
+  // operand at eval time is flagged, so the view can show "?" plus a marker.
+  function missingOperatorIndex(terms) {
+    if (!terms) return -1;
+    var expectOperand = true;
+    for (var i = 0; i < terms.length; i++) {
+      var t = terms[i];
+      if (t.type === 'operator') { expectOperand = true; continue; }
+      if (t.type === 'paren') {
+        if (t.value === '(') { if (!expectOperand) return i; expectOperand = true; }
+        else { expectOperand = false; } // ')' closes a group -> acts as an operand
+        continue;
+      }
+      // number or linked
+      if (!expectOperand) return i;
+      expectOperand = false;
+    }
+    return -1;
+  }
+
   function resolve(block, map, stack) {
     stack = stack || {};
     if (stack[block.id]) return null; // cycle
@@ -297,6 +336,8 @@
     linkedValue: linkedValue, linkedSource: linkedSource,
     tokenize: tokenize, evalTokens: evalTokens, resolve: resolve,
     isComplete: isComplete,
+    hasResultSlot: hasResultSlot,
+    missingOperatorIndex: missingOperatorIndex,
     createsCycle: createsCycle,
     fmt: fmt, groupDisplay: groupDisplay,
     opSym: opSym, labelOf: labelOf, blockDefinition: blockDefinition,
