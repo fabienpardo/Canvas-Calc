@@ -482,6 +482,7 @@
 
 <script src="state.js"></script>
 <script src="engine.js"></script>
+<script src="render.js"></script>
 <script>
 (function () {
   "use strict";
@@ -588,24 +589,46 @@
   function newNumber(value) { return { type:'number', value:value, tid:'t'+(cur().nextTid++) }; }
 
   // ---------- Link colors ----------
-  // Distinct colors assigned per linked source, to visually group references.
-  var LINK_PALETTE = ['#c9772f','#3f8f6b','#7b5ea7','#b8456b','#3d7bb0','#9a7b1f','#5a8f3d','#b0568f'];
-  var linkColorMap = {};
   function srcKey(sourceId, sourceTid) { return sourceId + '|' + (sourceTid==null ? '@result' : sourceTid); }
-  function computeLinkColors() {
-    var order = [], seen = {};
-    cur().blocks.forEach(function(b){
-      b.terms.forEach(function(t){
-        if (t.type==='linked') {
-          var key = srcKey(t.sourceId, t.sourceTid);
-          if (!seen[key]) { seen[key] = true; order.push(key); }
-        }
-      });
-    });
-    var map = {};
-    order.forEach(function(key, i){ map[key] = LINK_PALETTE[i % LINK_PALETTE.length]; });
-    return map;
-  }
+  var renderer = CanvasRenderer.create({
+    document: document,
+    canvas: canvas,
+    linkLayer: linkLayer,
+    hint: hint,
+    sidebar: document.getElementById('sidebar'),
+    sidebarBody: document.getElementById('sidebarBody'),
+    numpad: document.getElementById('numpad'),
+    zoomCtl: document.getElementById('zoomCtl'),
+    cur: cur,
+    getSelection: function(){ return sel; },
+    getActiveBlockId: function(){ return activeBlockId; },
+    getFontSize: function(){ return state.fontSize; },
+    blocksMap: blocksMap,
+    byId: byId,
+    blockEl: blockEl,
+    snapshot: snapshot,
+    save: save,
+    updateUndoRedo: updateUndoRedo,
+    positionAddBtn: positionAddBtn,
+    updateViewport: updateViewport,
+    confirmDeleteBlock: confirmDeleteBlock,
+    linkedSource: linkedSource,
+    linkedValue: linkedValue,
+    resolve: resolve,
+    fmt: fmt,
+    groupDisplay: groupDisplay,
+    opSym: opSym,
+    blockDefinition: blockDefinition,
+    srcKey: srcKey,
+    NUM_GROUP: NUM_GROUP,
+    NUM_DECIMAL: NUM_DECIMAL
+  });
+  function renderAll(){ renderer.renderAll(); }
+  function drawLinks(map){ renderer.drawLinks(map); }
+  function layoutOverlays(){ renderer.layoutOverlays(); }
+  function renderSidebar(){ renderer.renderSidebar(); }
+  function syncSidebar(){ renderer.syncSidebar(); }
+  function scheduleSidebarRebuild(){ renderer.scheduleSidebarRebuild(); }
 
   // ---------- Dependents ----------
   function dependentsOf(id) {
@@ -615,22 +638,6 @@
       b.terms.forEach(function(t){ if (t.type==='linked' && t.sourceId===id) deps.push(b); });
     });
     return deps;
-  }
-
-  // ---------- Rendering ----------
-  function renderAll() {
-    // remove existing block DOM
-    var existing = canvas.querySelectorAll('.block');
-    existing.forEach(function(e){ e.remove(); });
-    hint.style.display = cur().blocks.length ? 'none' : 'block';
-    var map = blocksMap();
-    linkColorMap = computeLinkColors();
-    cur().blocks.forEach(function(b){ canvas.appendChild(renderBlock(b, map)); });
-    drawLinks(map);
-    updateUndoRedo();
-    syncSidebar();
-    positionAddBtn();
-    updateViewport();
   }
 
   // ---------- Viewport: dynamic size + zoom ----------
@@ -706,325 +713,6 @@
     var pt = slotBelow(lowestBlock());
     btn.style.left = pt.x + 'px';
     btn.style.top = pt.y + 'px';
-  }
-
-  // An editable caption that bonds a label to a value chip.
-  function makeCaption(getText, setText) {
-    var cap = document.createElement('span');
-    cap.className = 'cap';
-    cap.contentEditable = 'true';
-    var txt = getText() || '';
-    cap.textContent = txt;
-    if (txt) cap.title = txt; // full name on hover when clamped
-    // Single tap edits: focus immediately (don't wait for a second tap to select the block first).
-    cap.addEventListener('pointerdown', function(e){
-      e.stopPropagation();
-      if (document.activeElement !== cap) {
-        e.preventDefault();
-        cap.focus();
-        var r = document.createRange(); r.selectNodeContents(cap); r.collapse(false);
-        var sn = window.getSelection(); sn.removeAllRanges(); sn.addRange(r);
-      }
-    });
-    cap.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); cap.blur(); } });
-    cap.addEventListener('blur', function(){
-      if (getText() !== cap.textContent) { snapshot(); setText(cap.textContent); save(); renderAll(); }
-    });
-    return cap;
-  }
-
-  function renderBlock(b, map) {
-    var el = document.createElement('div');
-    el.className = 'block';
-    if (sel.blockId===b.id && sel.kind==='result') el.className += ' selected';
-    if (activeBlockId===b.id) el.className += ' active';
-    el.style.left = b.x + 'px';
-    el.style.top = b.y + 'px';
-    el.style.setProperty('--fs', state.fontSize + 'px');
-    el.dataset.id = b.id;
-
-    // delete (×) button
-    var del = document.createElement('button');
-    del.className = 'block-del';
-    del.type = 'button';
-    del.textContent = '×';
-    del.setAttribute('aria-label', 'Delete block');
-    del.addEventListener('pointerdown', function(e){ e.stopPropagation(); e.preventDefault(); });
-    del.addEventListener('click', function(e){ e.stopPropagation(); confirmDeleteBlock(byId(b.id)); });
-    el.appendChild(del);
-
-    // expression
-    var expr = document.createElement('div');
-    expr.className = 'expr';
-    b.terms.forEach(function(t, idx){
-      if (t.type==='operator') {
-        var op = document.createElement('span');
-        op.className = 'term operator';
-        if (sel.blockId===b.id && sel.termIndex===idx && sel.kind==='operator') op.className += ' sel';
-        op.textContent = opSym(t.value);
-        op.dataset.idx = idx;
-        expr.appendChild(op);
-        return;
-      }
-      if (t.type==='paren') {
-        var pp = document.createElement('span');
-        pp.className = 'term paren';
-        pp.textContent = t.value;
-        pp.dataset.idx = idx;
-        expr.appendChild(pp);
-        return;
-      }
-      var cell = document.createElement('span');
-      cell.className = 'cell';
-      var capGet, capSet;
-      if (t.type==='linked') {
-        // the linked term's label IS its source's label (kept in sync)
-        capGet = function(){ var s=linkedSource(t, blocksMap()); return s ? s.getLabel() : ''; };
-        capSet = function(v){ var s=linkedSource(t, blocksMap()); if(s) s.setLabel(v); };
-      } else {
-        capGet = function(){ return t.label; };
-        capSet = function(v){ var nb=byId(b.id); if(nb) nb.terms[idx].label = v; };
-      }
-      cell.appendChild(makeCaption(capGet, capSet));
-      var span = document.createElement('span');
-      if (sel.blockId===b.id && sel.termIndex===idx) span.className = ' sel';
-      if (t.type==='number') {
-        span.className = 'term number' + span.className;
-        span.textContent = groupDisplay(t.value);
-        var nkey = srcKey(b.id, t.tid);          // colored underline if this input is linked elsewhere
-        if (linkColorMap[nkey]) span.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[nkey];
-      } else { // linked
-        span.className = 'term linked' + span.className;
-        var lv = linkedValue(t, map);
-        span.textContent = (lv==null) ? '?' : fmt(lv);
-        span.dataset.linked = '1';
-        var lkey = srcKey(t.sourceId, t.sourceTid);
-        var lc = linkColorMap[lkey];
-        if (lc) { span.style.color = lc; span.style.background = lc + '22'; }
-      }
-      span.dataset.idx = idx;
-      cell.appendChild(span);
-      expr.appendChild(cell);
-    });
-
-    // result (its caption doubles as the block title)
-    if (b.terms.length) {
-      var val = resolve(b, map);
-      var eq = document.createElement('span'); eq.className='eq'; eq.textContent='=';
-      expr.appendChild(eq);
-
-      var rcell = document.createElement('span');
-      rcell.className = 'cell';
-      rcell.appendChild(makeCaption(
-        function(){ return b.label; },
-        function(v){ var nb=byId(b.id); if(nb) nb.label = v; }
-      ));
-      var res = document.createElement('span');
-      res.className = 'result' + (val===null?' empty':'');
-      if (sel.blockId===b.id && sel.kind==='result') res.className += ' sel';
-      res.textContent = val===null ? '·' : fmt(val);
-      res.dataset.result = '1';
-      res.dataset.id = b.id;
-      var rkey = srcKey(b.id, null);            // colored underline if this result is linked elsewhere
-      if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[rkey];
-      rcell.appendChild(res);
-      expr.appendChild(rcell);
-    }
-
-    el.appendChild(expr);
-    return el;
-  }
-
-  // Offset of an element relative to an ancestor, summed up the offsetParent chain.
-  function offsetIn(el, ancestor) {
-    var x=0, y=0;
-    while (el && el!==ancestor) { x+=el.offsetLeft; y+=el.offsetTop; el=el.offsetParent; }
-    return { x:x, y:y };
-  }
-
-  function drawLinks(map) {
-    while (linkLayer.firstChild) linkLayer.removeChild(linkLayer.firstChild);
-    cur().blocks.forEach(function(b){
-      b.terms.forEach(function(t, idx){
-        if (t.type!=='linked') return;
-        var src = map[t.sourceId]; if(!src) return;
-        var srcEl = blockEl(src.id);
-        var dstEl = blockEl(b.id);
-        if (!srcEl||!dstEl) return;
-        var srcRes;
-        if (t.sourceTid != null) {
-          var si=-1; for (var ii=0; ii<src.terms.length; ii++){ if (src.terms[ii].type==='number' && src.terms[ii].tid===t.sourceTid){ si=ii; break; } }
-          srcRes = si>=0 ? srcEl.querySelectorAll('.term')[si] : null;
-        } else {
-          srcRes = srcEl.querySelector('.result');
-        }
-        var dstTerm = dstEl.querySelectorAll('.term')[idx];
-        if (!srcRes||!dstTerm) return;
-        // Use layout offsets (logical coords) so links are correct at any zoom.
-        var so = offsetIn(srcRes, srcEl), to = offsetIn(dstTerm, dstEl);
-        var x1 = src.x + so.x + srcRes.offsetWidth/2;
-        var y1 = src.y + so.y + srcRes.offsetHeight/2;
-        var x2 = b.x + to.x + dstTerm.offsetWidth/2;
-        var y2 = b.y + to.y + dstTerm.offsetHeight/2;
-        var path = document.createElementNS('http://www.w3.org/2000/svg','path');
-        var dx = Math.abs(x2-x1)*0.4;
-        path.setAttribute('d','M '+x1+' '+y1+' C '+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);
-        path.setAttribute('fill','none');
-        path.setAttribute('stroke', linkColorMap[srcKey(t.sourceId, t.sourceTid)] || 'var(--accent)');
-        path.setAttribute('stroke-width','1.5');
-        path.setAttribute('stroke-dasharray','3 3');
-        path.setAttribute('opacity','0.75');
-        linkLayer.appendChild(path);
-      });
-    });
-  }
-
-  // ---------- Sidebar (variables) ----------
-  function collectVars() {
-    var inputs = [], results = [];
-    cur().blocks.forEach(function(b){
-      b.terms.forEach(function(t, idx){
-        if (t.type==='number') inputs.push({ bid:b.id, idx:idx, t:t });
-      });
-      if (b.terms.length) results.push(b);
-    });
-    return { inputs:inputs, results:results };
-  }
-
-  function sidebarOpen(){ return document.getElementById('sidebar').classList.contains('open'); }
-
-  // Pin the sidebar and zoom control above the keypad (the keypad overlays the canvas).
-  function layoutOverlays() {
-    var np = document.getElementById('numpad');
-    var h = np.classList.contains('hidden') ? 0 : np.offsetHeight;
-    document.getElementById('sidebar').style.bottom = h + 'px';
-    document.getElementById('zoomCtl').style.bottom = (h + 10) + 'px';
-  }
-
-  function syncSidebar() {
-    if (!sidebarOpen()) return;
-    var sb = document.getElementById('sidebar');
-    // Don't rebuild (and steal focus) while editing a field in the sidebar.
-    if (sb.contains(document.activeElement)) refreshSidebarValues();
-    else renderSidebar();
-  }
-
-  function scheduleSidebarRebuild() {
-    setTimeout(function(){
-      var sb = document.getElementById('sidebar');
-      if (sb.classList.contains('open') && !sb.contains(document.activeElement)) renderSidebar();
-    }, 0);
-  }
-
-  function refreshSidebarValues() {
-    var map = blocksMap();
-    document.querySelectorAll('#sidebarBody .var-val[data-kind="result"]').forEach(function(el){
-      var b = byId(el.dataset.bid); if (b) el.textContent = fmt(resolve(b, map));
-    });
-    document.querySelectorAll('#sidebarBody .var-def').forEach(function(el){
-      var b = byId(el.dataset.bid); if (b) el.textContent = '= ' + blockDefinition(b, map);
-    });
-    document.querySelectorAll('#sidebarBody .var-val[data-kind="input"]').forEach(function(el){
-      if (el === document.activeElement) return;
-      var b = byId(el.dataset.bid); if (!b) return;
-      var t = b.terms[el.dataset.idx]; if (t) el.value = groupDisplay(t.value);
-    });
-  }
-
-  function renderSidebar() {
-    var body = document.getElementById('sidebarBody');
-    var map = blocksMap();
-    var v = collectVars();
-    body.innerHTML = '';
-
-    if (!v.inputs.length && !v.results.length) {
-      var e = document.createElement('div'); e.className = 'var-empty';
-      e.textContent = 'No variables yet. Numbers and results show up here once you start a calculation — tap a name to label them.';
-      body.appendChild(e);
-      return;
-    }
-
-    function sec(label){ var d=document.createElement('div'); d.className='var-sec'; d.textContent=label; return d; }
-
-    if (v.inputs.length) {
-      body.appendChild(sec('Inputs'));
-      v.inputs.forEach(function(it){ body.appendChild(inputRow(it)); });
-    }
-    if (v.results.length) {
-      body.appendChild(sec('Results'));
-      v.results.forEach(function(b){ body.appendChild(resultRow(b, map)); });
-    }
-  }
-
-  function inputRow(it) {
-    var row = document.createElement('div'); row.className = 'var-row';
-
-    var name = document.createElement('input');
-    name.className = 'var-name'; name.value = it.t.label || '';
-    name.placeholder = 'unnamed';
-    var nameDirty = false;
-    name.addEventListener('focus', function(){ nameDirty = false; });
-    name.addEventListener('input', function(){
-      var b = byId(it.bid); if (!b) return;
-      var t = b.terms[it.idx]; if (!t) return;
-      if (!nameDirty) { snapshot(); nameDirty = true; } // one undo step per edit, only on real change
-      t.label = name.value; save(); renderAll();
-    });
-    name.addEventListener('blur', function(){ nameDirty = false; scheduleSidebarRebuild(); });
-
-    var val = document.createElement('input');
-    val.className = 'var-val'; val.value = groupDisplay(it.t.value); // grouped while unfocused
-    val.inputMode = 'decimal';
-    val.dataset.bid = it.bid; val.dataset.idx = it.idx; val.dataset.kind = 'input';
-    var valDirty = false;
-    val.addEventListener('focus', function(){
-      valDirty = false;
-      var b = byId(it.bid), t = b && b.terms[it.idx];
-      if (t) val.value = t.value; // show raw for editing
-    });
-    val.addEventListener('input', function(){
-      var b = byId(it.bid); if (!b) return;
-      var t = b.terms[it.idx]; if (!t) return;
-      if (!valDirty) { snapshot(); valDirty = true; }
-      t.value = val.value.split(NUM_GROUP).join('').split(NUM_DECIMAL).join('.'); // strip separators
-      save(); renderAll();
-    });
-    val.addEventListener('blur', function(){
-      valDirty = false;
-      var b = byId(it.bid), t = b && b.terms[it.idx];
-      if (t) val.value = groupDisplay(t.value);
-      scheduleSidebarRebuild();
-    });
-
-    row.appendChild(name); row.appendChild(val);
-    return row;
-  }
-
-  function resultRow(b, map) {
-    var row = document.createElement('div'); row.className = 'var-row';
-
-    var name = document.createElement('input');
-    name.className = 'var-name'; name.value = b.label || '';
-    name.placeholder = 'unnamed';
-    var nameDirty = false;
-    name.addEventListener('focus', function(){ nameDirty = false; });
-    name.addEventListener('input', function(){
-      var nb = byId(b.id); if (!nb) return;
-      if (!nameDirty) { snapshot(); nameDirty = true; }
-      nb.label = name.value; save(); renderAll();
-    });
-    name.addEventListener('blur', function(){ nameDirty = false; scheduleSidebarRebuild(); });
-
-    var val = document.createElement('span');
-    val.className = 'var-val ro'; val.dataset.bid = b.id; val.dataset.kind = 'result';
-    val.textContent = fmt(resolve(b, map));
-
-    var def = document.createElement('div');
-    def.className = 'var-def'; def.dataset.bid = b.id;
-    def.textContent = '= ' + blockDefinition(b, map);
-
-    row.appendChild(name); row.appendChild(val); row.appendChild(def);
-    return row;
   }
 
   // ---------- Selection ----------

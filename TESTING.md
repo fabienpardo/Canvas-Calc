@@ -114,7 +114,7 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   number-link exemption, missing-source), formatting, clipboard parsing,
   definitions; `test/state.test.js` — saved-state migration, normalization,
   id repair, lookups; `test/sw.test.js` — service-worker precache (incl.
-  `state.js` and `engine.js`), `res.ok` guard, non-GET ignored,
+  `state.js`, `engine.js`, and `render.js`), `res.ok` guard, non-GET ignored,
   old-cache cleanup.
 - **E2E (Playwright, 44 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
