@@ -225,7 +225,9 @@
   // The "+ add" button sits below the lowest block, and hides while editing.
   function positionAddBtn() {
     var btn = document.getElementById('addBtn');
-    if (store.getActiveBlockId()) { btn.style.display = 'none'; return; }
+    // Hidden while editing, and on an empty canvas (the hint card's "+" adds the
+    // first block there instead of a redundant button floating top-left).
+    if (store.getActiveBlockId() || !cur().blocks.length) { btn.style.display = 'none'; return; }
     btn.style.display = 'flex';
     var pt = slotBelow(lowestBlock());
     btn.style.left = pt.x + 'px';
@@ -389,6 +391,12 @@
   });
 
   // ---------- Add-calculation button ----------
+  function addBlockAt(x, y) {
+    store.commit(function(){
+      var nb = newBlock(snap(x), snap(y));
+      store.setActiveBlockId(nb.id); store.clearSelection();
+    });
+  }
   (function(){
     var btn = document.getElementById('addBtn');
     btn.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
@@ -396,11 +404,15 @@
       e.stopPropagation();
       var x = parseInt(btn.style.left,10); if (isNaN(x)) x = 40;
       var y = parseInt(btn.style.top,10);  if (isNaN(y)) y = 30;
-      store.commit(function(){
-        var nb = newBlock(snap(x), snap(y));
-        store.setActiveBlockId(nb.id); store.clearSelection();
-      });
+      addBlockAt(x, y);
     });
+    // On an empty canvas the toolbar add-button is hidden and the hint card's
+    // "+" mark is the add control instead (see positionAddBtn).
+    var hintMark = document.querySelector('.hint-mark');
+    if (hintMark) {
+      hintMark.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+      hintMark.addEventListener('click', function(e){ e.stopPropagation(); addBlockAt(40, 30); });
+    }
   })();
 
   // ---------- Numpad ----------
