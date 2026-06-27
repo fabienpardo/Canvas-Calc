@@ -484,6 +484,7 @@
 <script src="engine.js"></script>
 <script src="render.js"></script>
 <script src="interactions.js"></script>
+<script src="canvases.js"></script>
 <script>
 (function () {
   "use strict";
@@ -670,6 +671,10 @@
     document.getElementById('zoomLevel').textContent = Math.round(zoom*100) + '%';
   }
 
+  function clampZoom(value) {
+    return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
+  }
+
   // Set zoom while keeping the logical point under viewport coord (vx,vy) fixed.
   function zoomAround(newZoom, vx, vy) {
     newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
@@ -742,83 +747,24 @@
   }
 
   // ---------- Canvases (sheets) ----------
-  function applyCanvasName() { document.getElementById('canvasName').textContent = cur().title || 'Canvas'; }
-
-  function setActiveCanvas(id) {
-    if (!state.canvases.some(function(c){ return c.id===id; })) return;
-    state.activeCanvasId = id;
-    zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cur().zoom));
-    clearSel(); activeBlockId = null;
-    wrap.scrollLeft = 0; wrap.scrollTop = 0;
-    applyCanvasName(); updateZoomLabel(); renderAll(); layoutOverlays(); save();
-  }
-  function addCanvas() {
-    var id = 'c' + (state.nextCanvasId++);
-    var c = State.freshCanvas(id, ''); state.canvases.push(c); c.title = 'Canvas ' + state.canvases.length;
-    closeCanvasMenu();
-    setActiveCanvas(id);
-  }
-  function renameCanvas(id, title) {
-    var c = state.canvases.filter(function(x){ return x.id===id; })[0];
-    if (!c) return;
-    c.title = title;
-    if (id===state.activeCanvasId) applyCanvasName();
-    save();
-  }
-  function deleteCanvas(id) {
-    if (state.canvases.length <= 1) return; // always keep one
-    var c = state.canvases.filter(function(x){ return x.id===id; })[0]; if (!c) return;
-    confirmDialog('Delete "' + (c.title || 'this canvas') + '" and all its calculations?', function(){
-      state.canvases = state.canvases.filter(function(x){ return x.id!==id; });
-      delete undoStacks[id];
-      closeCanvasMenu();
-      if (state.activeCanvasId===id) setActiveCanvas(state.canvases[0].id);
-      else save();
-    }, 'Delete', true);
-  }
-
-  var canvasMenuEl = document.getElementById('canvasMenu');
-  var canvasBtnEl = document.getElementById('canvasBtn');
-  function closeCanvasMenu() { canvasMenuEl.hidden = true; canvasBtnEl.setAttribute('aria-expanded','false'); }
-  function openCanvasMenu() { renderCanvasMenu(); canvasMenuEl.hidden = false; canvasBtnEl.setAttribute('aria-expanded','true'); }
-  function renderCanvasMenu() {
-    canvasMenuEl.innerHTML = '';
-    state.canvases.forEach(function(c){
-      var row = document.createElement('div');
-      var active = c.id===state.activeCanvasId;
-      row.className = 'cv-row' + (active ? ' active' : '');
-      var name;
-      if (active) {
-        // the current canvas is renamed inline
-        name = document.createElement('input');
-        name.className = 'cv-name'; name.value = c.title;
-        name.addEventListener('input', function(){ renameCanvas(c.id, name.value); });
-        name.addEventListener('keydown', function(e){ if (e.key==='Enter'){ e.preventDefault(); name.blur(); } });
-      } else {
-        // other canvases are switch buttons
-        name = document.createElement('button');
-        name.className = 'cv-name'; name.textContent = c.title;
-        name.addEventListener('click', function(){ setActiveCanvas(c.id); closeCanvasMenu(); });
-      }
-      var del = document.createElement('button');
-      del.className = 'cv-del'; del.textContent = '×'; del.setAttribute('aria-label','Delete canvas');
-      if (state.canvases.length <= 1) del.disabled = true;
-      del.addEventListener('click', function(e){ e.stopPropagation(); deleteCanvas(c.id); });
-      row.appendChild(name); row.appendChild(del);
-      canvasMenuEl.appendChild(row);
-    });
-    var add = document.createElement('button');
-    add.className = 'cv-new'; add.textContent = '+ New canvas';
-    add.addEventListener('click', function(e){ e.stopPropagation(); addCanvas(); });
-    canvasMenuEl.appendChild(add);
-  }
-  canvasBtnEl.addEventListener('click', function(e){
-    e.stopPropagation();
-    if (canvasMenuEl.hidden) openCanvasMenu(); else closeCanvasMenu();
+  var canvasManager = CanvasCanvases.create({
+    document: document,
+    State: State,
+    wrap: wrap,
+    getState: function(){ return state; },
+    cur: cur,
+    clampZoom: clampZoom,
+    setZoom: function(nextZoom){ zoom = nextZoom; },
+    clearSelection: clearSel,
+    setActiveBlockId: setActiveBlock,
+    updateZoomLabel: updateZoomLabel,
+    renderAll: renderAll,
+    layoutOverlays: layoutOverlays,
+    save: save,
+    deleteUndoStack: function(id){ delete undoStacks[id]; },
+    confirmDialog: confirmDialog
   });
-  document.addEventListener('pointerdown', function(e){
-    if (!canvasMenuEl.hidden && !e.target.closest('.cv-switch')) closeCanvasMenu();
-  });
+  function applyCanvasName(){ canvasManager.applyCanvasName(); }
 
   // ---------- Copy / paste ----------
   // Parse clipboard text into terms (numbers, operators, parens); strips separators.
