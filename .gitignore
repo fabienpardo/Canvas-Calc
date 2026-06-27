@@ -1,5 +1,26 @@
+# Local config & dependencies
 .claude/settings.local.json
+.claude/*.local.json
 node_modules/
+
+# Test & build artifacts
 test-results/
 playwright-report/
 /playwright/.cache/
+coverage/
+
+# Environment & secrets
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
