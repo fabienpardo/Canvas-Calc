@@ -67,7 +67,7 @@
     overscroll-behavior: none; touch-action: none;
     -webkit-user-select: none; user-select: none;
   }
-  #app { display: flex; flex-direction: column; height: 100%; }
+  #app { display: flex; flex-direction: column; height: 100%; position: relative; }
 
   /* Toolbar */
   #toolbar {
@@ -129,7 +129,7 @@
     transform-origin: 0 0;
   }
   #zoomCtl {
-    position: absolute; left: 10px; bottom: 10px; z-index: 25;
+    position: fixed; left: 10px; bottom: 10px; z-index: 45;
     display: flex; align-items: center; gap: 2px;
     background: var(--block); border: 1px solid var(--block-border);
     border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,0.12);
@@ -238,7 +238,8 @@
 
   /* Numpad */
   #numpad {
-    flex: 0 0 auto; background: var(--pad-bg);
+    position: absolute; left: 0; right: 0; bottom: 0; /* overlay so canvas fills behind it */
+    background: var(--pad-bg);
     border-top: 1px solid var(--block-border);
     padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
     transition: transform 0.22s ease; z-index: 50;
@@ -252,7 +253,6 @@
     display: flex; align-items: center; gap: 4px; cursor: pointer;
     font-family: var(--sans);
   }
-  #numpad { position: relative; }
   .padgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .key {
     background: var(--key); border: 1px solid var(--key-border);
@@ -383,11 +383,12 @@
         <button id="addBtn" aria-label="Add calculation">+</button>
       </div>
     </div>
-    <div id="zoomCtl">
-      <button id="zoomOut" aria-label="Zoom out">−</button>
-      <button id="zoomLevel" aria-label="Reset zoom">100%</button>
-      <button id="zoomIn" aria-label="Zoom in">+</button>
-    </div>
+  </div>
+
+  <div id="zoomCtl">
+    <button id="zoomOut" aria-label="Zoom out">−</button>
+    <button id="zoomLevel" aria-label="Reset zoom">100%</button>
+    <button id="zoomIn" aria-label="Zoom in">+</button>
   </div>
 
   <div id="numpad">
@@ -833,12 +834,12 @@
 
   function sidebarOpen(){ return document.getElementById('sidebar').classList.contains('open'); }
 
-  // Keep the sidebar above the keypad so the keypad stays usable.
-  function layoutSidebar() {
-    var sb = document.getElementById('sidebar');
+  // Pin the sidebar and zoom control above the keypad (the keypad overlays the canvas).
+  function layoutOverlays() {
     var np = document.getElementById('numpad');
     var h = np.classList.contains('hidden') ? 0 : np.offsetHeight;
-    sb.style.bottom = h + 'px';
+    document.getElementById('sidebar').style.bottom = h + 'px';
+    document.getElementById('zoomCtl').style.bottom = (h + 10) + 'px';
   }
 
   function syncSidebar() {
@@ -1455,9 +1456,9 @@
     var np=document.getElementById('numpad');
     np.classList.toggle('hidden');
     this.innerHTML = np.classList.contains('hidden') ? 'Show keypad ▴' : 'Hide keypad ▾';
-    layoutSidebar();
+    layoutOverlays();
   });
-  window.addEventListener('resize', function(){ updateViewport(); if (sidebarOpen()) layoutSidebar(); });
+  window.addEventListener('resize', function(){ updateViewport(); layoutOverlays(); });
 
   // ---------- Toolbar ----------
   document.getElementById('undoBtn').onclick = undo;
@@ -1472,7 +1473,7 @@
     var sb = document.getElementById('sidebar');
     var open = sb.classList.toggle('open');
     sb.setAttribute('aria-hidden', open ? 'false' : 'true');
-    if (open) { layoutSidebar(); renderSidebar(); }
+    if (open) { layoutOverlays(); renderSidebar(); }
   };
   document.getElementById('sidebarClose').onclick = function(){
     var sb = document.getElementById('sidebar');
@@ -1601,6 +1602,7 @@
   applyGrid();
   updateZoomLabel();
   renderAll();
+  layoutOverlays();
 })();
 
 if ('serviceWorker' in navigator) {
