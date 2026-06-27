@@ -1,13 +1,15 @@
-# Local config & dependencies
-.claude/settings.local.json
-.claude/*.local.json
+# Dependencies
 node_modules/
 
-# Test & build artifacts
+# Test artifacts
 test-results/
 playwright-report/
-/playwright/.cache/
+playwright/.cache/
 coverage/
+
+# Local Claude config (launch.json is shared and stays tracked)
+.claude/settings.local.json
+.claude/*.local.json
 
 # Environment & secrets
 .env
@@ -17,10 +19,8 @@ coverage/
 *.log
 npm-debug.log*
 
-# Editor directories
+# Editor & OS files
 .vscode/
 .idea/
 *.swp
-
-# OS files
 .DS_Store
