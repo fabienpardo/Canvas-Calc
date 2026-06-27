@@ -120,6 +120,7 @@ test('fmt: specials and grouping', () => {
   assert.equal(E.fmt(null), '');
   assert.equal(E.fmt(NaN), '—');
   assert.equal(E.fmt(Infinity), '∞');
+  assert.equal(E.fmt(-Infinity), '-∞');
   assert.equal(E.fmt(5), '5');
   var G = E.NUM_GROUP;
   assert.equal(E.fmt(1234567), '1' + G + '234' + G + '567');
@@ -131,6 +132,7 @@ test('groupDisplay: in-progress typing preserves decimal tail', () => {
   assert.equal(E.groupDisplay('1234.50', ',', '.'), '1,234.50');
   assert.equal(E.groupDisplay('-1234', ',', '.'), '-1,234');
   assert.equal(E.groupDisplay('', ',', '.'), '0');
+  assert.equal(E.groupDisplay(1234, ',', '.'), '1,234');
 });
 
 // ---------- clipboard parsing ----------

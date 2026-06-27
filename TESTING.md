@@ -108,13 +108,15 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 ## Status
 
 ### Implemented
-- **Unit (`node --test`, 29 tests):** `test/engine.test.js` — evaluation
+- **Unit (`node --test`, 34 tests):** `test/engine.test.js` — evaluation
   (precedence, parens, division, negatives, tolerant states, div-by-zero,
   linked cascade, number-term links, cycle detection incl. indirect +
   number-link exemption, missing-source), formatting, clipboard parsing,
-  definitions; `test/sw.test.js` — service-worker precache (incl. `engine.js`),
-  `res.ok` guard, non-GET ignored, old-cache cleanup.
-- **E2E (Playwright, 41 specs, shared `e2e/helpers.js`):**
+  definitions; `test/state.test.js` — saved-state migration, normalization,
+  id repair, lookups; `test/sw.test.js` — service-worker precache (incl.
+  `state.js` and `engine.js`), `res.ok` guard, non-GET ignored,
+  old-cache cleanup.
+- **E2E (Playwright, 43 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, sidebar inline
     edit, grid toggle, zoom + scroll, paste, single-click label, backspace chain.

@@ -212,7 +212,7 @@
   .block-del {
     position: absolute; top: -10px; right: -10px;
     width: 22px; height: 22px; border-radius: 50%;
-    background: var(--danger); color: #fff;
+    border: none; padding: 0; background: var(--danger); color: #fff;
     display: none; align-items: center; justify-content: center;
     font-size: 15px; line-height: 1; cursor: pointer; z-index: 4;
     box-shadow: 0 1px 4px rgba(0,0,0,0.3);
@@ -295,6 +295,7 @@
   }
   .padgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .key {
+    appearance: none; -webkit-appearance: none; padding: 0;
     background: var(--key); border: 1px solid var(--key-border);
     border-radius: var(--radius); height: 50px;
     font-family: var(--mono); font-size: 21px; color: var(--text);
@@ -439,27 +440,27 @@
   <div id="numpad">
     <div id="padToggle">Hide keypad ▾</div>
     <div class="padgrid" role="group" aria-label="Calculator keypad">
-      <div class="key" data-k="7" role="button" aria-label="7">7</div>
-      <div class="key" data-k="8" role="button" aria-label="8">8</div>
-      <div class="key" data-k="9" role="button" aria-label="9">9</div>
-      <div class="key op" data-k="/" role="button" aria-label="Divide">÷</div>
-      <div class="key" data-k="4" role="button" aria-label="4">4</div>
-      <div class="key" data-k="5" role="button" aria-label="5">5</div>
-      <div class="key" data-k="6" role="button" aria-label="6">6</div>
-      <div class="key op" data-k="*" role="button" aria-label="Multiply">×</div>
-      <div class="key" data-k="1" role="button" aria-label="1">1</div>
-      <div class="key" data-k="2" role="button" aria-label="2">2</div>
-      <div class="key" data-k="3" role="button" aria-label="3">3</div>
-      <div class="key op" data-k="-" role="button" aria-label="Subtract">−</div>
-      <div class="key" data-k="." role="button" aria-label="Decimal point">.</div>
-      <div class="key" data-k="0" role="button" aria-label="0">0</div>
-      <div class="key act" data-k="back" role="button" aria-label="Backspace">⌫</div>
-      <div class="key op" data-k="+" role="button" aria-label="Add">+</div>
-      <div class="key op" data-k="(" role="button" aria-label="Open parenthesis">(</div>
-      <div class="key op" data-k=")" role="button" aria-label="Close parenthesis">)</div>
-      <div class="key op" data-k="neg" role="button" aria-label="Plus / minus sign" style="grid-column: span 2;">±</div>
-      <div class="key del" data-k="clear" role="button" aria-label="Clear canvas">Clear</div>
-      <div class="key eq" data-k="=" role="button" aria-label="Equals — finish this block">=</div>
+      <button type="button" class="key" data-k="7" aria-label="7">7</button>
+      <button type="button" class="key" data-k="8" aria-label="8">8</button>
+      <button type="button" class="key" data-k="9" aria-label="9">9</button>
+      <button type="button" class="key op" data-k="/" aria-label="Divide">÷</button>
+      <button type="button" class="key" data-k="4" aria-label="4">4</button>
+      <button type="button" class="key" data-k="5" aria-label="5">5</button>
+      <button type="button" class="key" data-k="6" aria-label="6">6</button>
+      <button type="button" class="key op" data-k="*" aria-label="Multiply">×</button>
+      <button type="button" class="key" data-k="1" aria-label="1">1</button>
+      <button type="button" class="key" data-k="2" aria-label="2">2</button>
+      <button type="button" class="key" data-k="3" aria-label="3">3</button>
+      <button type="button" class="key op" data-k="-" aria-label="Subtract">−</button>
+      <button type="button" class="key" data-k="." aria-label="Decimal point">.</button>
+      <button type="button" class="key" data-k="0" aria-label="0">0</button>
+      <button type="button" class="key act" data-k="back" aria-label="Backspace">⌫</button>
+      <button type="button" class="key op" data-k="+" aria-label="Add">+</button>
+      <button type="button" class="key op" data-k="(" aria-label="Open parenthesis">(</button>
+      <button type="button" class="key op" data-k=")" aria-label="Close parenthesis">)</button>
+      <button type="button" class="key op" data-k="neg" aria-label="Plus / minus sign" style="grid-column: span 2;">±</button>
+      <button type="button" class="key del" data-k="clear" aria-label="Clear canvas">Clear</button>
+      <button type="button" class="key eq" data-k="=" aria-label="Equals — finish this block">=</button>
     </div>
   </div>
 </div>
@@ -479,6 +480,7 @@
   <div class="row" id="toastRow"></div>
 </div>
 
+<script src="state.js"></script>
 <script src="engine.js"></script>
 <script>
 (function () {
@@ -490,14 +492,14 @@
       fmt = E.fmt, groupDisplay = E.groupDisplay, opSym = E.opSym, labelOf = E.labelOf,
       blockDefinition = E.blockDefinition, parseExpression = E.parseExpression,
       NUM_GROUP = E.NUM_GROUP, NUM_DECIMAL = E.NUM_DECIMAL;
+  var State = window.CanvasState;
   // App wrapper injects the current block map into the pure cycle check.
   function createsCycle(targetId, srcId) { return E.createsCycle(targetId, srcId, blocksMap()); }
 
   // ---------- State ----------
   // Multiple canvases ("sheets"). Each owns its blocks + id counters + zoom.
   // App-global settings (fontSize, showGrid) live at the top level.
-  function freshCanvas(id, title) { return { id: id, title: title, blocks: [], nextId: 1, nextTid: 1, zoom: 1 }; }
-  var state = { canvases: [ freshCanvas('c1', 'Canvas 1') ], activeCanvasId: 'c1', nextCanvasId: 2, fontSize: 22, showGrid: false };
+  var state = State.normalizeState(null);
   var zoom = 1; // current view scale (mirror of cur().zoom)
   var ZOOM_MIN = 0.4, ZOOM_MAX = 2.5;
   var sel = { blockId: null, termIndex: null, kind: null }; // kind: 'number'|'result'|'linked'
@@ -525,54 +527,13 @@
     }, 400);
   }
   function load() {
+    var saved = null;
     try {
       var raw = localStorage.getItem('canvascalc.v1');
-      if (raw) {
-        var s = JSON.parse(raw);
-        if (s && s.canvases) state = s;
-        else if (s && s.blocks) { // migrate the old single-canvas shape
-          state = {
-            canvases: [{ id:'c1', title:'Canvas 1', blocks: s.blocks || [], nextId: s.nextId||1, nextTid: s.nextTid||1, zoom: (s.zoom && !isNaN(s.zoom)) ? s.zoom : 1 }],
-            activeCanvasId: 'c1', nextCanvasId: 2, fontSize: s.fontSize||22, showGrid: !!s.showGrid
-          };
-        }
-      }
+      if (raw) saved = JSON.parse(raw);
     } catch (e) {}
-    // integrity / defaults
-    if (!state.canvases || !state.canvases.length) state.canvases = [ freshCanvas('c1','Canvas 1') ];
-    if (!state.activeCanvasId || !state.canvases.some(function(c){ return c.id===state.activeCanvasId; })) state.activeCanvasId = state.canvases[0].id;
-    if (!state.nextCanvasId) state.nextCanvasId = state.canvases.length + 1;
-    if (!state.fontSize) state.fontSize = 22;
-    if (state.showGrid === undefined) state.showGrid = false;
-    state.canvases.forEach(function(c){
-      if (!c.nextId) c.nextId = 1;
-      if (!c.nextTid) c.nextTid = 1;
-      if (!c.zoom || isNaN(c.zoom)) c.zoom = 1;
-      if (!c.title) c.title = 'Canvas';
-      if (!Array.isArray(c.blocks)) c.blocks = [];
-      // normalize each block so malformed-but-valid saved JSON can't crash rendering/eval
-      c.blocks = c.blocks.filter(function(b){ return b && typeof b === 'object'; });
-      c.blocks.forEach(function(b){
-        if (!Array.isArray(b.terms)) b.terms = [];
-        b.terms = b.terms.filter(function(t){ return t && typeof t === 'object' && typeof t.type === 'string'; });
-        if (typeof b.x !== 'number') b.x = 40;
-        if (typeof b.y !== 'number') b.y = 30;
-        if (typeof b.label !== 'string') b.label = '';
-        if (typeof b.id !== 'string') b.id = 'b' + (c.nextId++);
-      });
-    });
+    state = State.normalizeState(saved || state);
     zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cur().zoom));
-    ensureTids();
-  }
-
-  // Stable ids for number terms, so they can be referenced as linked variables.
-  function ensureTids() {
-    state.canvases.forEach(function(c){
-      if (!c.nextTid) c.nextTid = 1;
-      c.blocks.forEach(function(b){
-        b.terms.forEach(function(t){ if (t.type==='number' && t.tid==null) t.tid = 't'+(c.nextTid++); });
-      });
-    });
   }
 
   // ---------- History (per canvas) ----------
@@ -610,8 +571,8 @@
   }
 
   // ---------- Model helpers ----------
-  function byId(id) { var bs=cur().blocks; for (var i=0;i<bs.length;i++) if (bs[i].id===id) return bs[i]; return null; }
-  function blocksMap() { var m={}; cur().blocks.forEach(function(b){m[b.id]=b;}); return m; }
+  function byId(id) { return State.byId(cur(), id); }
+  function blocksMap() { return State.blocksMap(cur()); }
 
   function newBlock(x, y) {
     var c = cur();
@@ -778,8 +739,9 @@
     el.dataset.id = b.id;
 
     // delete (×) button
-    var del = document.createElement('span');
+    var del = document.createElement('button');
     del.className = 'block-del';
+    del.type = 'button';
     del.textContent = '×';
     del.setAttribute('aria-label', 'Delete block');
     del.addEventListener('pointerdown', function(e){ e.stopPropagation(); e.preventDefault(); });
@@ -1096,7 +1058,7 @@
   }
   function addCanvas() {
     var id = 'c' + (state.nextCanvasId++);
-    var c = freshCanvas(id, ''); state.canvases.push(c); c.title = 'Canvas ' + state.canvases.length;
+    var c = State.freshCanvas(id, ''); state.canvases.push(c); c.title = 'Canvas ' + state.canvases.length;
     closeCanvasMenu();
     setActiveCanvas(id);
   }
@@ -1644,6 +1606,11 @@
   document.querySelector('.padgrid').addEventListener('pointerdown', function(e){
     var key = e.target.closest('.key'); if(!key) return;
     e.preventDefault(); // fire immediately; don't wait for (and risk losing) the click
+    pressKey(key.dataset.k);
+  });
+  document.querySelector('.padgrid').addEventListener('click', function(e){
+    var key = e.target.closest('.key'); if(!key || e.detail !== 0) return;
+    e.preventDefault();
     pressKey(key.dataset.k);
   });
   document.getElementById('padToggle').addEventListener('click', function(){

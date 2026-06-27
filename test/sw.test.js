@@ -8,6 +8,7 @@ const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 
 test('service worker precaches the app shell + engine', () => {
   assert.match(sw, /'\.\/index\.html'/);
+  assert.match(sw, /'\.\/state\.js'/);
   assert.match(sw, /'\.\/engine\.js'/); // forgetting this would silently break offline mode
   assert.match(sw, /'\.\/manifest\.webmanifest'/);
 });

@@ -75,6 +75,7 @@ bumping guarantees cached assets refresh too.)
 |------|---------|
 | `index.html` | App shell — markup, styles, UI/interaction logic. |
 | `engine.js` | Pure calculation/formatting/parsing engine (no DOM; unit-tested). |
+| `state.js` | Pure state normalization and lookup helpers (no DOM; unit-tested). |
 | `manifest.webmanifest` | PWA metadata (name, icons, standalone display). |
 | `sw.js` | Service worker; offline caching. |
 | `test/`, `e2e/` | Unit tests (`node --test`) and Playwright e2e; see TESTING.md. |

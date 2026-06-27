@@ -143,7 +143,7 @@
   function fmt(v) {
     if (v === null || v === undefined) return '';
     if (Number.isNaN(v)) return '—';
-    if (!isFinite(v)) return '∞';
+    if (!isFinite(v)) return v < 0 ? '-∞' : '∞';
     var r = Math.round(v * 1e10) / 1e10;
     if (GROUPED_FMT) return GROUPED_FMT.format(r);
     if (Number.isInteger(r)) return String(r);
@@ -155,6 +155,7 @@
     group = group == null ? NUM_GROUP : group;
     decimal = decimal == null ? NUM_DECIMAL : decimal;
     if (raw === '' || raw == null) return '0';
+    raw = String(raw);
     var neg = raw.charAt(0) === '-';
     var s = neg ? raw.slice(1) : raw;
     var dot = s.indexOf('.');
