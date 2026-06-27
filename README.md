@@ -78,7 +78,7 @@ bumping guarantees cached assets refresh too.)
 | `app.js` | Application controller and bootstrap: wires the modules to the DOM, owns shared view state, persistence, viewport/zoom, toolbar, menu, and keyboard input. |
 | `engine.js` | Pure calculation/formatting/parsing engine (no DOM; unit-tested). |
 | `state.js` | Pure state normalization and lookup helpers (no DOM; unit-tested). |
-| `render.js` | DOM rendering, link drawing, and variables sidebar helpers. |
+| `render.js` | DOM rendering (incremental — keyed per-block reconciliation skips unchanged blocks), link drawing, and variables sidebar helpers. |
 | `interactions.js` | Canvas pointer, drag/link, long-press, wheel, and touch interaction wiring. |
 | `canvases.js` | Multi-canvas switcher, rename, add, delete, and toolbar menu wiring. |
 | `editing.js` | Expression editing reducers for digits, operators, deletion, and selection movement. |

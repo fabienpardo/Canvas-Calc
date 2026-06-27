@@ -10,12 +10,54 @@
 
   var LINK_PALETTE = ['#c9772f','#3f8f6b','#7b5ea7','#b8456b','#3d7bb0','#9a7b1f','#5a8f3d','#b0568f'];
 
+  var SEP = ''; // signature field separator (won't appear in user data)
+
   function create(deps) {
     var doc = deps.document || document;
     var linkColorMap = {};
+    // Keyed reconciliation state: a block's DOM element and a signature of every
+    // input that affects how it renders. Unchanged blocks are left untouched.
+    var blockEls = {};  // id -> element
+    var blockSigs = {}; // id -> signature string
+    var lastCanvasId = null; // reconcile is keyed by block id, which repeats across canvases
+
+    // Wipe reconciliation state and any rendered blocks (used when the active
+    // canvas changes, since block ids are only unique within a canvas).
+    function resetBlocks() {
+      Object.keys(blockEls).forEach(function(id){
+        var el = blockEls[id]; if (el && el.parentNode) el.parentNode.removeChild(el);
+      });
+      blockEls = {}; blockSigs = {};
+    }
 
     function cur() { return deps.cur(); }
     function sel() { return deps.getSelection(); }
+
+    // Everything renderBlock() reads for a given block. If this string is equal
+    // between renders, the block's DOM is identical and can be skipped. Must
+    // include every model-derived input — a missing field means a stale block.
+    function blockSig(b, map) {
+      var selection = sel();
+      var parts = [b.x, b.y, b.label || '', deps.getActiveBlockId() === b.id ? 'A' : '', deps.getFontSize(),
+        selection.blockId === b.id ? (selection.termIndex + '/' + selection.kind) : '-'];
+      b.terms.forEach(function (t) {
+        if (t.type === 'operator') { parts.push('o' + t.value); return; }
+        if (t.type === 'paren') { parts.push('p' + t.value); return; }
+        if (t.type === 'number') {
+          parts.push('n', t.value, t.label || '', linkColorMap[deps.srcKey(b.id, t.tid)] || '');
+          return;
+        }
+        var s = deps.linkedSource(t, map); var lbl = s ? s.getLabel() : '';
+        var lv = deps.linkedValue(t, map);
+        parts.push('l', t.sourceId, t.sourceTid == null ? '@' : t.sourceTid, lbl || '',
+          lv == null ? '?' : lv, linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || '');
+      });
+      if (b.terms.length) {
+        var val = deps.resolve(b, map);
+        parts.push('=', val == null ? '·' : val, linkColorMap[deps.srcKey(b.id, null)] || '');
+      }
+      return parts.join(SEP);
+    }
 
     function computeLinkColors() {
       var order = [], seen = {};
@@ -33,18 +75,44 @@
     }
 
     function renderAll() {
-      var existing = deps.canvas.querySelectorAll('.block');
-      existing.forEach(function(e){ e.remove(); });
+      if (cur().id !== lastCanvasId) { resetBlocks(); lastCanvasId = cur().id; }
       deps.hint.style.display = cur().blocks.length ? 'none' : 'block';
       var map = deps.blocksMap();
       linkColorMap = computeLinkColors();
-      cur().blocks.forEach(function(b){ deps.canvas.appendChild(renderBlock(b, map)); });
+
+      var present = {};
+      cur().blocks.forEach(function(b){ present[b.id] = true; });
+
+      // Drop elements for blocks that no longer exist.
+      Object.keys(blockEls).forEach(function(id){
+        if (!present[id]) {
+          var el = blockEls[id];
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+          delete blockEls[id]; delete blockSigs[id];
+        }
+      });
+
+      // Create new blocks and re-render changed ones; skip untouched blocks so
+      // their DOM (and any focused caption) survives unrelated edits.
+      cur().blocks.forEach(function(b){
+        var sig = blockSig(b, map);
+        var existing = blockEls[b.id];
+        if (existing && blockSigs[b.id] === sig) return;
+        var fresh = renderBlock(b, map);
+        if (existing && existing.parentNode) existing.parentNode.replaceChild(fresh, existing);
+        else deps.canvas.appendChild(fresh);
+        blockEls[b.id] = fresh;
+        blockSigs[b.id] = sig;
+      });
+
       drawLinks(map);
       deps.updateUndoRedo();
       syncSidebar();
       deps.positionAddBtn();
       deps.updateViewport();
     }
+
+    function blockElById(id) { return blockEls[id] || null; }
 
     // An editable caption that bonds a label to a value chip.
     function makeCaption(getText, setText) {
@@ -183,8 +251,8 @@
         b.terms.forEach(function(t, idx){
           if (t.type!=='linked') return;
           var src = map[t.sourceId]; if(!src) return;
-          var srcEl = deps.blockEl(src.id);
-          var dstEl = deps.blockEl(b.id);
+          var srcEl = blockElById(src.id);
+          var dstEl = blockElById(b.id);
           if (!srcEl||!dstEl) return;
           var srcRes;
           if (t.sourceTid != null) {
@@ -357,6 +425,7 @@
 
     return {
       renderAll: renderAll,
+      blockEl: blockElById,
       drawLinks: drawLinks,
       layoutOverlays: layoutOverlays,
       renderSidebar: renderSidebar,

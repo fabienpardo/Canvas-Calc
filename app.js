@@ -76,11 +76,9 @@
   // ---------- Model helpers ----------
   function byId(id) { return State.byId(cur(), id); }
   function blocksMap() { return State.blocksMap(cur()); }
-  function blockEl(id) {
-    var els = canvas.querySelectorAll('.block');
-    for (var i=0; i<els.length; i++) if (els[i].dataset.id === id) return els[i];
-    return null;
-  }
+  // Delegates to the renderer's id->element map (populated each render),
+  // avoiding a linear DOM scan on every lookup.
+  function blockEl(id) { return renderer.blockEl(id); }
 
   function newBlock(x, y) {
     var c = cur();
