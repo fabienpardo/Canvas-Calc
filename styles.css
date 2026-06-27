@@ -311,8 +311,8 @@
 
   /* Blinking caret marking the live input position in the active block. */
   .expr-caret {
-    align-self: stretch; width: 2px; min-height: calc(var(--fs, 22px) * 0.9);
-    margin: 2px 1px; background: var(--accent); border-radius: 1px;
+    align-self: flex-end; width: 2px; height: calc(var(--fs, 22px) * 1.08);
+    margin: 0 2px 3px; background: var(--accent); border-radius: 1px;
     animation: caretBlink 1.05s step-end infinite;
   }
   @media (prefers-reduced-motion: reduce) { .expr-caret { animation: none; } }
