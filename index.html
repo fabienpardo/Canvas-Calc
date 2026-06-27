@@ -487,6 +487,7 @@
 <script src="canvases.js"></script>
 <script src="editing.js"></script>
 <script src="input.js"></script>
+<script src="history.js"></script>
 <script>
 (function () {
   "use strict";
@@ -542,39 +543,21 @@
     zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cur().zoom));
   }
 
-  // ---------- History (per canvas) ----------
-  var undoStacks = {}; // canvasId -> { history:[], future:[] }
-  function stacks() {
-    var id = state.activeCanvasId;
-    if (!undoStacks[id]) undoStacks[id] = { history: [], future: [] };
-    return undoStacks[id];
-  }
-  function snapOf() { return JSON.stringify({ blocks: cur().blocks, nextId: cur().nextId, nextTid: cur().nextTid }); }
-  function applySnap(s) { var c=cur(); c.blocks=s.blocks; c.nextId=s.nextId; if (s.nextTid) c.nextTid=s.nextTid; }
-  function snapshot() {
-    var st = stacks();
-    st.history.push(snapOf());
-    if (st.history.length > 60) st.history.shift();
-    st.future = [];
-    updateUndoRedo();
-  }
-  function undo() {
-    var st = stacks(); if (!st.history.length) return;
-    st.future.push(snapOf());
-    applySnap(JSON.parse(st.history.pop()));
-    clearSel(); activeBlockId = null; renderAll(); save(); updateUndoRedo();
-  }
-  function redo() {
-    var st = stacks(); if (!st.future.length) return;
-    st.history.push(snapOf());
-    applySnap(JSON.parse(st.future.pop()));
-    clearSel(); activeBlockId = null; renderAll(); save(); updateUndoRedo();
-  }
-  function updateUndoRedo() {
-    var st = stacks();
-    document.getElementById('undoBtn').disabled = !st.history.length;
-    document.getElementById('redoBtn').disabled = !st.future.length;
-  }
+  // ---------- History (per canvas) — see history.js ----------
+  var historyCtl = CanvasHistory.create({
+    cur: cur,
+    getActiveCanvasId: function(){ return state.activeCanvasId; },
+    clearSelection: clearSel,
+    setActiveBlockId: setActiveBlock,
+    renderAll: renderAll,
+    save: save,
+    undoBtn: document.getElementById('undoBtn'),
+    redoBtn: document.getElementById('redoBtn')
+  });
+  function snapshot(){ historyCtl.snapshot(); }
+  function undo(){ historyCtl.undo(); }
+  function redo(){ historyCtl.redo(); }
+  function updateUndoRedo(){ historyCtl.updateButtons(); }
 
   // ---------- Model helpers ----------
   function byId(id) { return State.byId(cur(), id); }
@@ -756,7 +739,7 @@
     renderAll: renderAll,
     layoutOverlays: layoutOverlays,
     save: save,
-    deleteUndoStack: function(id){ delete undoStacks[id]; },
+    deleteUndoStack: function(id){ historyCtl.deleteStack(id); },
     confirmDialog: confirmDialog
   });
   function applyCanvasName(){ canvasManager.applyCanvasName(); }
