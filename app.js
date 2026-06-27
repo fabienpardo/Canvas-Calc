@@ -42,10 +42,22 @@
 
   // ---------- Persistence ----------
   var saveTimer = null;
+  var saveFailed = false;
+  var saveWarning = document.getElementById('saveWarning');
+  function setSaveFailed(failed) {
+    if (saveFailed === failed) return;
+    saveFailed = failed;
+    if (saveWarning) saveWarning.style.display = failed ? 'block' : 'none';
+  }
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
-      try { localStorage.setItem('canvascalc.v1', JSON.stringify(state)); } catch (e) {}
+      try {
+        localStorage.setItem('canvascalc.v1', JSON.stringify(state));
+        setSaveFailed(false);
+      } catch (e) {
+        setSaveFailed(true);
+      }
     }, 400);
   }
   function load() {
@@ -293,12 +305,25 @@
   // ---------- Toast / confirm ----------
   function confirmDialog(msg, onYes, yesLabel, danger) {
     var t=document.getElementById('toast'), sc=document.getElementById('scrim');
+    var prevFocus = document.activeElement;
     document.getElementById('toastMsg').textContent = msg;
     var row=document.getElementById('toastRow'); row.innerHTML='';
     var cancel=document.createElement('button'); cancel.textContent='Cancel';
     var ok=document.createElement('button'); ok.textContent=yesLabel||'OK'; if(danger) ok.className='danger';
-    function close(){ t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true); }
-    function onKey(e){ if(e.key==='Escape'){ e.preventDefault(); close(); } }
+    function close(){
+      t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true);
+      if (prevFocus && prevFocus.focus) prevFocus.focus();
+    }
+    function onKey(e){
+      if(e.key==='Escape'){ e.preventDefault(); close(); return; }
+      if(e.key==='Tab'){
+        var buttons = [cancel, ok];
+        var curIdx = buttons.indexOf(document.activeElement);
+        if (curIdx < 0) return;
+        e.preventDefault();
+        buttons[(curIdx + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
+      }
+    }
     cancel.onclick=function(){ close(); };
     ok.onclick=function(){ close(); onYes(); };
     row.appendChild(cancel); row.appendChild(ok);

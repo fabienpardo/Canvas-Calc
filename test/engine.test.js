@@ -148,10 +148,15 @@ test('parseExpression: sign minus vs operator minus', () => {
   assert.equal(evalExpr(E.parseExpression('10 - 3', ',', '.')), 7);
   assert.equal(evalExpr(E.parseExpression('-5 + 2', ',', '.')), -3);
   assert.equal(evalExpr(E.parseExpression('(-5)', ',', '.')), -5);
+  assert.equal(evalExpr(E.parseExpression('-(2 + 3)', ',', '.')), -5);
 });
 
-test('parseExpression: ignores junk characters', () => {
-  assert.equal(evalExpr(E.parseExpression('abc 5', ',', '.')), 5);
+test('parseExpression: rejects unsupported or malformed pasted text', () => {
+  assert.deepEqual(E.parseExpression('abc 5', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('2(3+4)', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('1e3 + 2', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('1..2 + 3', ',', '.'), []);
+  assert.deepEqual(E.parseExpression('5 +', ',', '.'), []);
   assert.deepEqual(E.parseExpression('', ',', '.'), []);
 });
 

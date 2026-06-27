@@ -106,3 +106,15 @@ test('normalizeState defaults invalid zoom values', () => {
   });
   assert.deepEqual(state.canvases.map((c) => c.zoom), [1, 1, 1.75]);
 });
+
+test('normalizeState coerces persisted top-level settings and canvas titles', () => {
+  const state = S.normalizeState({
+    canvases: [{ id: 'c1', title: 99, blocks: [] }],
+    activeCanvasId: 'c1',
+    fontSize: 19,
+    showGrid: 'yes'
+  });
+  assert.equal(state.canvases[0].title, 'Canvas');
+  assert.equal(state.fontSize, 22);
+  assert.equal(state.showGrid, true);
+});
