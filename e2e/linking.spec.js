@@ -68,5 +68,23 @@ test('deleting a linked-to block warns about dependents', async ({ page }) => {
   await expect(page.locator('.block')).toHaveCount(2);
   await a.click({ position: { x: 6, y: 6 } }); // select A -> reveals × button
   await a.locator('.block-del').click();
-  await expect(page.locator('#toastMsg')).toContainText('link to this result');
+  await expect(page.locator('#toastMsg')).toContainText('use this one');
+});
+
+test('deleting a source freezes dependents to their last value', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '10');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const ab = await a.boundingBox();
+  await dragResultTo(page, a.locator('.result'), ab.x + 260, ab.y + 240); // B = linked(A) -> 10
+  await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('10');
+  // delete A; B should keep 10 as a constant (not become malformed/empty)
+  await a.click({ position: { x: 6, y: 6 } });
+  await a.locator('.block-del').click();
+  await page.locator('#toastRow button.danger').click();
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(page.locator('.block').first().locator('.result')).toHaveText('10');
+  await expect(page.locator('.term.linked')).toHaveCount(0); // link was frozen to a number
 });

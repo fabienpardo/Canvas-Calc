@@ -284,7 +284,7 @@
     padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
     transition: transform 0.22s ease; z-index: 50;
   }
-  #numpad.hidden { transform: translateY(calc(100% - 0px)); }
+  #numpad.hidden { transform: translateY(100%); }
   #padToggle {
     position: absolute; top: -30px; right: 10px;
     background: var(--pad-bg); border: 1px solid var(--block-border);
@@ -474,7 +474,7 @@
 
 <div id="ghost"></div>
 <div id="scrim"></div>
-<div id="toast">
+<div id="toast" role="dialog" aria-modal="true" aria-labelledby="toastMsg">
   <p id="toastMsg"></p>
   <div class="row" id="toastRow"></div>
 </div>
@@ -486,8 +486,7 @@
 
   // ---------- Pure engine (see engine.js) ----------
   var E = window.CanvasEngine;
-  var findTermByTid = E.findTermByTid, linkedValue = E.linkedValue, linkedSource = E.linkedSource,
-      tokenize = E.tokenize, evalTokens = E.evalTokens, resolve = E.resolve,
+  var linkedValue = E.linkedValue, linkedSource = E.linkedSource, resolve = E.resolve,
       fmt = E.fmt, groupDisplay = E.groupDisplay, opSym = E.opSym, labelOf = E.labelOf,
       blockDefinition = E.blockDefinition, parseExpression = E.parseExpression,
       NUM_GROUP = E.NUM_GROUP, NUM_DECIMAL = E.NUM_DECIMAL;
@@ -551,6 +550,16 @@
       if (!c.zoom || isNaN(c.zoom)) c.zoom = 1;
       if (!c.title) c.title = 'Canvas';
       if (!Array.isArray(c.blocks)) c.blocks = [];
+      // normalize each block so malformed-but-valid saved JSON can't crash rendering/eval
+      c.blocks = c.blocks.filter(function(b){ return b && typeof b === 'object'; });
+      c.blocks.forEach(function(b){
+        if (!Array.isArray(b.terms)) b.terms = [];
+        b.terms = b.terms.filter(function(t){ return t && typeof t === 'object' && typeof t.type === 'string'; });
+        if (typeof b.x !== 'number') b.x = 40;
+        if (typeof b.y !== 'number') b.y = 30;
+        if (typeof b.label !== 'string') b.label = '';
+        if (typeof b.id !== 'string') b.id = 'b' + (c.nextId++);
+      });
     });
     zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cur().zoom));
     ensureTids();
@@ -986,29 +995,35 @@
     var name = document.createElement('input');
     name.className = 'var-name'; name.value = it.t.label || '';
     name.placeholder = 'unnamed';
-    name.addEventListener('focus', snapshot);
+    var nameDirty = false;
+    name.addEventListener('focus', function(){ nameDirty = false; });
     name.addEventListener('input', function(){
       var b = byId(it.bid); if (!b) return;
-      var t = b.terms[it.idx]; if (t) { t.label = name.value; save(); renderAll(); }
+      var t = b.terms[it.idx]; if (!t) return;
+      if (!nameDirty) { snapshot(); nameDirty = true; } // one undo step per edit, only on real change
+      t.label = name.value; save(); renderAll();
     });
-    name.addEventListener('blur', scheduleSidebarRebuild);
+    name.addEventListener('blur', function(){ nameDirty = false; scheduleSidebarRebuild(); });
 
     var val = document.createElement('input');
     val.className = 'var-val'; val.value = groupDisplay(it.t.value); // grouped while unfocused
     val.inputMode = 'decimal';
     val.dataset.bid = it.bid; val.dataset.idx = it.idx; val.dataset.kind = 'input';
+    var valDirty = false;
     val.addEventListener('focus', function(){
-      snapshot();
+      valDirty = false;
       var b = byId(it.bid), t = b && b.terms[it.idx];
       if (t) val.value = t.value; // show raw for editing
     });
     val.addEventListener('input', function(){
       var b = byId(it.bid); if (!b) return;
       var t = b.terms[it.idx]; if (!t) return;
+      if (!valDirty) { snapshot(); valDirty = true; }
       t.value = val.value.split(NUM_GROUP).join('').split(NUM_DECIMAL).join('.'); // strip separators
       save(); renderAll();
     });
     val.addEventListener('blur', function(){
+      valDirty = false;
       var b = byId(it.bid), t = b && b.terms[it.idx];
       if (t) val.value = groupDisplay(t.value);
       scheduleSidebarRebuild();
@@ -1024,11 +1039,14 @@
     var name = document.createElement('input');
     name.className = 'var-name'; name.value = b.label || '';
     name.placeholder = 'unnamed';
-    name.addEventListener('focus', snapshot);
+    var nameDirty = false;
+    name.addEventListener('focus', function(){ nameDirty = false; });
     name.addEventListener('input', function(){
-      var nb = byId(b.id); if (nb) { nb.label = name.value; save(); renderAll(); }
+      var nb = byId(b.id); if (!nb) return;
+      if (!nameDirty) { snapshot(); nameDirty = true; }
+      nb.label = name.value; save(); renderAll();
     });
-    name.addEventListener('blur', scheduleSidebarRebuild);
+    name.addEventListener('blur', function(){ nameDirty = false; scheduleSidebarRebuild(); });
 
     var val = document.createElement('span');
     val.className = 'var-val ro'; val.dataset.bid = b.id; val.dataset.kind = 'result';
@@ -1326,11 +1344,21 @@
   function isOp(k){ return k==='+'||k==='-'||k==='*'||k==='/'; }
 
   function removeBlock(id) {
-    cur().blocks = cur().blocks.filter(function(b){ return b.id!==id; });
-    // break links pointing to it
+    // Freeze any term that links to this block into a constant of its last value,
+    // so dependent expressions stay valid (no dangling "+ 3") instead of being filtered out.
+    var map = blocksMap(); // still includes the block being removed
     cur().blocks.forEach(function(b){
-      b.terms = b.terms.filter(function(t){ return !(t.type==='linked'&&t.sourceId===id); });
+      if (b.id===id) return;
+      b.terms = b.terms.map(function(t){
+        if (t.type==='linked' && t.sourceId===id) {
+          var v = linkedValue(t, map);
+          var rv = (v==null || isNaN(v)) ? 0 : Math.round(v*1e10)/1e10;
+          return newNumber(String(rv));
+        }
+        return t;
+      });
     });
+    cur().blocks = cur().blocks.filter(function(b){ return b.id!==id; });
     if (activeBlockId===id) activeBlockId=null;
   }
 
@@ -1358,7 +1386,7 @@
     }
     var deps = dependentsOf(b.id);
     var msg = deps.length
-      ? deps.length+' other calculation'+(deps.length>1?'s':'')+' link to this result. Deleting it will break '+(deps.length>1?'those links':'that link')+'.'
+      ? deps.length+' other calculation'+(deps.length>1?'s':'')+' use this one. Deleting it will replace '+(deps.length>1?'those references':'that reference')+' with the current value.'
       : 'Delete this calculation?';
     confirmDialog(msg, function(){
       snapshot(); removeBlock(b.id); clearSel(); renderAll(); save();
@@ -1372,10 +1400,14 @@
     var row=document.getElementById('toastRow'); row.innerHTML='';
     var cancel=document.createElement('button'); cancel.textContent='Cancel';
     var ok=document.createElement('button'); ok.textContent=yesLabel||'OK'; if(danger) ok.className='danger';
-    cancel.onclick=function(){ t.style.display='none'; sc.style.display='none'; };
-    ok.onclick=function(){ t.style.display='none'; sc.style.display='none'; onYes(); };
+    function close(){ t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true); }
+    function onKey(e){ if(e.key==='Escape'){ e.preventDefault(); close(); } }
+    cancel.onclick=function(){ close(); };
+    ok.onclick=function(){ close(); onYes(); };
     row.appendChild(cancel); row.appendChild(ok);
     t.style.display='block'; sc.style.display='block';
+    document.addEventListener('keydown', onKey, true);
+    cancel.focus();
   }
 
   // ---------- Pointer: canvas tap, block drag, term select, link drag ----------
@@ -1617,7 +1649,7 @@
   document.getElementById('padToggle').addEventListener('click', function(){
     var np=document.getElementById('numpad');
     np.classList.toggle('hidden');
-    this.innerHTML = np.classList.contains('hidden') ? 'Show keypad ▴' : 'Hide keypad ▾';
+    this.textContent = np.classList.contains('hidden') ? 'Show keypad ▴' : 'Hide keypad ▾';
     layoutOverlays();
   });
   window.addEventListener('resize', function(){ updateViewport(); layoutOverlays(); });
@@ -1737,7 +1769,7 @@
     if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
     var k=e.key;
     if (k>='0'&&k<='9') pressKey(k);
-    else if (k==='.') pressKey('.');
+    else if (k==='.'||k===',') pressKey('.'); // accept comma decimal (locale keyboards)
     else if (k==='+'||k==='-'||k==='*'||k==='/') pressKey(k);
     else if (k==='('||k===')') pressKey(k);
     else if (k==='Backspace') { e.preventDefault(); pressKey('back'); }
@@ -1764,6 +1796,9 @@
   applyGrid();
   applyCanvasName();
   updateZoomLabel();
+  // show the locale's decimal separator on the keypad (model still stores '.')
+  var decKey = document.querySelector('.padgrid .key[data-k="."]');
+  if (decKey) decKey.textContent = NUM_DECIMAL;
   renderAll();
   layoutOverlays();
 })();

@@ -1,18 +1,5 @@
 const { test, expect } = require('@playwright/test');
-
-// ---- helpers -------------------------------------------------------------
-async function fresh(page) {
-  await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.waitForSelector('.padgrid .key[data-k="("]'); // engine + UI ready
-}
-// Keys fire on pointerdown; a real click dispatches pointerdown first, so click works.
-async function press(page, k) { await page.locator(`.padgrid .key[data-k="${k}"]`).click(); }
-async function type(page, seq) {
-  for (const tok of seq.split(' ')) for (const ch of tok.split('')) await press(page, ch);
-}
-const lastBlock = (page) => page.locator('.block').last();
+const { fresh, press, type, lastBlock } = require('./helpers');
 
 // ---- block creation + evaluation ----------------------------------------
 test('+ button creates a block, types a live result, = re-anchors +', async ({ page }) => {

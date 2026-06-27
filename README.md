@@ -27,7 +27,9 @@ no network calls.
 - **Copy / paste** — copy a value or a whole expression; paste numbers or
   number+operator combos (desktop shortcuts or the ⋯ menu on mobile).
 - **Undo / redo**, adjustable text size, grid toggle (off by default), clear all.
-- **Auto-save** to the device (localStorage). Single canvas, restored on reopen.
+- **Multiple canvases** — keep separate sheets, each with its own title, zoom, and
+  undo history; switch / rename / add / delete from the toolbar canvas menu.
+- **Auto-save** to the device (localStorage), restored on reopen.
 - **Cycle protection** — a link that would make a result depend on itself is refused.
 - **Delete safety** — deleting a block that others link to warns first.
 
@@ -62,7 +64,7 @@ subpath.
 ## Updating
 
 The service worker (`sw.js`) precaches the app shell with a version string at the
-top: `const CACHE = 'canvas-calc-v2';`. When you change any file, bump that
+top: `const CACHE = 'canvas-calc-v3';`. When you change any file, bump that
 version (`v3`, `v4`, …) so returning visitors get the new build instead of the
 cached one. (Navigations are network-first, so HTML updates land without a bump;
 bumping guarantees cached assets refresh too.)
@@ -71,9 +73,11 @@ bumping guarantees cached assets refresh too.)
 
 | File | Purpose |
 |------|---------|
-| `index.html` | The entire app — markup, styles, logic. |
+| `index.html` | App shell — markup, styles, UI/interaction logic. |
+| `engine.js` | Pure calculation/formatting/parsing engine (no DOM; unit-tested). |
 | `manifest.webmanifest` | PWA metadata (name, icons, standalone display). |
 | `sw.js` | Service worker; offline caching. |
+| `test/`, `e2e/` | Unit tests (`node --test`) and Playwright e2e; see TESTING.md. |
 | `icon-192.png`, `icon-512.png` | App icons. |
 | `icon-maskable-512.png` | Maskable icon (Android adaptive masks). |
 | `apple-touch-icon.png` | iOS home-screen icon. |

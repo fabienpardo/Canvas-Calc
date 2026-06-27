@@ -114,7 +114,7 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   number-link exemption, missing-source), formatting, clipboard parsing,
   definitions; `test/sw.test.js` — service-worker precache (incl. `engine.js`),
   `res.ok` guard, non-GET ignored, old-cache cleanup.
-- **E2E (Playwright, 31 specs):**
+- **E2E (Playwright, 41 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, sidebar inline
     edit, grid toggle, zoom + scroll, paste, single-click label, backspace chain.
@@ -124,11 +124,14 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   - `e2e/linking.spec.js` — result→operator link, drop onto a number slot,
     cycle-rejection dialog, delete-source-with-dependents warning.
   - `e2e/persistence.spec.js` — old-state load + tid migration, default
-    zoom/grid, restored zoom/grid, corrupt-localStorage survives.
+    zoom/grid, restored zoom/grid, corrupt + malformed-but-valid localStorage survive.
+  - `e2e/canvases.spec.js` — multi-canvas isolation/switch, per-canvas zoom,
+    rename persistence, delete + fallback, multi-canvas persistence, migration.
+  - `e2e/layout.spec.js` — zoom control pinned on scroll; canvas behind keypad.
   - `e2e/mobile.spec.js` — mobile (Pixel 7) smoke + viewport fit.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
-### Planned (fold into Phase 4's state/history rework)
+### Planned
 - Extract the editing model from `pressKey` into pure reducers
   (`insertDigit`, `insertOperator`, `backspace`, `insertAfterSelection`,
   `replaceOperator`, `deleteTermAndSelectPrev`) so the flows currently covered

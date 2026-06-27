@@ -47,3 +47,10 @@ test('corrupt localStorage does not crash the app', async ({ page }) => {
   await expect(page.locator('#hint')).toBeVisible(); // empty-canvas hint, app booted fine
   await expect(page.locator('.block')).toHaveCount(0);
 });
+
+test('malformed-but-valid state is normalized (no crash on a termless block)', async ({ page }) => {
+  await seed(page, { canvases: [{ id: 'c1', blocks: [{}, null, { terms: [{ type: 'number', value: '5' }] }] }], activeCanvasId: 'c1' });
+  // app boots; the one well-formed block renders, junk blocks are dropped/normalized
+  await expect(page.locator('#canvasName')).toHaveText('Canvas');
+  await expect(page.locator('.block .result')).toHaveText('5');
+});
