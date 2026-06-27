@@ -28,3 +28,12 @@ test('desktop keypad is compact and does not cover the left zoom control', async
   const zc = await page.locator('#zoomCtl').boundingBox();
   expect(zc.x + zc.width).toBeLessThan(pad.x);
 });
+
+test('desktop keypad shifts left when variables sidebar is open', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#varsBtn').click();
+  const pad = await page.locator('#numpad').boundingBox();
+  const sidebar = await page.locator('#sidebar').boundingBox();
+  expect(pad.x + pad.width).toBeLessThanOrEqual(sidebar.x - 8);
+  await expect(page.locator('#varsBtn')).toHaveAttribute('aria-pressed', 'true');
+});

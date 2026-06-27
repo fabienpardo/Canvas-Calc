@@ -107,7 +107,6 @@ test('sidebar lists variables and editing an input recomputes', async ({ page })
   await addBlock(page);
   await type(page, '10 * 2');
   await press(page, '=');
-  await page.locator('#menuBtn').click();
   await page.locator('#varsBtn').click();
   const inputs = page.locator('#sidebarBody .var-val[data-kind="input"]');
   await expect(inputs).toHaveCount(2); // 10 and 2

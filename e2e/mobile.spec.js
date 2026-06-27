@@ -20,7 +20,9 @@ test('mobile: keypad and add button fit within the viewport width', async ({ pag
   await fresh(page);
   const vw = page.viewportSize().width;
   const pad = await page.locator('#numpad').boundingBox();
+  const eq = await page.locator('.key.eq').boundingBox();
   expect(pad.x).toBeGreaterThanOrEqual(0);
   expect(pad.x + pad.width).toBeLessThanOrEqual(vw + 1);
   expect(pad.height).toBeLessThanOrEqual(page.viewportSize().height * 0.34);
+  expect(pad.y + pad.height - (eq.y + eq.height)).toBeLessThanOrEqual(32);
 });

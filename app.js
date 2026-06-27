@@ -452,16 +452,23 @@
     if (mark) mark.style.fontSize = (12+i*2)+'px';
     closeOverflowMenu();
   };
+  function setSidebarOpen(open) {
+    var sb = document.getElementById('sidebar');
+    var varsBtn = document.getElementById('varsBtn');
+    sb.classList.toggle('open', open);
+    sb.setAttribute('aria-hidden', open ? 'false' : 'true');
+    document.body.classList.toggle('sidebar-open', open);
+    if (varsBtn) varsBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+    layoutOverlays();
+    if (open) renderSidebar();
+  }
   document.getElementById('varsBtn').onclick = function(){
     var sb = document.getElementById('sidebar');
-    var open = sb.classList.toggle('open');
-    sb.setAttribute('aria-hidden', open ? 'false' : 'true');
-    if (open) { layoutOverlays(); renderSidebar(); }
+    setSidebarOpen(!sb.classList.contains('open'));
     closeOverflowMenu();
   };
   document.getElementById('sidebarClose').onclick = function(){
-    var sb = document.getElementById('sidebar');
-    sb.classList.remove('open'); sb.setAttribute('aria-hidden', 'true');
+    setSidebarOpen(false);
   };
 
   // ---------- Overflow menu ----------
