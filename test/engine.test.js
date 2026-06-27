@@ -151,6 +151,13 @@ test('parseExpression: sign minus vs operator minus', () => {
   assert.equal(evalExpr(E.parseExpression('-(2 + 3)', ',', '.')), -5);
 });
 
+test('parseExpression: unary minus before parens keeps grouping after * and /', () => {
+  assert.equal(evalExpr(E.parseExpression('10 / -(2 + 3)', ',', '.')), -2);
+  assert.equal(evalExpr(E.parseExpression('6 * -(1 + 2)', ',', '.')), -18);
+  assert.equal(evalExpr(E.parseExpression('12 / -(2) / -(3)', ',', '.')), 2);
+  assert.equal(evalExpr(E.parseExpression('-(4 + -(1 + 1))', ',', '.')), -2);
+});
+
 test('parseExpression: rejects unsupported or malformed pasted text', () => {
   assert.deepEqual(E.parseExpression('abc 5', ',', '.'), []);
   assert.deepEqual(E.parseExpression('2(3+4)', ',', '.'), []);

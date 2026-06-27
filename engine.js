@@ -229,17 +229,22 @@
     s = s.split(group).join('');
     if (decimal !== '.') s = s.split(decimal).join('.');
     s = s.replace(/[×✕]/g, '*').replace(/[÷]/g, '/').replace(/[−–—]/g, '-').replace(/,/g, '');
-    var terms = [], i = 0, expectOperand = true, depth = 0;
+    var terms = [], i = 0, expectOperand = true, depth = 0, wrapClose = [], pendingWrap = false;
     while (i < s.length) {
       var c = s.charAt(i);
       if (/\s/.test(c)) { i++; continue; }
       if (c === '(') {
         if (!expectOperand) return [];
-        terms.push({ type: 'paren', value: c }); depth++; i++; continue;
+        terms.push({ type: 'paren', value: c }); depth++;
+        wrapClose.push(pendingWrap); pendingWrap = false; i++; continue;
       }
       if (c === ')') {
         if (expectOperand || depth <= 0) return [];
-        terms.push({ type: 'paren', value: c }); depth--; i++; expectOperand = false; continue;
+        terms.push({ type: 'paren', value: c }); depth--;
+        // Close the synthetic group that wrapped a unary minus before '(' so the
+        // negation binds to the whole parenthesised value (e.g. 10 / -(2+3)).
+        if (wrapClose.length && wrapClose.pop()) { terms.push({ type: 'paren', value: c }); depth--; }
+        i++; expectOperand = false; continue;
       }
       if (c === '+' || c === '*' || c === '/') {
         if (expectOperand) return [];
@@ -247,8 +252,9 @@
       }
       if (c === '-') {
         if (expectOperand && nextNonSpace(s, i + 1) === '(') {
-          terms.push({ type: 'number', value: '-1' }, { type: 'operator', value: '*' });
-          i++; continue;
+          // Rewrite -( ... ) as ( -1 * ( ... ) ) to preserve grouping/precedence.
+          terms.push({ type: 'paren', value: '(' }, { type: 'number', value: '-1' }, { type: 'operator', value: '*' });
+          depth++; pendingWrap = true; i++; continue;
         }
         if (expectOperand) {
           var signed = readNumber(s, i + 1, '-');
