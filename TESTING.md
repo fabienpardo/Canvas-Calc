@@ -115,9 +115,12 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   definitions; `test/state.test.js` — saved-state migration, normalization,
   id repair, lookups; `test/editing.test.js` — expression editing reducers
   (selected insertion, operator replacement, backspace chain, linked unlink,
-  active typing, sign toggle); `test/sw.test.js` — service-worker precache (incl.
-  `state.js`, `engine.js`, `render.js`, `interactions.js`, `canvases.js`, and
-  `editing.js`), `res.ok`
+  active typing, sign toggle); `test/input.test.js` — input controller wired to
+  the real editing/engine modules (digit/operator entry, `=` finish, clear/delete
+  routing, operator replace, result→linked block, paste, selection text, backspace
+  chain); `test/sw.test.js` — service-worker precache (incl.
+  `state.js`, `engine.js`, `render.js`, `interactions.js`, `canvases.js`,
+  `editing.js`, and `input.js`), `res.ok`
   guard, non-GET ignored, old-cache cleanup.
 - **E2E (Playwright, 44 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,

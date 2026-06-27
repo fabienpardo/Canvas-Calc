@@ -486,6 +486,7 @@
 <script src="interactions.js"></script>
 <script src="canvases.js"></script>
 <script src="editing.js"></script>
+<script src="input.js"></script>
 <script>
 (function () {
   "use strict";
@@ -729,17 +730,9 @@
   function setActiveBlock(id){ activeBlockId = id; }
 
   // ---------- Input handling ----------
-  function ensureActiveBlock() {
-    if (activeBlockId) { var b=byId(activeBlockId); if(b) return b; }
-    // create just below the lowest block (same spot as the + button)
-    var pt = slotBelow(lowestBlock());
-    snapshot();
-    var nb = newBlock(snap(pt.x), snap(pt.y));
-    activeBlockId = nb.id;
-    return nb;
-  }
-
   function snap(v){ return Math.round(v/SNAP)*SNAP; }
+  // Where the next new block goes (below the lowest block). Used by the input controller.
+  function nextSlot(){ return slotBelow(lowestBlock()); }
 
   function clearCanvas() {
     if (!cur().blocks.length) return;
@@ -768,167 +761,9 @@
   });
   function applyCanvasName(){ canvasManager.applyCanvasName(); }
 
-  // ---------- Copy / paste ----------
-  // Parse clipboard text into terms (numbers, operators, parens); strips separators.
-  // Plain-text expression for a block (used when copying a result/block).
-  function expressionText(b) {
-    return b.terms.map(function(t){
-      if (t.type==='operator') return t.value;
-      if (t.type==='paren') return t.value;
-      if (t.type==='number') return t.value===''?'0':t.value;
-      if (t.type==='linked') { var lv=linkedValue(t, blocksMap()); return lv==null?'0':String(lv); }
-      return '';
-    }).join(' ');
-  }
-
-  // Text for the current selection (number/linked value, or a block's expression).
-  function currentSelectionText() {
-    if (sel.blockId!=null && sel.termIndex!=null && (sel.kind==='number' || sel.kind==='linked')) {
-      var b=byId(sel.blockId), t=b&&b.terms[sel.termIndex]; if(!t) return null;
-      if (t.type==='number') return t.value===''?'0':t.value;
-      var lv=linkedValue(t, blocksMap()); return lv==null?null:String(lv);
-    }
-    var rb = (sel.kind==='result' && sel.blockId!=null) ? byId(sel.blockId)
-           : (activeBlockId ? byId(activeBlockId) : null);
-    return rb && rb.terms.length ? expressionText(rb) : null;
-  }
-
-  // Insert parsed terms into the active block (or a new one).
-  function pasteText(text) {
-    var terms = parseExpression(text);
-    if (!terms.length) return;
-    var b = ensureActiveBlock(); // snapshots if it creates a block
-    snapshot();
-    terms.forEach(function(t){
-      if (t.type==='number' && t.tid==null) t.tid = 't'+(cur().nextTid++); // engine returns tid-less numbers
-      b.terms.push(t);
-    });
-    activeBlockId = b.id; clearSel(); renderAll(); save();
-  }
-
-  function pressKey(k) {
-    // Clear the whole canvas (with confirmation)
-    if (k==='clear') { clearCanvas(); return; }
-
-    // Delete the selected (or active) block
-    if (k==='del') {
-      confirmDeleteBlock(byId(sel.blockId) || (activeBlockId ? byId(activeBlockId) : null));
-      return;
-    }
-
-    // Finish the current block; next input starts a fresh one
-    if (k==='=') {
-      var ab = activeBlockId ? byId(activeBlockId) : null;
-      if (ab && ab.terms.length===0) { snapshot(); removeBlock(ab.id); save(); }
-      activeBlockId = null; clearSel(); renderAll();
-      return;
-    }
-
-    // ± : toggle the sign of the selected number, else the last number typed
-    if (k==='neg') {
-      var nb_=null, ni=-1;
-      if (sel.kind==='number' && sel.blockId!=null && sel.termIndex!=null) { nb_=byId(sel.blockId); ni=sel.termIndex; }
-      else if (activeBlockId) {
-        var ab2=byId(activeBlockId);
-        if (ab2) for (var z=ab2.terms.length-1; z>=0; z--) { if (ab2.terms[z].type==='number'){ nb_=ab2; ni=z; break; } }
-      }
-      if (nb_ && ni>=0 && nb_.terms[ni] && nb_.terms[ni].type==='number') {
-        snapshot();
-        Editing.toggleNumberSign(nb_.terms[ni]);
-        renderAll(); save();
-      }
-      return;
-    }
-
-    // Parentheses: append to the active block
-    if (k==='(' || k===')') {
-      var pb = ensureActiveBlock();
-      snapshot();
-      Editing.appendParen(pb, k);
-      clearSel(); activeBlockId = pb.id;
-      renderAll(); save();
-      return;
-    }
-
-    // Operator selected -> tap then press a new operator to change it
-    if (sel.kind==='operator' && sel.blockId && sel.termIndex!==null) {
-      var obk = byId(sel.blockId);
-      var ot = obk && obk.terms[sel.termIndex];
-      if (ot && ot.type==='operator') {
-        if (isOp(k)) { snapshot(); Editing.replaceSelectedOperator(obk, sel.termIndex, k); save(); renderAll(); return; }
-        if (k==='back') { snapshot(); deleteTermAndSelectPrev(obk, sel.termIndex); save(); renderAll(); return; }
-        return; // ignore digits etc. while an operator is selected
-      }
-    }
-
-    // Number/linked term selected + operator -> insert it (and a fresh slot) right after,
-    // so you can build an expression in the middle (5 + [7] then "- 4" => 5 + 7 - 4 ...).
-    if ((sel.kind==='number' || sel.kind==='linked') && sel.blockId && sel.termIndex!==null && isOp(k)) {
-      var isb = byId(sel.blockId);
-      var ist = isb && isb.terms[sel.termIndex];
-      if (ist) {
-        snapshot();
-        sel = Editing.insertOperatorAfterSelection(isb, sel.termIndex, k, newNumber);
-        activeBlockId = isb.id;
-        renderAll(); save(); return;
-      }
-    }
-
-    // Number/linked term selected -> edit digits, or backspace-chain (clear, then delete, stepping left)
-    if (sel.blockId && sel.termIndex!==null && (k>='0'&&k<='9' || k==='.' || k==='back')) {
-      var sb = byId(sel.blockId); if(!sb) return;
-      var term = sb.terms[sel.termIndex];
-      if (term && term.type==='number') {
-        if (k==='back') {
-          snapshot();
-          applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex));
-          renderAll(); save(); return;
-        }
-        snapshot();
-        term.value = Editing.appendDigitValue(term.value, k);
-        renderAll(); save(); return;
-      }
-      if (term && term.type==='linked' && k==='back') {
-        snapshot();
-        applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); // unlink & step left
-        renderAll(); save(); return;
-      }
-    }
-
-    // Result selected + operator => create linked block below
-    if (sel.kind==='result' && sel.blockId && isOp(k)) {
-      var srcB = byId(sel.blockId); if(!srcB) return;
-      snapshot();
-      var nb = newBlock(snap(srcB.x), snap(srcB.y + 70));
-      nb.terms.push({ type:'linked', sourceId: srcB.id });
-      nb.terms.push({ type:'operator', value:k });
-      activeBlockId = nb.id; clearSel();
-      renderAll(); save(); return;
-    }
-
-    var b = ensureActiveBlock();
-    var terms = b.terms;
-    var last = terms[terms.length-1];
-
-    if (k==='back') {
-      snapshot();
-      applyEditSelection(Editing.backspaceActiveBlock(b));
-      renderAll(); save(); return;
-    }
-
-    if (isOp(k)) {
-      snapshot();
-      Editing.appendOperator(b, k, newNumber);
-      renderAll(); save(); return;
-    }
-
-    // digit or dot
-    snapshot();
-    Editing.appendDigitOrDot(b, k, newNumber);
-    renderAll(); save();
-  }
-
-  function isOp(k){ return k==='+'||k==='-'||k==='*'||k==='/'; }
+  // ---------- Input controller (see input.js) ----------
+  // Created below, after removeBlock / confirmDeleteBlock / clearCanvas are defined.
+  var inputCtl = null;
 
   function removeBlock(id) {
     // Freeze any term that links to this block into a constant of its last value,
@@ -947,18 +782,6 @@
     });
     cur().blocks = cur().blocks.filter(function(b){ return b.id!==id; });
     if (activeBlockId===id) activeBlockId=null;
-  }
-
-  // Remove a term and move the selection to the previous one (for the backspace chain).
-  function deleteTermAndSelectPrev(b, idx) {
-    applyEditSelection(Editing.deleteTermAndSelectPrev(b, idx));
-  }
-
-  function applyEditSelection(result) {
-    if (!result) return;
-    if (result.removeBlockId) removeBlock(result.removeBlockId);
-    if (result.selection) sel = result.selection;
-    if (Object.prototype.hasOwnProperty.call(result, 'activeBlockId')) activeBlockId = result.activeBlockId;
   }
 
   function confirmDeleteBlock(b) {
@@ -993,6 +816,33 @@
     document.addEventListener('keydown', onKey, true);
     cancel.focus();
   }
+
+  inputCtl = CanvasInput.create({
+    Editing: Editing,
+    cur: cur,
+    byId: byId,
+    blocksMap: blocksMap,
+    newBlock: newBlock,
+    newNumber: newNumber,
+    snap: snap,
+    nextSlot: nextSlot,
+    snapshot: snapshot,
+    save: save,
+    renderAll: renderAll,
+    getSelection: function(){ return sel; },
+    setSelection: setSel,
+    clearSelection: clearSel,
+    getActiveBlockId: function(){ return activeBlockId; },
+    setActiveBlockId: setActiveBlock,
+    removeBlock: removeBlock,
+    confirmDeleteBlock: confirmDeleteBlock,
+    clearCanvas: clearCanvas,
+    linkedValue: linkedValue,
+    parseExpression: parseExpression
+  });
+  function pressKey(k){ inputCtl.pressKey(k); }
+  function pasteText(text){ inputCtl.pasteText(text); }
+  function currentSelectionText(){ return inputCtl.currentSelectionText(); }
 
   CanvasInteractions.create({
     document: document,

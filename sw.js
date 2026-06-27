@@ -1,4 +1,4 @@
-const CACHE = 'canvas-calc-v10';
+const CACHE = 'canvas-calc-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './interactions.js',
   './canvases.js',
   './editing.js',
+  './input.js',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
