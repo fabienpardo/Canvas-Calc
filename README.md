@@ -73,7 +73,8 @@ bumping guarantees cached assets refresh too.)
 
 | File | Purpose |
 |------|---------|
-| `index.html` | App shell — markup, styles, UI/interaction logic. |
+| `index.html` | App shell — markup and styles only; loads the modules below via `<script>` tags. |
+| `app.js` | Application controller and bootstrap: wires the modules to the DOM, owns shared view state, persistence, viewport/zoom, toolbar, menu, and keyboard input. |
 | `engine.js` | Pure calculation/formatting/parsing engine (no DOM; unit-tested). |
 | `state.js` | Pure state normalization and lookup helpers (no DOM; unit-tested). |
 | `render.js` | DOM rendering, link drawing, and variables sidebar helpers. |
@@ -81,6 +82,7 @@ bumping guarantees cached assets refresh too.)
 | `canvases.js` | Multi-canvas switcher, rename, add, delete, and toolbar menu wiring. |
 | `editing.js` | Expression editing reducers for digits, operators, deletion, and selection movement. |
 | `input.js` | Keypad/keyboard input controller and copy/paste text (no DOM; unit-tested). |
+| `history.js` | Per-canvas undo/redo stacks (no DOM beyond the undo/redo buttons; unit-tested). |
 | `manifest.webmanifest` | PWA metadata (name, icons, standalone display). |
 | `sw.js` | Service worker; offline caching. |
 | `test/`, `e2e/` | Unit tests (`node --test`) and Playwright e2e; see TESTING.md. |

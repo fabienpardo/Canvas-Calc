@@ -108,7 +108,7 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 ## Status
 
 ### Implemented
-- **Unit (`node --test`, 43 tests):** `test/engine.test.js` — evaluation
+- **Unit (`node --test`, 56 tests):** `test/engine.test.js` — evaluation
   (precedence, parens, division, negatives, tolerant states, div-by-zero,
   linked cascade, number-term links, cycle detection incl. indirect +
   number-link exemption, missing-source), formatting, clipboard parsing,
@@ -118,10 +118,11 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   active typing, sign toggle); `test/input.test.js` — input controller wired to
   the real editing/engine modules (digit/operator entry, `=` finish, clear/delete
   routing, operator replace, result→linked block, paste, selection text, backspace
-  chain); `test/sw.test.js` — service-worker precache (incl.
-  `state.js`, `engine.js`, `render.js`, `interactions.js`, `canvases.js`,
-  `editing.js`, and `input.js`), `res.ok`
-  guard, non-GET ignored, old-cache cleanup.
+  chain); `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
+  empty-stack no-ops, per-canvas isolation); `test/sw.test.js` — service-worker
+  precache (incl. `app.js`, `state.js`, `engine.js`, `render.js`,
+  `interactions.js`, `canvases.js`, `editing.js`, `input.js`, and `history.js`),
+  `res.ok` guard, non-GET ignored, old-cache cleanup.
 - **E2E (Playwright, 44 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, sidebar inline
