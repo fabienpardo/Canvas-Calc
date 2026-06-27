@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, seed } = require('./helpers');
+const { fresh, press, type, lastBlock, seed, addBlock } = require('./helpers');
 
 const openMenu = (page) => page.locator('#canvasBtn').click();
 const switchTo = (page, title) => page.locator('#canvasMenu button.cv-name', { hasText: title }).click();
@@ -7,7 +7,7 @@ const savedStateMatches = (page, predicate) => page.waitForFunction(predicate);
 
 test('a new canvas is isolated; switching back preserves content', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '2 * 3');
   await press(page, '=');
   await expect(lastBlock(page).locator('.result')).toHaveText('6');
@@ -17,7 +17,7 @@ test('a new canvas is isolated; switching back preserves content', async ({ page
   await expect(page.locator('#canvasName')).toHaveText('Canvas 2');
   await expect(page.locator('.block')).toHaveCount(0);
 
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '9');
   await press(page, '=');
   await expect(page.locator('.block')).toHaveCount(1);
@@ -73,10 +73,10 @@ test('deleting a canvas asks for confirmation and falls back', async ({ page }) 
 
 test('multiple canvases persist across reload', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click(); await type(page, '7'); await press(page, '=');
+  await addBlock(page); await type(page, '7'); await press(page, '=');
   await openMenu(page);
   await page.locator('#canvasMenu .cv-new').click();
-  await page.locator('#addBtn').click(); await type(page, '8'); await press(page, '=');
+  await addBlock(page); await type(page, '8'); await press(page, '=');
   await savedStateMatches(page, () => {
     try {
       const saved = JSON.parse(localStorage.getItem('canvascalc.v1'));
@@ -90,10 +90,10 @@ test('multiple canvases persist across reload', async ({ page }) => {
   await openMenu(page);
   await expect(page.locator('#canvasMenu .cv-row')).toHaveCount(2);
   await page.locator('#canvasBtn').click(); // close
-  await expect(lastBlock(page).locator('.result')).toHaveText('8'); // active canvas restored
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('8'); // active canvas restored
   await openMenu(page);
   await switchTo(page, 'Canvas 1');
-  await expect(lastBlock(page).locator('.result')).toHaveText('7');
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('7');
 });
 
 test('an old single-canvas save migrates into one named canvas', async ({ page }) => {

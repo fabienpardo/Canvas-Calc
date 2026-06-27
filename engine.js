@@ -111,19 +111,16 @@
     return parseExpr();
   }
 
-  // A block shows a result only once it is a finished calculation: it must
-  // contain at least one operator and end on an operand (not a trailing
-  // operator or an open paren). So "5" and "5 +" show nothing; "5 + 5" does.
+  // A block shows a result once it represents more than a bare value and isn't
+  // mid-entry. So "5" and "5 +" show nothing; "5 + 5" does. A lone *linked*
+  // reference keeps its result on purpose — it's an alias, and that result is
+  // the handle used to chain further references off it.
   function isComplete(terms) {
     if (!terms || !terms.length) return false;
-    var hasOp = false, last = null;
-    for (var i = 0; i < terms.length; i++) {
-      if (terms[i].type === 'operator') hasOp = true;
-      last = terms[i];
-    }
-    if (!hasOp) return false;
-    if (last.type === 'operator') return false;
+    var last = terms[terms.length - 1];
+    if (last.type === 'operator') return false;                 // trailing operator: still typing
     if (last.type === 'paren' && last.value === '(') return false;
+    if (terms.length === 1 && terms[0].type === 'number') return false; // bare literal, not a calc
     return true;
   }
 

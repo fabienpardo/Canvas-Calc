@@ -12,6 +12,15 @@ async function type(page, seq) {
 }
 const lastBlock = (page) => page.locator('.block').last();
 
+// Add a calculation block via whichever add control is showing: on an empty
+// canvas that's the hint card's "+" mark; once blocks exist it's the floating
+// #addBtn below the lowest block.
+async function addBlock(page) {
+  const hintMark = page.locator('.hint-mark');
+  if (await hintMark.isVisible().catch(() => false)) await hintMark.click();
+  else await page.locator('#addBtn').click();
+}
+
 // Seed a saved state, then load the app with it in localStorage.
 async function seed(page, stateOrRaw) {
   await page.goto('/');
@@ -21,4 +30,4 @@ async function seed(page, stateOrRaw) {
   await page.reload();
 }
 
-module.exports = { fresh, press, type, lastBlock, seed };
+module.exports = { fresh, press, type, lastBlock, seed, addBlock };

@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
 
 async function dragResultTo(page, resultLocator, toX, toY) {
   const b = await resultLocator.boundingBox();
@@ -13,8 +13,8 @@ async function dragResultTo(page, resultLocator, toX, toY) {
 
 test('selecting a result + an operator creates a linked block', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
-  await type(page, '5');
+  await addBlock(page);
+  await type(page, '2 + 3');
   await press(page, '=');
   await lastBlock(page).locator('.result').click(); // select result
   await press(page, '+');
@@ -25,11 +25,11 @@ test('selecting a result + an operator creates a linked block', async ({ page })
 test('dropping a result onto a number slot replaces it with a link', async ({ page }) => {
   await fresh(page);
   // block A = 10
-  await page.locator('#addBtn').click();
-  await type(page, '10');
+  await addBlock(page);
+  await type(page, '8 + 2');
   await press(page, '=');
   // block B = 2 + 3
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '2 + 3');
   await press(page, '=');
   const a = page.locator('.block').first();
@@ -42,8 +42,8 @@ test('dropping a result onto a number slot replaces it with a link', async ({ pa
 
 test('a link that would create a cycle is refused with a dialog', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
-  await type(page, '10');
+  await addBlock(page);
+  await type(page, '8 + 2');
   await press(page, '=');
   const a = page.locator('.block').first();
   // drag A's result to empty canvas -> creates B linked to A
@@ -59,8 +59,8 @@ test('a link that would create a cycle is refused with a dialog', async ({ page 
 
 test('deleting a linked-to block warns about dependents', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
-  await type(page, '10');
+  await addBlock(page);
+  await type(page, '8 + 2');
   await press(page, '=');
   const a = page.locator('.block').first();
   const ab = await a.boundingBox();
@@ -73,8 +73,8 @@ test('deleting a linked-to block warns about dependents', async ({ page }) => {
 
 test('deleting a source freezes dependents to their last value', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
-  await type(page, '10');
+  await addBlock(page);
+  await type(page, '8 + 2');
   await press(page, '=');
   const a = page.locator('.block').first();
   const ab = await a.boundingBox();
@@ -85,6 +85,6 @@ test('deleting a source freezes dependents to their last value', async ({ page }
   await a.locator('.block-del').click();
   await page.locator('#toastRow button.danger').click();
   await expect(page.locator('.block')).toHaveCount(1);
-  await expect(page.locator('.block').first().locator('.result')).toHaveText('10');
+  await expect(page.locator('.block').first().locator('.term.number')).toHaveText('10');
   await expect(page.locator('.term.linked')).toHaveCount(0); // link was frozen to a number
 });

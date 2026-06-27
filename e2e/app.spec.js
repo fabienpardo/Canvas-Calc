@@ -1,10 +1,10 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
 
 // ---- block creation + evaluation ----------------------------------------
 test('+ button creates a block, types a live result, = re-anchors +', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '8 * 5');
   await expect(lastBlock(page).locator('.result')).toHaveText('40');
   // before =, the add button is hidden (editing); after =, it returns below the block
@@ -15,18 +15,18 @@ test('+ button creates a block, types a live result, = re-anchors +', async ({ p
 
 test('precedence and parentheses compute correctly', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '2 + 3 * 4');
   await expect(lastBlock(page).locator('.result')).toHaveText('14');
   await press(page, '=');
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '( 2 + 3 ) * 4');
   await expect(lastBlock(page).locator('.result')).toHaveText('20');
 });
 
 test('thousand separators render while typing', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '1234567');
   await expect(lastBlock(page).locator('.term.number')).toHaveText('1,234,567');
 });
@@ -34,7 +34,7 @@ test('thousand separators render while typing', async ({ page }) => {
 // ---- drag + undo (regression: undo must restore the original position) ----
 test('dragging a block moves it; undo restores the original position', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '5');
   await press(page, '=');
   const block = lastBlock(page);
@@ -55,7 +55,7 @@ test('dragging a block moves it; undo restores the original position', async ({ 
 // ---- drag-to-link creates a color-matched linked block -------------------
 test('dragging a number to empty canvas creates a colored linked block', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '12');
   await press(page, '=');
   const numChip = lastBlock(page).locator('.term.number');
@@ -77,7 +77,7 @@ test('dragging a number to empty canvas creates a colored linked block', async (
 
 test('plus-minus on a linked number toggles its source, not the active block tail', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '58');
   await press(page, '=');
 
@@ -104,7 +104,7 @@ test('plus-minus on a linked number toggles its source, not the active block tai
 // ---- variables sidebar ---------------------------------------------------
 test('sidebar lists variables and editing an input recomputes', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '10 * 2');
   await press(page, '=');
   await page.locator('#varsBtn').click();
@@ -151,7 +151,7 @@ test('paste from clipboard inserts parsed terms', async ({ page }) => {
 // ---- single-click label edit + backspace chain --------------------------
 test('a single click on a label enters edit mode', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '5');
   await press(page, '=');
   // select the block, then one click on its (empty) title caption focuses it
@@ -164,7 +164,7 @@ test('a single click on a label enters edit mode', async ({ page }) => {
 
 test('backspace chain clears to 0, deletes, then steps to the previous term', async ({ page }) => {
   await fresh(page);
-  await page.locator('#addBtn').click();
+  await addBlock(page);
   await type(page, '7 + 55');
   // select the "55" number chip
   await lastBlock(page).locator('.term.number').last().click();
