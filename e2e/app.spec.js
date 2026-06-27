@@ -75,6 +75,32 @@ test('dragging a number to empty canvas creates a colored linked block', async (
   await expect(page.locator('#linkLayer path')).toHaveCount(1);
 });
 
+test('plus-minus on a linked number toggles its source, not the active block tail', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '58');
+  await press(page, '=');
+
+  const numChip = lastBlock(page).locator('.term.number');
+  const box = await numChip.boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 40, cy + 40, { steps: 5 });
+  await page.mouse.move(cx + 240, cy + 220, { steps: 8 });
+  await page.mouse.up();
+
+  await press(page, '+');
+  await type(page, '2554');
+  const linkedBlock = page.locator('.block').nth(1);
+  await linkedBlock.locator('.term.linked').click();
+  await press(page, 'neg');
+
+  await expect(page.locator('.block').first().locator('.term.number')).toHaveText('-58');
+  await expect(linkedBlock.locator('.term.number')).toHaveText('2,554');
+  await expect(linkedBlock.locator('.result')).toHaveText('2,496');
+});
+
 // ---- variables sidebar ---------------------------------------------------
 test('sidebar lists variables and editing an input recomputes', async ({ page }) => {
   await fresh(page);
