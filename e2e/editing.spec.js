@@ -103,8 +103,7 @@ test('paste then undo removes the pasted block', async ({ page }) => {
   await page.locator('#menuBtn').click();
   await page.locator('#pasteItem').click();
   await expect(lastBlock(page).locator('.result')).toHaveText('7');
-  // undo back to an empty canvas (paste creates the block then fills it)
-  await page.locator('#undoBtn').click();
+  // undo back to an empty canvas (paste creates and fills the block as one action)
   await page.locator('#undoBtn').click();
   await expect(page.locator('.block')).toHaveCount(0);
 });

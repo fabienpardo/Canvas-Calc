@@ -9,7 +9,7 @@
   // ---------- Pure engine (see engine.js) ----------
   var E = window.CanvasEngine;
   var linkedValue = E.linkedValue, linkedSource = E.linkedSource, resolve = E.resolve,
-      fmt = E.fmt, groupDisplay = E.groupDisplay, opSym = E.opSym, labelOf = E.labelOf,
+      fmt = E.fmt, groupDisplay = E.groupDisplay, opSym = E.opSym,
       blockDefinition = E.blockDefinition, parseExpression = E.parseExpression,
       NUM_GROUP = E.NUM_GROUP, NUM_DECIMAL = E.NUM_DECIMAL;
   var State = window.CanvasState;
@@ -125,11 +125,10 @@
     NUM_DECIMAL: NUM_DECIMAL
   });
   function renderAll(){ renderer.renderAll(); }
+  function invalidateBlock(id){ renderer.invalidateBlock(id); }
   function drawLinks(map){ renderer.drawLinks(map); }
   function layoutOverlays(){ renderer.layoutOverlays(); }
   function renderSidebar(){ renderer.renderSidebar(); }
-  function syncSidebar(){ renderer.syncSidebar(); }
-  function scheduleSidebarRebuild(){ renderer.scheduleSidebarRebuild(); }
 
   // ---------- Dependents ----------
   function dependentsOf(id) {
@@ -338,7 +337,6 @@
 
   CanvasInteractions.create({
     document: document,
-    window: window,
     canvas: canvas,
     wrap: wrap,
     ghost: document.getElementById('ghost'),
@@ -346,6 +344,7 @@
     blockEl: blockEl,
     blocksMap: blocksMap,
     drawLinks: drawLinks,
+    invalidateBlock: invalidateBlock,
     snapshot: snapshot,
     save: save,
     renderAll: renderAll,

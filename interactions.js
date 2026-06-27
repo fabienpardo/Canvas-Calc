@@ -8,7 +8,6 @@
 
   function create(deps) {
     var doc = deps.document || document;
-    var win = deps.window || window;
     var pointer = { mode:null, startX:0, startY:0, block:null, moved:false, linkSrc:null, pendingSelect:null };
     var pinchPts = {}, pinch = null;
     var lpTimer = null;
@@ -123,6 +122,7 @@
         var z = deps.getZoom();
         pointer.block.x = deps.snap(pointer.origX+dx/z);
         pointer.block.y = deps.snap(pointer.origY+dy/z);
+        if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
         var el = deps.blockEl(pointer.block.id);
         if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
         deps.drawLinks(deps.blocksMap());

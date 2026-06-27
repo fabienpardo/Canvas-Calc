@@ -131,6 +131,7 @@ test('pasteText parses an expression into the active block', () => {
   assert.equal(h.canvas.blocks.length, 1);
   assert.equal(termSig(h.canvas.blocks[0]), 'number:10 operator:+ number:2 operator:* number:3');
   assert.ok(h.canvas.blocks[0].terms.every((t) => t.type !== 'number' || t.tid)); // tids assigned
+  assert.equal(h.state.snaps, 1); // create + fill is one undoable action
 });
 
 test('currentSelectionText returns the selected number, else the active block expression', () => {

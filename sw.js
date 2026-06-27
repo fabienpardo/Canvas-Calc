@@ -1,4 +1,5 @@
-const CACHE = 'canvas-calc-v16';
+const ASSET_REVISION = '429b7e8dcdab';
+const CACHE = 'canvas-calc-' + ASSET_REVISION;
 const ASSETS = [
   './',
   './index.html',

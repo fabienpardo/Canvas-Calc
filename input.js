@@ -18,9 +18,7 @@
     function ensureActiveBlock() {
       var id = deps.getActiveBlockId();
       if (id) { var b = deps.byId(id); if (b) return b; }
-      // create just below the lowest block (same spot as the + button)
       var pt = deps.nextSlot();
-      deps.snapshot();
       var nb = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
       deps.setActiveBlockId(nb.id);
       return nb;
@@ -69,8 +67,8 @@
     function pasteText(text) {
       var terms = deps.parseExpression(text);
       if (!terms.length) return;
-      var b = ensureActiveBlock(); // snapshots if it creates a block
       deps.commit(function () {
+        var b = ensureActiveBlock();
         terms.forEach(function (t) {
           if (t.type === 'number' && t.tid == null) t.tid = 't' + (deps.cur().nextTid++); // engine returns tid-less numbers
           b.terms.push(t);
@@ -121,8 +119,8 @@
 
       // Parentheses: append to the active block
       if (k === '(' || k === ')') {
-        var pb = ensureActiveBlock();
         deps.commit(function () {
+          var pb = ensureActiveBlock();
           Editing.appendParen(pb, k);
           deps.clearSelection(); deps.setActiveBlockId(pb.id);
         });
@@ -186,20 +184,23 @@
         return;
       }
 
-      var b = ensureActiveBlock();
-
       if (k === 'back') {
-        deps.commit(function () { applyEditSelection(Editing.backspaceActiveBlock(b)); });
+        var backActive = deps.getActiveBlockId();
+        if (!backActive) return;
+        deps.commit(function () {
+          var backBlock = deps.byId(backActive);
+          if (backBlock) applyEditSelection(Editing.backspaceActiveBlock(backBlock));
+        });
         return;
       }
 
       if (isOp(k)) {
-        deps.commit(function () { Editing.appendOperator(b, k, deps.newNumber); });
+        deps.commit(function () { Editing.appendOperator(ensureActiveBlock(), k, deps.newNumber); });
         return;
       }
 
       // digit or dot
-      deps.commit(function () { Editing.appendDigitOrDot(b, k, deps.newNumber); });
+      deps.commit(function () { Editing.appendDigitOrDot(ensureActiveBlock(), k, deps.newNumber); });
     }
 
     return {

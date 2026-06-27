@@ -114,6 +114,14 @@
 
     function blockElById(id) { return blockEls[id] || null; }
 
+    function invalidateBlock(id) {
+      delete blockSigs[id];
+    }
+
+    function invalidateAll() {
+      blockSigs = {};
+    }
+
     // An editable caption that bonds a label to a value chip.
     function makeCaption(getText, setText) {
       var cap = doc.createElement('span');
@@ -426,6 +434,8 @@
     return {
       renderAll: renderAll,
       blockEl: blockElById,
+      invalidateBlock: invalidateBlock,
+      invalidateAll: invalidateAll,
       drawLinks: drawLinks,
       layoutOverlays: layoutOverlays,
       renderSidebar: renderSidebar,
