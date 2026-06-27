@@ -485,6 +485,7 @@
 <script src="render.js"></script>
 <script src="interactions.js"></script>
 <script src="canvases.js"></script>
+<script src="editing.js"></script>
 <script>
 (function () {
   "use strict";
@@ -496,6 +497,7 @@
       blockDefinition = E.blockDefinition, parseExpression = E.parseExpression,
       NUM_GROUP = E.NUM_GROUP, NUM_DECIMAL = E.NUM_DECIMAL;
   var State = window.CanvasState;
+  var Editing = window.CanvasEditing;
   // App wrapper injects the current block map into the pure cycle check.
   function createsCycle(targetId, srcId) { return E.createsCycle(targetId, srcId, blocksMap()); }
 
@@ -832,8 +834,7 @@
       }
       if (nb_ && ni>=0 && nb_.terms[ni] && nb_.terms[ni].type==='number') {
         snapshot();
-        var nv = nb_.terms[ni].value;
-        nb_.terms[ni].value = (nv.charAt(0)==='-') ? nv.slice(1) : ('-' + (nv===''?'0':nv));
+        Editing.toggleNumberSign(nb_.terms[ni]);
         renderAll(); save();
       }
       return;
@@ -843,7 +844,7 @@
     if (k==='(' || k===')') {
       var pb = ensureActiveBlock();
       snapshot();
-      pb.terms.push({ type:'paren', value:k });
+      Editing.appendParen(pb, k);
       clearSel(); activeBlockId = pb.id;
       renderAll(); save();
       return;
@@ -854,7 +855,7 @@
       var obk = byId(sel.blockId);
       var ot = obk && obk.terms[sel.termIndex];
       if (ot && ot.type==='operator') {
-        if (isOp(k)) { snapshot(); ot.value = k; save(); renderAll(); return; }
+        if (isOp(k)) { snapshot(); Editing.replaceSelectedOperator(obk, sel.termIndex, k); save(); renderAll(); return; }
         if (k==='back') { snapshot(); deleteTermAndSelectPrev(obk, sel.termIndex); save(); renderAll(); return; }
         return; // ignore digits etc. while an operator is selected
       }
@@ -867,9 +868,7 @@
       var ist = isb && isb.terms[sel.termIndex];
       if (ist) {
         snapshot();
-        if (ist.type==='number' && ist.value==='') ist.value='0';
-        isb.terms.splice(sel.termIndex+1, 0, { type:'operator', value:k }, newNumber(''));
-        sel.termIndex = sel.termIndex + 2; sel.kind = 'number';
+        sel = Editing.insertOperatorAfterSelection(isb, sel.termIndex, k, newNumber);
         activeBlockId = isb.id;
         renderAll(); save(); return;
       }
@@ -882,18 +881,16 @@
       if (term && term.type==='number') {
         if (k==='back') {
           snapshot();
-          if (term.value !== '') { term.value = term.value.slice(0,-1); } // 55 -> 5 -> 0 (empty slot)
-          else { deleteTermAndSelectPrev(sb, sel.termIndex); }            // empty -> delete & step left
+          applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex));
           renderAll(); save(); return;
         }
         snapshot();
-        if (k==='.') { if(term.value.indexOf('.')<0) term.value += (term.value===''?'0.':'.'); }
-        else term.value += k;
+        term.value = Editing.appendDigitValue(term.value, k);
         renderAll(); save(); return;
       }
       if (term && term.type==='linked' && k==='back') {
         snapshot();
-        deleteTermAndSelectPrev(sb, sel.termIndex); // unlink & step left
+        applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); // unlink & step left
         renderAll(); save(); return;
       }
     }
@@ -915,33 +912,19 @@
 
     if (k==='back') {
       snapshot();
-      if (!last) { /* empty block: delete it */
-        removeBlock(b.id); activeBlockId=null; renderAll(); save(); return;
-      }
-      if (last.type==='number') {
-        last.value = last.value.slice(0,-1);
-        if (last.value==='') terms.pop();
-      } else { terms.pop(); }
+      applyEditSelection(Editing.backspaceActiveBlock(b));
       renderAll(); save(); return;
     }
 
     if (isOp(k)) {
       snapshot();
-      if (!last) { terms.push(newNumber('0')); }
-      else if (last.type==='operator') { last.value = k; renderAll(); save(); return; }
-      else if (last.type==='number' && last.value==='') { last.value='0'; }
-      terms.push({ type:'operator', value:k });
+      Editing.appendOperator(b, k, newNumber);
       renderAll(); save(); return;
     }
 
     // digit or dot
     snapshot();
-    if (!last || last.type==='operator' || last.type==='linked' || last.type==='paren') {
-      terms.push(newNumber(k==='.'?'0.':k));
-    } else if (last.type==='number') {
-      if (k==='.') { if(last.value.indexOf('.')<0) last.value += (last.value===''?'0.':'.'); }
-      else last.value += k;
-    }
+    Editing.appendDigitOrDot(b, k, newNumber);
     renderAll(); save();
   }
 
@@ -968,17 +951,14 @@
 
   // Remove a term and move the selection to the previous one (for the backspace chain).
   function deleteTermAndSelectPrev(b, idx) {
-    b.terms.splice(idx, 1);
-    if (b.terms.length === 0) { removeBlock(b.id); clearSel(); return; }
-    var prev = idx - 1;
-    if (prev >= 0) {
-      var pt = b.terms[prev];
-      sel.blockId = b.id; sel.termIndex = prev;
-      sel.kind = pt.type==='operator' ? 'operator' : (pt.type==='linked' ? 'linked' : 'number');
-      activeBlockId = b.id;
-    } else {
-      clearSel(); activeBlockId = b.id;
-    }
+    applyEditSelection(Editing.deleteTermAndSelectPrev(b, idx));
+  }
+
+  function applyEditSelection(result) {
+    if (!result) return;
+    if (result.removeBlockId) removeBlock(result.removeBlockId);
+    if (result.selection) sel = result.selection;
+    if (Object.prototype.hasOwnProperty.call(result, 'activeBlockId')) activeBlockId = result.activeBlockId;
   }
 
   function confirmDeleteBlock(b) {

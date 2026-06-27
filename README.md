@@ -64,8 +64,8 @@ subpath.
 ## Updating
 
 The service worker (`sw.js`) precaches the app shell with a version string at the
-top, like `const CACHE = 'canvas-calc-v9';`. When you change any file, bump that
-version (`v9`, `v10`, ...) so returning visitors get the new build instead of the
+top, like `const CACHE = 'canvas-calc-v10';`. When you change any file, bump that
+version (`v10`, `v11`, ...) so returning visitors get the new build instead of the
 cached one. (Navigations are network-first, so HTML updates land without a bump;
 bumping guarantees cached assets refresh too.)
 
@@ -79,6 +79,7 @@ bumping guarantees cached assets refresh too.)
 | `render.js` | DOM rendering, link drawing, and variables sidebar helpers. |
 | `interactions.js` | Canvas pointer, drag/link, long-press, wheel, and touch interaction wiring. |
 | `canvases.js` | Multi-canvas switcher, rename, add, delete, and toolbar menu wiring. |
+| `editing.js` | Expression editing reducers for digits, operators, deletion, and selection movement. |
 | `manifest.webmanifest` | PWA metadata (name, icons, standalone display). |
 | `sw.js` | Service worker; offline caching. |
 | `test/`, `e2e/` | Unit tests (`node --test`) and Playwright e2e; see TESTING.md. |

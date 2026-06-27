@@ -13,6 +13,7 @@ test('service worker precaches the app shell + engine', () => {
   assert.match(sw, /'\.\/render\.js'/);
   assert.match(sw, /'\.\/interactions\.js'/);
   assert.match(sw, /'\.\/canvases\.js'/);
+  assert.match(sw, /'\.\/editing\.js'/);
   assert.match(sw, /'\.\/manifest\.webmanifest'/);
 });
 

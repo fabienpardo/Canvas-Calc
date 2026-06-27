@@ -108,14 +108,16 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 ## Status
 
 ### Implemented
-- **Unit (`node --test`, 36 tests):** `test/engine.test.js` — evaluation
+- **Unit (`node --test`, 43 tests):** `test/engine.test.js` — evaluation
   (precedence, parens, division, negatives, tolerant states, div-by-zero,
   linked cascade, number-term links, cycle detection incl. indirect +
   number-link exemption, missing-source), formatting, clipboard parsing,
   definitions; `test/state.test.js` — saved-state migration, normalization,
-  id repair, lookups; `test/sw.test.js` — service-worker precache (incl.
-  `state.js`, `engine.js`, `render.js`, `interactions.js`, and
-  `canvases.js`), `res.ok`
+  id repair, lookups; `test/editing.test.js` — expression editing reducers
+  (selected insertion, operator replacement, backspace chain, linked unlink,
+  active typing, sign toggle); `test/sw.test.js` — service-worker precache (incl.
+  `state.js`, `engine.js`, `render.js`, `interactions.js`, `canvases.js`, and
+  `editing.js`), `res.ok`
   guard, non-GET ignored, old-cache cleanup.
 - **E2E (Playwright, 44 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
@@ -135,11 +137,9 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
 ### Planned
-- Extract the editing model from `pressKey` into pure reducers
-  (`insertDigit`, `insertOperator`, `backspace`, `insertAfterSelection`,
-  `replaceOperator`, `deleteTermAndSelectPrev`) so the flows currently covered
-  only by e2e can also be unit-tested fast.
-- Pure unit tests for those reducers + undo/redo history as a module.
+- Extract undo/redo history into a module with focused unit tests.
+- Split the remaining toolbar/overflow/keypad event wiring out of `index.html`
+  once the editing controller boundary settles.
 
 ### Backlog (nice to have)
 - Make `fmt` separators injectable (today only `groupDisplay`/`parseExpression`
