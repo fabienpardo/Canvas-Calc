@@ -23,8 +23,9 @@
   var state = State.normalizeState(null);
   var zoom = 1; // current view scale (mirror of cur().zoom)
   var ZOOM_MIN = 0.4, ZOOM_MAX = 2.5;
-  var sel = { blockId: null, termIndex: null, kind: null }; // kind: 'number'|'result'|'linked'
-  var activeBlockId = null; // block currently being typed into
+  // Selection + active-block state and the snapshot/render/save policy live in
+  // the store (see store.js). snapshot/renderAll/save are hoisted below.
+  var store = CanvasStore.create({ snapshot: snapshot, renderAll: renderAll, save: save });
   var SNAP = 20;
   var FONT_SIZES = [18, 22, 28];
 
@@ -61,8 +62,8 @@
   var historyCtl = CanvasHistory.create({
     cur: cur,
     getActiveCanvasId: function(){ return state.activeCanvasId; },
-    clearSelection: clearSel,
-    setActiveBlockId: setActiveBlock,
+    clearSelection: store.clearSelection,
+    setActiveBlockId: store.setActiveBlockId,
     renderAll: renderAll,
     save: save,
     undoBtn: document.getElementById('undoBtn'),
@@ -100,8 +101,8 @@
     numpad: document.getElementById('numpad'),
     zoomCtl: document.getElementById('zoomCtl'),
     cur: cur,
-    getSelection: function(){ return sel; },
-    getActiveBlockId: function(){ return activeBlockId; },
+    getSelection: store.getSelection,
+    getActiveBlockId: store.getActiveBlockId,
     getFontSize: function(){ return state.fontSize; },
     blocksMap: blocksMap,
     byId: byId,
@@ -212,17 +213,12 @@
   // The "+ add" button sits below the lowest block, and hides while editing.
   function positionAddBtn() {
     var btn = document.getElementById('addBtn');
-    if (activeBlockId) { btn.style.display = 'none'; return; }
+    if (store.getActiveBlockId()) { btn.style.display = 'none'; return; }
     btn.style.display = 'flex';
     var pt = slotBelow(lowestBlock());
     btn.style.left = pt.x + 'px';
     btn.style.top = pt.y + 'px';
   }
-
-  // ---------- Selection ----------
-  function clearSel(){ sel = { blockId:null, termIndex:null, kind:null }; }
-  function setSel(next){ sel = { blockId:next.blockId, termIndex:next.termIndex, kind:next.kind }; }
-  function setActiveBlock(id){ activeBlockId = id; }
 
   // ---------- Input handling ----------
   function snap(v){ return Math.round(v/SNAP)*SNAP; }
@@ -232,7 +228,7 @@
   function clearCanvas() {
     if (!cur().blocks.length) return;
     confirmDialog('Clear the whole canvas? This removes every calculation.', function(){
-      snapshot(); cur().blocks=[]; activeBlockId=null; clearSel(); renderAll(); save();
+      store.commit(function(){ cur().blocks=[]; store.setActiveBlockId(null); store.clearSelection(); });
     }, 'Clear all', true);
   }
 
@@ -245,8 +241,8 @@
     cur: cur,
     clampZoom: clampZoom,
     setZoom: function(nextZoom){ zoom = nextZoom; },
-    clearSelection: clearSel,
-    setActiveBlockId: setActiveBlock,
+    clearSelection: store.clearSelection,
+    setActiveBlockId: store.setActiveBlockId,
     updateZoomLabel: updateZoomLabel,
     renderAll: renderAll,
     layoutOverlays: layoutOverlays,
@@ -276,14 +272,14 @@
       });
     });
     cur().blocks = cur().blocks.filter(function(b){ return b.id!==id; });
-    if (activeBlockId===id) activeBlockId=null;
+    if (store.getActiveBlockId()===id) store.setActiveBlockId(null);
   }
 
   function confirmDeleteBlock(b) {
     if (!b) return;
     // Empty block: nothing to lose, delete without asking.
     if (!b.terms.length) {
-      snapshot(); removeBlock(b.id); clearSel(); renderAll(); save();
+      store.commit(function(){ removeBlock(b.id); store.clearSelection(); });
       return;
     }
     var deps = dependentsOf(b.id);
@@ -291,7 +287,7 @@
       ? deps.length+' other calculation'+(deps.length>1?'s':'')+' use this one. Deleting it will replace '+(deps.length>1?'those references':'that reference')+' with the current value.'
       : 'Delete this calculation?';
     confirmDialog(msg, function(){
-      snapshot(); removeBlock(b.id); clearSel(); renderAll(); save();
+      store.commit(function(){ removeBlock(b.id); store.clearSelection(); });
     }, 'Delete', true);
   }
 
@@ -321,14 +317,15 @@
     newNumber: newNumber,
     snap: snap,
     nextSlot: nextSlot,
+    commit: store.commit,
     snapshot: snapshot,
     save: save,
     renderAll: renderAll,
-    getSelection: function(){ return sel; },
-    setSelection: setSel,
-    clearSelection: clearSel,
-    getActiveBlockId: function(){ return activeBlockId; },
-    setActiveBlockId: setActiveBlock,
+    getSelection: store.getSelection,
+    setSelection: store.setSelection,
+    clearSelection: store.clearSelection,
+    getActiveBlockId: store.getActiveBlockId,
+    setActiveBlockId: store.setActiveBlockId,
     removeBlock: removeBlock,
     confirmDeleteBlock: confirmDeleteBlock,
     clearCanvas: clearCanvas,
@@ -352,10 +349,10 @@
     snapshot: snapshot,
     save: save,
     renderAll: renderAll,
-    clearSelection: clearSel,
-    setSelection: setSel,
-    getActiveBlockId: function(){ return activeBlockId; },
-    setActiveBlockId: setActiveBlock,
+    clearSelection: store.clearSelection,
+    setSelection: store.setSelection,
+    getActiveBlockId: store.getActiveBlockId,
+    setActiveBlockId: store.setActiveBlockId,
     getZoom: function(){ return zoom; },
     snap: snap,
     newBlock: newBlock,
@@ -374,9 +371,10 @@
       e.stopPropagation();
       var x = parseInt(btn.style.left,10); if (isNaN(x)) x = 40;
       var y = parseInt(btn.style.top,10);  if (isNaN(y)) y = 30;
-      snapshot();
-      var nb = newBlock(snap(x), snap(y));
-      activeBlockId = nb.id; clearSel(); renderAll(); save();
+      store.commit(function(){
+        var nb = newBlock(snap(x), snap(y));
+        store.setActiveBlockId(nb.id); store.clearSelection();
+      });
     });
   })();
 

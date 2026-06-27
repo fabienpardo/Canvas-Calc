@@ -84,6 +84,7 @@ bumping guarantees cached assets refresh too.)
 | `editing.js` | Expression editing reducers for digits, operators, deletion, and selection movement. |
 | `input.js` | Keypad/keyboard input controller and copy/paste text (no DOM; unit-tested). |
 | `history.js` | Per-canvas undo/redo stacks (no DOM beyond the undo/redo buttons; unit-tested). |
+| `store.js` | View state (selection, active block) + `commit()`, which centralizes the snapshot→mutate→render→save policy (no DOM; unit-tested). |
 | `manifest.webmanifest` | PWA metadata (name, icons, standalone display). |
 | `sw.js` | Service worker; offline caching. |
 | `test/`, `e2e/` | Unit tests (`node --test`) and Playwright e2e; see TESTING.md. |

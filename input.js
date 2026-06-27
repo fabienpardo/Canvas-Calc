@@ -70,12 +70,13 @@
       var terms = deps.parseExpression(text);
       if (!terms.length) return;
       var b = ensureActiveBlock(); // snapshots if it creates a block
-      deps.snapshot();
-      terms.forEach(function (t) {
-        if (t.type === 'number' && t.tid == null) t.tid = 't' + (deps.cur().nextTid++); // engine returns tid-less numbers
-        b.terms.push(t);
+      deps.commit(function () {
+        terms.forEach(function (t) {
+          if (t.type === 'number' && t.tid == null) t.tid = 't' + (deps.cur().nextTid++); // engine returns tid-less numbers
+          b.terms.push(t);
+        });
+        deps.setActiveBlockId(b.id); deps.clearSelection();
       });
-      deps.setActiveBlockId(b.id); deps.clearSelection(); deps.renderAll(); deps.save();
     }
 
     // ---------- Key dispatch ----------
@@ -113,9 +114,7 @@
           }
         }
         if (nb_ && ni >= 0 && nb_.terms[ni] && nb_.terms[ni].type === 'number') {
-          deps.snapshot();
-          Editing.toggleNumberSign(nb_.terms[ni]);
-          deps.renderAll(); deps.save();
+          deps.commit(function () { Editing.toggleNumberSign(nb_.terms[ni]); });
         }
         return;
       }
@@ -123,10 +122,10 @@
       // Parentheses: append to the active block
       if (k === '(' || k === ')') {
         var pb = ensureActiveBlock();
-        deps.snapshot();
-        Editing.appendParen(pb, k);
-        deps.clearSelection(); deps.setActiveBlockId(pb.id);
-        deps.renderAll(); deps.save();
+        deps.commit(function () {
+          Editing.appendParen(pb, k);
+          deps.clearSelection(); deps.setActiveBlockId(pb.id);
+        });
         return;
       }
 
@@ -137,8 +136,8 @@
         var obk = deps.byId(sel.blockId);
         var ot = obk && obk.terms[sel.termIndex];
         if (ot && ot.type === 'operator') {
-          if (isOp(k)) { deps.snapshot(); Editing.replaceSelectedOperator(obk, sel.termIndex, k); deps.save(); deps.renderAll(); return; }
-          if (k === 'back') { deps.snapshot(); deleteTermAndSelectPrev(obk, sel.termIndex); deps.save(); deps.renderAll(); return; }
+          if (isOp(k)) { deps.commit(function () { Editing.replaceSelectedOperator(obk, sel.termIndex, k); }); return; }
+          if (k === 'back') { deps.commit(function () { deleteTermAndSelectPrev(obk, sel.termIndex); }); return; }
           return; // ignore digits etc. while an operator is selected
         }
       }
@@ -149,10 +148,11 @@
         var isb = deps.byId(sel.blockId);
         var ist = isb && isb.terms[sel.termIndex];
         if (ist) {
-          deps.snapshot();
-          deps.setSelection(Editing.insertOperatorAfterSelection(isb, sel.termIndex, k, deps.newNumber));
-          deps.setActiveBlockId(isb.id);
-          deps.renderAll(); deps.save(); return;
+          deps.commit(function () {
+            deps.setSelection(Editing.insertOperatorAfterSelection(isb, sel.termIndex, k, deps.newNumber));
+            deps.setActiveBlockId(isb.id);
+          });
+          return;
         }
       }
 
@@ -162,50 +162,44 @@
         var term = sb.terms[sel.termIndex];
         if (term && term.type === 'number') {
           if (k === 'back') {
-            deps.snapshot();
-            applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex));
-            deps.renderAll(); deps.save(); return;
+            deps.commit(function () { applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); });
+            return;
           }
-          deps.snapshot();
-          term.value = Editing.appendDigitValue(term.value, k);
-          deps.renderAll(); deps.save(); return;
+          deps.commit(function () { term.value = Editing.appendDigitValue(term.value, k); });
+          return;
         }
         if (term && term.type === 'linked' && k === 'back') {
-          deps.snapshot();
-          applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); // unlink & step left
-          deps.renderAll(); deps.save(); return;
+          deps.commit(function () { applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); }); // unlink & step left
+          return;
         }
       }
 
       // Result selected + operator => create linked block below
       if (sel.kind === 'result' && sel.blockId && isOp(k)) {
         var srcB = deps.byId(sel.blockId); if (!srcB) return;
-        deps.snapshot();
-        var nb = deps.newBlock(deps.snap(srcB.x), deps.snap(srcB.y + 70));
-        nb.terms.push({ type: 'linked', sourceId: srcB.id });
-        nb.terms.push({ type: 'operator', value: k });
-        deps.setActiveBlockId(nb.id); deps.clearSelection();
-        deps.renderAll(); deps.save(); return;
+        deps.commit(function () {
+          var nb = deps.newBlock(deps.snap(srcB.x), deps.snap(srcB.y + 70));
+          nb.terms.push({ type: 'linked', sourceId: srcB.id });
+          nb.terms.push({ type: 'operator', value: k });
+          deps.setActiveBlockId(nb.id); deps.clearSelection();
+        });
+        return;
       }
 
       var b = ensureActiveBlock();
 
       if (k === 'back') {
-        deps.snapshot();
-        applyEditSelection(Editing.backspaceActiveBlock(b));
-        deps.renderAll(); deps.save(); return;
+        deps.commit(function () { applyEditSelection(Editing.backspaceActiveBlock(b)); });
+        return;
       }
 
       if (isOp(k)) {
-        deps.snapshot();
-        Editing.appendOperator(b, k, deps.newNumber);
-        deps.renderAll(); deps.save(); return;
+        deps.commit(function () { Editing.appendOperator(b, k, deps.newNumber); });
+        return;
       }
 
       // digit or dot
-      deps.snapshot();
-      Editing.appendDigitOrDot(b, k, deps.newNumber);
-      deps.renderAll(); deps.save();
+      deps.commit(function () { Editing.appendDigitOrDot(b, k, deps.newNumber); });
     }
 
     return {

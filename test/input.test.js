@@ -14,6 +14,7 @@ function harness() {
     activeBlockId: null,
     saves: 0,
     renders: 0,
+    snaps: 0,
     cleared: false,
     deletedPrompts: []
   };
@@ -41,9 +42,17 @@ function harness() {
     newNumber,
     snap: (v) => v,
     nextSlot: () => ({ x: 40, y: 30 }),
-    snapshot: () => {},
+    snapshot: () => { state.snaps++; },
     save: () => { state.saves++; },
     renderAll: () => { state.renders++; },
+    // Mirrors store.commit: snapshot -> mutate -> render -> save (opt-out via opts).
+    commit: (mutate, opts) => {
+      opts = opts || {};
+      if (opts.snapshot !== false) state.snaps++;
+      mutate();
+      state.renders++;
+      if (opts.save !== false) state.saves++;
+    },
     getSelection: () => state.sel,
     setSelection: (s) => { state.sel = { blockId: s.blockId, termIndex: s.termIndex, kind: s.kind }; },
     clearSelection: () => { state.sel = { blockId: null, termIndex: null, kind: null }; },
