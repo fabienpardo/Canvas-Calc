@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1714">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Canvas Calc">
+<title>Canvas Calc</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <div class="cv-switch">
+      <button class="cv-btn" id="canvasBtn" aria-haspopup="true" aria-expanded="false">
+        <span id="canvasName">Canvas 1</span><span class="cv-caret">▾</span>
+      </button>
+      <div id="canvasMenu" hidden></div>
+    </div>
+    <button class="tbtn txt" id="varsBtn" aria-label="Variables">𝑥</button>
+    <button class="tbtn" id="undoBtn" aria-label="Undo">↶</button>
+    <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
+    <button class="tbtn txt" id="sizeBtn" aria-label="Text size">A</button>
+    <button class="tbtn" id="clearBtn" aria-label="Clear all">⌫</button>
+    <div class="menu-wrap">
+      <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋯</button>
+      <div id="menu" role="menu" hidden>
+        <button class="menu-item" id="copyItem" role="menuitem">
+          <span class="menu-check"></span><span>Copy selection</span>
+        </button>
+        <button class="menu-item" id="pasteItem" role="menuitem">
+          <span class="menu-check"></span><span>Paste</span>
+        </button>
+        <div class="menu-sep"></div>
+        <button class="menu-item" id="gridToggle" role="menuitemcheckbox" aria-checked="false">
+          <span class="menu-check">✓</span><span>Show grid</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvasWrap">
+    <div id="canvasSizer">
+      <div id="canvas">
+        <svg id="linkLayer"></svg>
+        <div id="hint">Tap the + button to start a calculation,<br>or just type on the keypad below.</div>
+        <button id="addBtn" aria-label="Add calculation">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="zoomCtl">
+    <button id="zoomOut" aria-label="Zoom out">−</button>
+    <button id="zoomLevel" aria-label="Reset zoom">100%</button>
+    <button id="zoomIn" aria-label="Zoom in">+</button>
+  </div>
+
+  <div id="numpad">
+    <div id="padToggle">Hide keypad ▾</div>
+    <div class="padgrid" role="group" aria-label="Calculator keypad">
+      <button type="button" class="key" data-k="7" aria-label="7">7</button>
+      <button type="button" class="key" data-k="8" aria-label="8">8</button>
+      <button type="button" class="key" data-k="9" aria-label="9">9</button>
+      <button type="button" class="key op" data-k="/" aria-label="Divide">÷</button>
+      <button type="button" class="key" data-k="4" aria-label="4">4</button>
+      <button type="button" class="key" data-k="5" aria-label="5">5</button>
+      <button type="button" class="key" data-k="6" aria-label="6">6</button>
+      <button type="button" class="key op" data-k="*" aria-label="Multiply">×</button>
+      <button type="button" class="key" data-k="1" aria-label="1">1</button>
+      <button type="button" class="key" data-k="2" aria-label="2">2</button>
+      <button type="button" class="key" data-k="3" aria-label="3">3</button>
+      <button type="button" class="key op" data-k="-" aria-label="Subtract">−</button>
+      <button type="button" class="key" data-k="." aria-label="Decimal point">.</button>
+      <button type="button" class="key" data-k="0" aria-label="0">0</button>
+      <button type="button" class="key act" data-k="back" aria-label="Backspace">⌫</button>
+      <button type="button" class="key op" data-k="+" aria-label="Add">+</button>
+      <button type="button" class="key op" data-k="(" aria-label="Open parenthesis">(</button>
+      <button type="button" class="key op" data-k=")" aria-label="Close parenthesis">)</button>
+      <button type="button" class="key op" data-k="neg" aria-label="Plus / minus sign" style="grid-column: span 2;">±</button>
+      <button type="button" class="key del" data-k="clear" aria-label="Clear canvas">Clear</button>
+      <button type="button" class="key eq" data-k="=" aria-label="Equals — finish this block">=</button>
+    </div>
+  </div>
+</div>
+
+<div id="sidebar" aria-hidden="true">
+  <div id="sidebarHead">
+    <span>Variables</span>
+    <button id="sidebarClose" class="tbtn" aria-label="Close variables">×</button>
+  </div>
+  <div id="sidebarBody"></div>
+</div>
+
+<div id="ghost"></div>
+<div id="scrim"></div>
+<div id="toast" role="dialog" aria-modal="true" aria-labelledby="toastMsg">
+  <p id="toastMsg"></p>
+  <div class="row" id="toastRow"></div>
+</div>
+
+<script src="state.js"></script>
+<script src="engine.js"></script>
+<script src="render.js"></script>
+<script src="interactions.js"></script>
+<script src="canvases.js"></script>
+<script src="editing.js"></script>
+<script src="input.js"></script>
+<script src="history.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

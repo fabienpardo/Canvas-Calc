@@ -1,0 +1,151 @@
+const { test, expect } = require('@playwright/test');
+const { fresh, press, type, lastBlock } = require('./helpers');
+
+// ---- block creation + evaluation ----------------------------------------
+test('+ button creates a block, types a live result, = re-anchors +', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '8 * 5');
+  await expect(lastBlock(page).locator('.result')).toHaveText('40');
+  // before =, the add button is hidden (editing); after =, it returns below the block
+  await expect(page.locator('#addBtn')).toBeHidden();
+  await press(page, '=');
+  await expect(page.locator('#addBtn')).toBeVisible();
+});
+
+test('precedence and parentheses compute correctly', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '2 + 3 * 4');
+  await expect(lastBlock(page).locator('.result')).toHaveText('14');
+  await press(page, '=');
+  await page.locator('#addBtn').click();
+  await type(page, '( 2 + 3 ) * 4');
+  await expect(lastBlock(page).locator('.result')).toHaveText('20');
+});
+
+test('thousand separators render while typing', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '1234567');
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('1,234,567');
+});
+
+// ---- drag + undo (regression: undo must restore the original position) ----
+test('dragging a block moves it; undo restores the original position', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '5');
+  await press(page, '=');
+  const block = lastBlock(page);
+  const before = await block.evaluate((el) => el.style.left);
+  const box = await block.boundingBox();
+  // grab the block body (top-left corner, away from the value chips) and drag right
+  await page.mouse.move(box.x + 6, box.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 6 + 120, box.y + 6, { steps: 8 });
+  await page.mouse.up();
+  const after = await lastBlock(page).evaluate((el) => el.style.left);
+  expect(after).not.toBe(before);
+  await page.locator('#undoBtn').click();
+  const restored = await lastBlock(page).evaluate((el) => el.style.left);
+  expect(restored).toBe(before);
+});
+
+// ---- drag-to-link creates a color-matched linked block -------------------
+test('dragging a number to empty canvas creates a colored linked block', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '12');
+  await press(page, '=');
+  const numChip = lastBlock(page).locator('.term.number');
+  const box = await numChip.boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 40, cy + 40, { steps: 5 });
+  await page.mouse.move(cx + 240, cy + 220, { steps: 8 }); // empty canvas
+  await page.mouse.up();
+  await expect(page.locator('.block')).toHaveCount(2);
+  const linked = page.locator('.term.linked');
+  await expect(linked).toHaveText('12');
+  // linked chip and source underline share a non-empty color
+  const color = await linked.evaluate((el) => el.style.color);
+  expect(color).not.toBe('');
+  await expect(page.locator('#linkLayer path')).toHaveCount(1);
+});
+
+// ---- variables sidebar ---------------------------------------------------
+test('sidebar lists variables and editing an input recomputes', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '10 * 2');
+  await press(page, '=');
+  await page.locator('#varsBtn').click();
+  const inputs = page.locator('#sidebarBody .var-val[data-kind="input"]');
+  await expect(inputs).toHaveCount(2); // 10 and 2
+  // edit the first input (10 -> 30) and expect the result to follow (60)
+  await inputs.first().fill('30');
+  await expect(page.locator('.block .result').first()).toHaveText('60');
+});
+
+// ---- grid toggle ---------------------------------------------------------
+test('grid is off by default and toggles via the menu', async ({ page }) => {
+  await fresh(page);
+  const wrap = page.locator('#canvasWrap');
+  await expect(wrap).not.toHaveClass(/grid-on/);
+  await page.locator('#menuBtn').click();
+  await page.locator('#gridToggle').click();
+  await expect(wrap).toHaveClass(/grid-on/);
+});
+
+// ---- zoom + scroll ------------------------------------------------------
+test('zoom buttons scale the canvas; horizontal scroll is available', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#zoomIn').click();
+  await page.locator('#zoomIn').click();
+  await expect(page.locator('#zoomLevel')).toHaveText('144%');
+  const transform = await page.locator('#canvas').evaluate((el) => el.style.transform);
+  expect(transform).toContain('scale(1.44)');
+  await page.locator('#zoomLevel').click(); // reset
+  await expect(page.locator('#zoomLevel')).toHaveText('100%');
+  const canScrollX = await page.locator('#canvasWrap').evaluate((el) => el.scrollWidth > el.clientWidth);
+  expect(canScrollX).toBe(true);
+});
+
+// ---- copy / paste (mobile menu path uses the Clipboard API) --------------
+test('paste from clipboard inserts parsed terms', async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(() => navigator.clipboard.writeText('1,234 + 5 * (2)'));
+  await page.locator('#menuBtn').click();
+  await page.locator('#pasteItem').click();
+  await expect(lastBlock(page).locator('.result')).toHaveText('1,244');
+});
+
+// ---- single-click label edit + backspace chain --------------------------
+test('a single click on a label enters edit mode', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '5');
+  await press(page, '=');
+  // select the block, then one click on its (empty) title caption focuses it
+  await lastBlock(page).click({ position: { x: 6, y: 6 } });
+  const titleCap = lastBlock(page).locator('.cap').last();
+  await titleCap.click();
+  const focused = await titleCap.evaluate((el) => el === document.activeElement);
+  expect(focused).toBe(true);
+});
+
+test('backspace chain clears to 0, deletes, then steps to the previous term', async ({ page }) => {
+  await fresh(page);
+  await page.locator('#addBtn').click();
+  await type(page, '7 + 55');
+  // select the "55" number chip
+  await lastBlock(page).locator('.term.number').last().click();
+  await press(page, 'back'); // 55 -> 5
+  await expect(lastBlock(page).locator('.term.number').last()).toHaveText('5');
+  await press(page, 'back'); // 5 -> 0 (empty slot)
+  await expect(lastBlock(page).locator('.term.number').last()).toHaveText('0');
+  await press(page, 'back'); // delete the number -> operator becomes selected
+  await expect(lastBlock(page).locator('.term.operator.sel')).toHaveCount(1);
+});

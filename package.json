@@ -1,0 +1,14 @@
+{
+  "name": "canvas-calc",
+  "version": "1.0.0",
+  "description": "Freeform calculator canvas (PWA). The shipped app has zero runtime dependencies; this manifest only wires up the dev test runner.",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "test:e2e": "playwright test",
+    "test:all": "node --test && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}
