@@ -413,7 +413,8 @@
     createsCycle: createsCycle,
     confirmDialog: confirmDialog,
     deleteBlock: deleteBlock,
-    zoomAround: zoomAround
+    zoomAround: zoomAround,
+    Editing: Editing
   });
 
   // ---------- Add-calculation button ----------
@@ -498,6 +499,9 @@
     closeOverflowMenu();
   };
   document.getElementById('sidebarClose').onclick = function(){
+    setSidebarOpen(false);
+  };
+  document.getElementById('sidebarScrim').onclick = function(){
     setSidebarOpen(false);
   };
 

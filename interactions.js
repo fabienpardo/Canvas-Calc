@@ -8,6 +8,7 @@
 
   function create(deps) {
     var doc = deps.document || document;
+    var Editing = deps.Editing;
     var pointer = { mode:null, startX:0, startY:0, block:null, moved:false, linkSrc:null, pendingSelect:null };
     var pinchPts = {}, pinch = null;
     var lpTimer = null;
@@ -209,10 +210,18 @@
       }
 
       if (pointer.mode==='maybe-tap' && !pointer.moved) {
+        // Commit any in-flight on-canvas label edit (its blur handler writes the
+        // text) before we tear the block DOM down with renderAll. Outside taps
+        // don't reliably blur a contenteditable on touch, so force it here.
+        var ae = doc.activeElement;
+        if (ae && ae.classList && ae.classList.contains('cap')) ae.blur();
         var activeBlockId = deps.getActiveBlockId();
         if (activeBlockId) {
           var fb = deps.byId(activeBlockId);
           if (fb && fb.terms.length===0) { deps.snapshot(); deps.removeBlock(fb.id); deps.save(); }
+          // Leaving a block closes any still-open groups, matching '=' behaviour
+          // so the on-screen expression reflects what the evaluator computed.
+          else if (fb && Editing && Editing.unmatchedOpenParens(fb)) { deps.snapshot(); Editing.balanceParens(fb); deps.save(); }
         }
         deps.setActiveBlockId(null); deps.clearSelection(); deps.renderAll();
         resetPointer(); return;

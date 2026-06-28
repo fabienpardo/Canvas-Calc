@@ -168,6 +168,25 @@ test('sidebar rejects malformed numeric input', async ({ page }) => {
   await expect(page.locator('.block .result').first()).toHaveText('25');
 });
 
+test('clicking the dimmed scrim closes the sidebar', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '10 * 2');
+  await press(page, '=');
+
+  const scrim = page.locator('#sidebarScrim');
+  await expect(scrim).toBeHidden(); // hidden while the panel is closed
+
+  await page.locator('#varsBtn').click();
+  await expect(page.locator('#sidebar')).toHaveClass(/open/);
+  await expect(scrim).toBeVisible();
+
+  await scrim.click({ position: { x: 20, y: 20 } }); // tap the dimmed canvas area
+  await expect(page.locator('#sidebar')).not.toHaveClass(/open/);
+  await expect(page.locator('body')).not.toHaveClass(/sidebar-open/);
+  await expect(scrim).toBeHidden();
+});
+
 test('sidebar groups operands under their block', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

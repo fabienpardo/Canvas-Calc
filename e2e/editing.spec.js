@@ -51,6 +51,38 @@ test('pressing = auto-closes an open parenthesis into the expression', async ({ 
   await expect(lastBlock(page).locator('.result')).toHaveText('7');
 });
 
+test('tapping empty canvas auto-closes an open parenthesis', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '7');
+  await press(page, '+');
+  await press(page, '(');
+  await type(page, '2 + 3');
+  // Still open before leaving the block (no trailing ')').
+  await expect(lastBlock(page).locator('.expr .term.paren')).toHaveText(['(']);
+  await page.locator('#canvas').click({ position: { x: 600, y: 460 } });
+  // Leaving via an empty-canvas tap writes the matching ')'; 7 + (2+3) = 12.
+  await expect(lastBlock(page).locator('.expr .term.paren')).toHaveText(['(', ')']);
+  await expect(lastBlock(page).locator('.result')).toHaveText('12');
+});
+
+test('editing a label then tapping empty canvas saves it', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5');
+  await press(page, '=');
+  await lastBlock(page).click({ position: { x: 6, y: 6 } }); // select -> reveals title caption
+  const titleCap = lastBlock(page).locator('.cap').last();
+  await titleCap.click();
+  await page.keyboard.type('Total');
+  // Commit by tapping empty canvas rather than pressing Enter / blurring directly.
+  await page.locator('#canvas').click({ position: { x: 600, y: 460 } });
+  await expect(lastBlock(page).locator('.cap').last()).toHaveText('Total');
+  // And it survives a reload (was actually persisted).
+  await page.reload();
+  await expect(page.locator('.block .cap').last()).toHaveText('Total');
+});
+
 test('opening "(" after a number inserts an implicit multiplication', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
