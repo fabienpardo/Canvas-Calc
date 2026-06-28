@@ -32,6 +32,25 @@ test('selected number + opening parenthesis inserts before the selected number',
   await expect(lastBlock(page).locator('.result')).toHaveText('6');
 });
 
+test('pressing = auto-closes an open parenthesis into the expression', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '7');
+  await press(page, '+');
+  await type(page, '5');
+  await press(page, '*');
+  await press(page, '(');
+  await type(page, '2 + 3');
+  await press(page, '-');
+  await type(page, '5');
+  // Before =, the group is still open (no trailing ')').
+  await expect(lastBlock(page).locator('.expr .term.paren')).toHaveText(['(']);
+  await press(page, '=');
+  // The matching ')' is written into the block; result stays 7 + 5*(2+3-5) = 7.
+  await expect(lastBlock(page).locator('.expr .term')).toHaveText(['7', '+', '5', '×', '(', '2', '+', '3', '−', '5', ')']);
+  await expect(lastBlock(page).locator('.result')).toHaveText('7');
+});
+
 test('opening "(" after a number inserts an implicit multiplication', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
