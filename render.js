@@ -427,15 +427,20 @@
       });
     }
 
-    function collectVars() {
-      var inputs = [], results = [];
+    // One entry per block (in canvas order): its number operands plus whether
+    // the block currently evaluates to a result. Empty drafts are skipped.
+    function collectGroups() {
+      var groups = [];
       cur().blocks.forEach(function(b){
+        var inputs = [];
         b.terms.forEach(function(t, idx){
           if (t.type==='number') inputs.push({ bid:b.id, idx:idx, t:t });
         });
-        if (deps.isComplete(b.terms) && deps.missingOperatorIndex(b.terms) < 0) results.push(b);
+        var isResult = deps.isComplete(b.terms) && deps.missingOperatorIndex(b.terms) < 0;
+        if (!inputs.length && !isResult) return;
+        groups.push({ block:b, inputs:inputs, isResult:isResult });
       });
-      return { inputs:inputs, results:results };
+      return groups;
     }
 
     function sidebarOpen(){ return deps.sidebar.classList.contains('open'); }
@@ -481,26 +486,24 @@
     function renderSidebar() {
       var body = deps.sidebarBody;
       var map = deps.blocksMap();
-      var v = collectVars();
+      var groups = collectGroups();
       body.innerHTML = '';
 
-      if (!v.inputs.length && !v.results.length) {
+      if (!groups.length) {
         var e = doc.createElement('div'); e.className = 'var-empty';
         e.textContent = 'No variables yet. Numbers and results show up here once you start a calculation — tap a name to label them.';
         body.appendChild(e);
         return;
       }
 
-      function sec(label){ var d=doc.createElement('div'); d.className='var-sec'; d.textContent=label; return d; }
-
-      if (v.inputs.length) {
-        body.appendChild(sec('Inputs'));
-        v.inputs.forEach(function(it){ body.appendChild(inputRow(it)); });
-      }
-      if (v.results.length) {
-        body.appendChild(sec('Results'));
-        v.results.forEach(function(b){ body.appendChild(resultRow(b, map)); });
-      }
+      // Each block becomes a group: its result (or a pending marker) as the
+      // heading, with the block's number operands nested below it.
+      groups.forEach(function(g){
+        var sec = doc.createElement('div'); sec.className = 'var-group';
+        sec.appendChild(groupHead(g.block, g.isResult, map));
+        g.inputs.forEach(function(it){ sec.appendChild(inputRow(it)); });
+        body.appendChild(sec);
+      });
     }
 
     function inputRow(it) {
@@ -557,8 +560,10 @@
       return row;
     }
 
-    function resultRow(b, map) {
-      var row = doc.createElement('div'); row.className = 'var-row';
+    // The heading for a block's group: an editable block name, plus either its
+    // computed result + definition (when complete) or a muted pending marker.
+    function groupHead(b, isResult, map) {
+      var row = doc.createElement('div'); row.className = 'var-row var-head';
 
       var name = doc.createElement('input');
       name.className = 'var-name'; name.value = b.label || '';
@@ -571,16 +576,25 @@
         nb.label = name.value; deps.save(); renderAll();
       });
       name.addEventListener('blur', function(){ nameDirty = false; scheduleSidebarRebuild(); });
+      row.appendChild(name);
 
-      var val = doc.createElement('span');
-      val.className = 'var-val ro'; val.dataset.bid = b.id; val.dataset.kind = 'result';
-      val.textContent = deps.fmt(deps.resolve(b, map));
+      if (isResult) {
+        var val = doc.createElement('span');
+        val.className = 'var-val ro'; val.dataset.bid = b.id; val.dataset.kind = 'result';
+        val.textContent = deps.fmt(deps.resolve(b, map));
+        row.appendChild(val);
 
-      var def = doc.createElement('div');
-      def.className = 'var-def'; def.dataset.bid = b.id;
-      def.textContent = '= ' + deps.blockDefinition(b, map);
+        var def = doc.createElement('div');
+        def.className = 'var-def'; def.dataset.bid = b.id;
+        def.textContent = '= ' + deps.blockDefinition(b, map);
+        row.appendChild(def);
+      } else {
+        var pend = doc.createElement('span');
+        pend.className = 'var-val ro var-pending';
+        pend.textContent = '…'; // … : block isn't a complete calculation yet
+        row.appendChild(pend);
+      }
 
-      row.appendChild(name); row.appendChild(val); row.appendChild(def);
       return row;
     }
 

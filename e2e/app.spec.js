@@ -168,6 +168,40 @@ test('sidebar rejects malformed numeric input', async ({ page }) => {
   await expect(page.locator('.block .result').first()).toHaveText('25');
 });
 
+test('sidebar groups operands under their block', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '10 * 2');
+  await press(page, '=');
+  await addBlock(page);
+  await type(page, '3 + 4');
+  await press(page, '=');
+  await page.locator('#varsBtn').click();
+
+  const groups = page.locator('#sidebarBody .var-group');
+  await expect(groups).toHaveCount(2);
+  // First block: heading result 20 over its two operands (10 and 2).
+  await expect(groups.nth(0).locator('.var-head .var-val[data-kind="result"]')).toHaveText('20');
+  await expect(groups.nth(0).locator('.var-val[data-kind="input"]')).toHaveCount(2);
+  // Second block: result 7 over its two operands.
+  await expect(groups.nth(1).locator('.var-head .var-val[data-kind="result"]')).toHaveText('7');
+  await expect(groups.nth(1).locator('.var-val[data-kind="input"]')).toHaveCount(2);
+});
+
+test('an incomplete block shows as a pending group', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5');
+  await press(page, '+'); // trailing operator -> not a complete result
+  await page.locator('#varsBtn').click();
+
+  const groups = page.locator('#sidebarBody .var-group');
+  await expect(groups).toHaveCount(1);
+  await expect(groups.locator('.var-head .var-pending')).toBeVisible();
+  await expect(groups.locator('.var-head .var-val[data-kind="result"]')).toHaveCount(0);
+  await expect(groups.locator('.var-val[data-kind="input"]')).toHaveCount(1); // the 5
+});
+
 // ---- grid toggle ---------------------------------------------------------
 test('grid is off by default and toggles via the menu', async ({ page }) => {
   await fresh(page);
