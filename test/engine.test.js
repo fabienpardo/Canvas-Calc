@@ -74,6 +74,21 @@ test('linked number-term resolves to that term value', () => {
   assert.equal(E.resolve(b, m), 13); // 12 + 1
 });
 
+test('malformed source results propagate through links', () => {
+  var price = num(5);
+  var source = block('source', [price, op('+'), num(8), num(3)]);
+  var alias = block('alias', [linkResult('source')]);
+  var dependent = block('dependent', [linkResult('alias'), op('+'), num(2)]);
+  var termLink = block('termLink', [linkTerm('source', price.tid), op('+'), num(2)]);
+  var m = mapOf(source, alias, dependent, termLink);
+
+  assert.equal(E.resolve(source, m), null);
+  assert.equal(E.linkedValue(linkResult('source'), m), null);
+  assert.equal(E.resolve(alias, m), null);
+  assert.equal(E.resolve(dependent, m), null);
+  assert.equal(E.resolve(termLink, m), 7);
+});
+
 test('a cycle inside a linked operand degrades to 0 instead of hanging', () => {
   var a = block('a', [linkResult('b')]);
   var b = block('b', [linkResult('a')]);

@@ -154,7 +154,15 @@
         if (ot && ot.type === 'operator') {
           if (isOp(k)) { deps.commit(function () { Editing.replaceSelectedOperator(obk, sel.termIndex, k); }); return; }
           if (k === 'back') { deps.commit(function () { deleteTermAndSelectPrev(obk, sel.termIndex); }); return; }
-          return; // ignore digits etc. while an operator is selected
+          // A digit/dot drops in a new operand after the operator's operand.
+          if ((k >= '0' && k <= '9') || k === '.') {
+            deps.commit(function () {
+              deps.setSelection(Editing.insertNumberAfterOperator(obk, sel.termIndex, k, deps.newNumber));
+              deps.setActiveBlockId(obk.id);
+            });
+            return;
+          }
+          return; // ignore everything else while an operator is selected
         }
       }
 
@@ -210,6 +218,22 @@
           if (backBlock) applyEditSelection(Editing.backspaceActiveBlock(backBlock));
         });
         return;
+      }
+
+      // No active block + operator => start a fresh block that links to the last
+      // result, so "= 71" then "+" continues as "71 + …" instead of "0 + …".
+      if (isOp(k) && !deps.getActiveBlockId()) {
+        var lastB = deps.lastBlock && deps.lastBlock();
+        if (lastB && deps.isComplete(lastB.terms)) {
+          deps.commit(function () {
+            var pt = deps.nextSlot();
+            var nb = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
+            nb.terms.push({ type: 'linked', sourceId: lastB.id });
+            nb.terms.push({ type: 'operator', value: k });
+            deps.setActiveBlockId(nb.id); deps.clearSelection();
+          });
+          return;
+        }
       }
 
       if (isOp(k)) {

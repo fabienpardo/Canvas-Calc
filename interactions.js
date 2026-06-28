@@ -39,7 +39,7 @@
       if (target.closest && target.closest('#zoomCtl')) return;
 
       var resEl = target.closest && target.closest('.result');
-      if (resEl && !resEl.classList.contains('empty')) {
+      if (resEl && !resEl.classList.contains('empty') && !resEl.classList.contains('pending') && resEl.dataset.id) {
         pointer.mode='maybe-link'; pointer.startX=e.clientX; pointer.startY=e.clientY;
         pointer.linkSrc = { sourceId: resEl.dataset.id, sourceTid: null }; pointer.moved=false;
         pointer.ghostText = resEl.textContent; pointer.pendingSelect = null;

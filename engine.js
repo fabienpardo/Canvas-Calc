@@ -20,6 +20,7 @@
   var GROUPED_FMT = (function () {
     try { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 10 }); } catch (e) { return null; }
   })();
+  var MALFORMED = {};
 
   // ---------- Model helpers ----------
   function findTermByTid(b, tid) {
@@ -34,7 +35,8 @@
       var term = findTermByTid(src, t.sourceTid); if (!term) return null;
       var v = parseFloat(term.value); return isNaN(v) ? 0 : v;
     }
-    return resolve(src, map);
+    var result = resolveInternal(src, map);
+    return result === MALFORMED ? null : result;
   }
   // Label accessor for a linked term's source (number term or block title).
   function linkedSource(t, map) {
@@ -50,7 +52,8 @@
   // Build a token stream from a block's terms, resolving linked operands to numbers.
   function tokenize(block, map, stack) {
     var tokens = [];
-    block.terms.forEach(function (t) {
+    for (var i = 0; i < block.terms.length; i++) {
+      var t = block.terms[i];
       if (t.type === 'operator') tokens.push({ op: t.value });
       else if (t.type === 'paren') tokens.push({ paren: t.value });
       else if (t.type === 'number') { var v = parseFloat(t.value); tokens.push({ num: isNaN(v) ? 0 : v }); }
@@ -62,12 +65,14 @@
             var lv = lt ? parseFloat(lt.value) : NaN; val = isNaN(lv) ? 0 : lv;
           } else {
             var sub = {}; for (var k in stack) sub[k] = stack[k];
-            var r = resolve(src, map, sub); val = (r == null || isNaN(r)) ? 0 : r;
+            var r = resolveInternal(src, map, sub);
+            if (r === MALFORMED) return MALFORMED;
+            val = (r == null || isNaN(r)) ? 0 : r;
           }
         }
         tokens.push({ num: val });
       }
-    });
+    }
     return tokens;
   }
 
@@ -124,13 +129,59 @@
     return true;
   }
 
-  function resolve(block, map, stack) {
+  // Whether a block reserves a result slot at all. The slot appears once a
+  // second operand exists (so "5 +" still shows nothing) and then stays put — a
+  // trailing operator like "5 + 8 +" keeps the pill (it still resolves to 13).
+  // A lone linked reference keeps its slot too (it's an alias for that result).
+  function hasResultSlot(terms) {
+    if (!terms || !terms.length) return false;
+    if (terms.length === 1) return terms[0].type === 'linked';
+    var operands = 0;
+    for (var i = 0; i < terms.length; i++) {
+      if (terms[i].type === 'number' || terms[i].type === 'linked') {
+        if (++operands >= 2) return true;
+      }
+    }
+    return false;
+  }
+
+  // Index of the operand (or '(') that directly follows a completed operand with
+  // no operator between them — i.e. where an operator is missing ("5 + 8 3" ->
+  // index of the second "8"/"3"). Returns -1 when the sequence is well-formed.
+  // A trailing operator is fine; only adjacency that would silently drop an
+  // operand at eval time is flagged, so the view can show "?" plus a marker.
+  function missingOperatorIndex(terms) {
+    if (!terms) return -1;
+    var expectOperand = true;
+    for (var i = 0; i < terms.length; i++) {
+      var t = terms[i];
+      if (t.type === 'operator') { expectOperand = true; continue; }
+      if (t.type === 'paren') {
+        if (t.value === '(') { if (!expectOperand) return i; expectOperand = true; }
+        else { expectOperand = false; } // ')' closes a group -> acts as an operand
+        continue;
+      }
+      // number or linked
+      if (!expectOperand) return i;
+      expectOperand = false;
+    }
+    return -1;
+  }
+
+  function resolveInternal(block, map, stack) {
     stack = stack || {};
     if (stack[block.id]) return null; // cycle
+    if (missingOperatorIndex(block.terms) >= 0) return MALFORMED;
     stack[block.id] = true;
     var tokens = tokenize(block, map, stack);
     delete stack[block.id];
+    if (tokens === MALFORMED) return MALFORMED;
     return evalTokens(tokens);
+  }
+
+  function resolve(block, map, stack) {
+    var result = resolveInternal(block, map, stack);
+    return result === MALFORMED ? null : result;
   }
 
   // Would target depend (directly/indirectly) on itself if it links newSource?
@@ -297,6 +348,8 @@
     linkedValue: linkedValue, linkedSource: linkedSource,
     tokenize: tokenize, evalTokens: evalTokens, resolve: resolve,
     isComplete: isComplete,
+    hasResultSlot: hasResultSlot,
+    missingOperatorIndex: missingOperatorIndex,
     createsCycle: createsCycle,
     fmt: fmt, groupDisplay: groupDisplay,
     opSym: opSym, labelOf: labelOf, blockDefinition: blockDefinition,

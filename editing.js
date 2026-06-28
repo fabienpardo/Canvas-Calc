@@ -59,10 +59,29 @@
     return true;
   }
 
+  // Operator selected + a digit/dot: drop in a NEW operand immediately after the
+  // selected operator ("5 [+] 3", type 8 -> "5 + 8 3"), landing right where you
+  // tapped rather than merging into a neighbour. The gap with no operator before
+  // the displaced operand is flagged by missingOperatorIndex (a "?" + marker
+  // prompts you to fill it — see insertOperatorAfterSelection).
+  function insertNumberAfterOperator(block, idx, k, newNumber) {
+    var term = block && block.terms[idx];
+    if (!term || term.type !== 'operator') return null;
+    block.terms.splice(idx + 1, 0, newNumber(k === '.' ? '0.' : k));
+    return { blockId: block.id, termIndex: idx + 1, kind: 'number' };
+  }
+
   function insertOperatorAfterSelection(block, idx, k, newNumber) {
     var term = block && block.terms[idx];
     if (!term || !isOp(k)) return null;
     if (term.type === 'number' && term.value === '') term.value = '0';
+    var next = block.terms[idx + 1];
+    if (next && (next.type === 'number' || next.type === 'linked')) {
+      // An operand already follows (e.g. the "3" in "5 + 8 3"): just drop the
+      // operator into the gap so it binds the two — "5 + 8 + 3", no empty slot.
+      block.terms.splice(idx + 1, 0, { type: 'operator', value: k });
+      return { blockId: block.id, termIndex: idx + 1, kind: 'operator' };
+    }
     block.terms.splice(idx + 1, 0, { type: 'operator', value: k }, newNumber(''));
     return { blockId: block.id, termIndex: idx + 2, kind: 'number' };
   }
@@ -131,6 +150,7 @@
     toggleNumberSign: toggleNumberSign,
     deleteTermAndSelectPrev: deleteTermAndSelectPrev,
     replaceSelectedOperator: replaceSelectedOperator,
+    insertNumberAfterOperator: insertNumberAfterOperator,
     insertOperatorAfterSelection: insertOperatorAfterSelection,
     backspaceSelectedTerm: backspaceSelectedTerm,
     appendParen: appendParen,
