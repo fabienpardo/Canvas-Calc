@@ -149,6 +149,7 @@
     positionAddBtn: positionAddBtn,
     updateViewport: updateViewport,
     deleteBlock: deleteBlock,
+    fillMissingOp: fillMissingOp,
     linkedSource: linkedSource,
     linkedValue: linkedValue,
     resolve: resolve,
@@ -163,8 +164,42 @@
     NUM_GROUP: NUM_GROUP,
     NUM_DECIMAL: NUM_DECIMAL
   });
-  function renderAll(){ renderer.renderAll(); }
+  function renderAll(){ renderer.renderAll(); maybeShowLinkTip(); }
   function invalidateBlock(id){ renderer.invalidateBlock(id); }
+
+  // Fill a missing-operator gap from the inline picker (mirrors the keypad path
+  // in input.js so both routes share one model mutation).
+  function fillMissingOp(blockId, idx, op) {
+    var b = byId(blockId); if (!b) return;
+    store.commit(function () {
+      store.setSelection(Editing.insertOperatorAtGap(b, idx, op));
+      store.setActiveBlockId(b.id);
+    });
+  }
+
+  // One-time nudge teaching the core gesture: shown the first time the canvas
+  // has a real result, retired for good once the user makes a link (or dismisses).
+  var LINK_TIP_KEY = 'cc_link_tip_seen';
+  var linkTipDone = false;
+  try { linkTipDone = localStorage.getItem(LINK_TIP_KEY) === '1'; } catch (e) {}
+  function retireLinkTip() {
+    linkTipDone = true;
+    var tip = document.getElementById('linkTip');
+    if (tip) tip.hidden = true;
+    try { localStorage.setItem(LINK_TIP_KEY, '1'); } catch (e) {}
+  }
+  function maybeShowLinkTip() {
+    if (linkTipDone) return;
+    var blocks = cur().blocks, hasResult = false, hasLink = false;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      for (var j = 0; j < b.terms.length; j++) if (b.terms[j].type === 'linked') hasLink = true;
+      if (!hasResult && E.hasResultSlot(b.terms) && E.missingOperatorIndex(b.terms) < 0) hasResult = true;
+    }
+    if (hasLink) { retireLinkTip(); return; } // they already get it
+    var tip = document.getElementById('linkTip');
+    if (tip && hasResult) tip.hidden = false;
+  }
   function drawLinks(map){ renderer.drawLinks(map); }
   function layoutOverlays(){ renderer.layoutOverlays(); }
   function renderSidebar(){ renderer.renderSidebar(); }
@@ -257,7 +292,9 @@
 
   function clearCanvas() {
     if (!cur().blocks.length) return;
-    store.commit(function(){ cur().blocks=[]; store.setActiveBlockId(null); store.clearSelection(); });
+    confirmDialog('Clear the canvas? This removes every block on it.', function(){
+      store.commit(function(){ cur().blocks=[]; store.setActiveBlockId(null); store.clearSelection(); });
+    }, 'Clear', true);
   }
 
   // ---------- Canvases (sheets) ----------
@@ -303,9 +340,29 @@
     if (store.getActiveBlockId()===id) store.setActiveBlockId(null);
   }
 
+  // How many linked terms in other blocks point at this block. Deleting it
+  // freezes each into a constant, so warn before a non-obvious data change.
+  function dependentLinkCount(id) {
+    var n = 0;
+    cur().blocks.forEach(function(b){
+      if (b.id===id) return;
+      b.terms.forEach(function(t){ if (t.type==='linked' && t.sourceId===id) n++; });
+    });
+    return n;
+  }
+
   function deleteBlock(b) {
     if (!b) return;
-    store.commit(function(){ removeBlock(b.id); store.clearSelection(); });
+    function go(){ store.commit(function(){ removeBlock(b.id); store.clearSelection(); }); }
+    var deps = dependentLinkCount(b.id);
+    if (deps > 0) {
+      confirmDialog(
+        'Deleting this freezes ' + deps + ' linked value' + (deps===1?'':'s') +
+          ' into fixed numbers.',
+        go, 'Delete', true);
+      return;
+    }
+    go();
   }
 
   // ---------- Toast / dialog ----------
@@ -476,13 +533,18 @@
   document.getElementById('undoBtn').onclick = undo;
   document.getElementById('redoBtn').onclick = redo;
   document.getElementById('clearBtn').onclick = function(){ closeOverflowMenu(); clearCanvas(); };
-  document.getElementById('sizeBtn').onclick = function(){
-    var i = FONT_SIZES.indexOf(state.fontSize); i=(i+1)%FONT_SIZES.length;
-    state.fontSize = FONT_SIZES[i]; save(); renderAll();
-    var mark = this.querySelector('.menu-check');
-    if (mark) mark.style.fontSize = (12+i*2)+'px';
-    closeOverflowMenu();
-  };
+  function syncSizeMenu(){
+    Array.prototype.forEach.call(document.querySelectorAll('.size-item'), function(b){
+      b.setAttribute('aria-checked', Number(b.dataset.size)===state.fontSize ? 'true' : 'false');
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.size-item'), function(btn){
+    btn.onclick = function(){
+      state.fontSize = Number(this.dataset.size);
+      syncSizeMenu(); save(); renderAll();
+      closeOverflowMenu();
+    };
+  });
   function setSidebarOpen(open) {
     var sb = document.getElementById('sidebar');
     var varsBtn = document.getElementById('varsBtn');
@@ -501,6 +563,7 @@
   document.getElementById('sidebarClose').onclick = function(){
     setSidebarOpen(false);
   };
+  (function(){ var c = document.getElementById('linkTipClose'); if (c) c.onclick = retireLinkTip; })();
   document.getElementById('sidebarScrim').onclick = function(){
     setSidebarOpen(false);
   };
@@ -609,11 +672,8 @@
 
   // ---------- Init ----------
   load();
-  if (state.fontSize) {
-    var i=FONT_SIZES.indexOf(state.fontSize); if(i<0){i=1;state.fontSize=22;}
-    var sizeMark = document.querySelector('#sizeBtn .menu-check');
-    if (sizeMark) sizeMark.style.fontSize=(12+i*2)+'px';
-  }
+  if (state.fontSize && FONT_SIZES.indexOf(state.fontSize)<0) state.fontSize=22;
+  syncSizeMenu();
   applyGrid();
   applyCanvasName();
   updateZoomLabel();

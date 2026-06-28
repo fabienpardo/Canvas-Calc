@@ -110,7 +110,7 @@
   input.cv-name { cursor: text; }
   input.cv-name:focus { border-color: var(--accent); background: var(--bg); }
   .cv-del {
-    flex: 0 0 auto; width: 26px; height: 26px; border: none; background: transparent;
+    flex: 0 0 auto; width: 40px; height: 40px; border: none; background: transparent;
     color: var(--danger); font-size: 16px; cursor: pointer; border-radius: var(--radius);
   }
   .cv-del:disabled { opacity: 0.25; cursor: default; }
@@ -123,14 +123,16 @@
   .tbtn {
     border: 1px solid var(--key-border); background: var(--key);
     color: var(--text); border-radius: var(--radius);
-    width: 36px; height: 34px; font-size: 16px;
+    width: 44px; height: 44px; font-size: 16px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; font-family: var(--sans);
     box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
   }
   .tbtn:active { background: var(--key-active); }
   .tbtn[disabled] { opacity: 0.32; }
-  .tbtn.txt { font-size: 13px; font-weight: 500; width: auto; padding: 0 10px; }
+  .tbtn.txt { font-size: 13px; font-weight: 500; width: auto; padding: 0 10px; gap: 5px; }
+  /* Variables button: icon always, text label only where there's room (desktop). */
+  #varsBtn .vars-lbl { display: none; }
 
   /* Overflow menu */
   .menu-wrap { position: relative; }
@@ -153,8 +155,13 @@
     display: inline-flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 700;
   }
-  #sizeBtn .menu-check, .danger-item .menu-check { opacity: 1; }
+  .danger-item .menu-check { opacity: 1; }
   .menu-item[aria-checked="true"] .menu-check { opacity: 1; }
+  .menu-label {
+    padding: 8px 11px 3px; font-family: var(--sans);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
   .menu-sep { height: 1px; background: var(--block-border); margin: 5px 6px; }
   .danger-item { color: var(--danger); }
 
@@ -241,14 +248,16 @@
 
   /* Delete (×) button */
   .block-del {
-    position: absolute; top: -8px; right: -8px;
-    width: 24px; height: 24px; border-radius: 50%;
+    position: absolute; top: -10px; right: -10px;
+    width: 30px; height: 30px; border-radius: 50%;
     border: 1px solid color-mix(in srgb, var(--danger) 55%, #fff); padding: 0;
     background: var(--block); color: var(--danger);
     display: none; align-items: center; justify-content: center;
-    font-size: 15px; line-height: 1; cursor: pointer; z-index: 4;
+    font-size: 16px; line-height: 1; cursor: pointer; z-index: 4;
     box-shadow: var(--shadow-tight);
   }
+  /* Invisible 44px hit area so the small corner control is comfortably tappable. */
+  .block-del::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
   .block.selected .block-del, .block.active .block-del { display: flex; }
   @media (hover: hover) { .block:hover .block-del { display: flex; } }
   .block.empty-draft .block-del { display: none; }
@@ -311,6 +320,23 @@
     background: var(--accent); color: #fff; border-style: solid; border-color: var(--accent);
     opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
   }
+  /* Inline operator picker shown next to a selected gap. */
+  .op-picker {
+    align-self: flex-end; display: inline-flex; gap: 3px;
+    margin: 0 2px 1px; padding: 2px; transform: translateY(1px);
+    background: color-mix(in srgb, var(--accent) 10%, var(--block));
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 8px;
+  }
+  .op-pick {
+    appearance: none; -webkit-appearance: none; border: none; cursor: pointer;
+    min-width: 26px; height: 26px; padding: 0; border-radius: 6px;
+    background: var(--block); color: var(--op); font-family: var(--sans);
+    font-size: 15px; font-weight: 700; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 1px rgba(15, 23, 42, 0.06);
+  }
+  .op-pick:active { background: var(--accent); color: #fff; }
   .term.operator.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .term.paren { color: var(--text-dim); padding: 1px 2px; }
   .term.paren.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -321,9 +347,19 @@
   .term.linked.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
   .eq { color: var(--text-dim); padding: 0 2px; }
   .result {
+    position: relative;
     color: var(--result); font-weight: 700; padding: 1px 7px;
     background: var(--result-bg); border-radius: 7px; cursor: grab;
   }
+  /* Connector affordance: signals the result chip can be dragged out to link.
+     Only on settled results — not the live preview while a block is being typed. */
+  .result:not(.pending):not(.empty)::after {
+    content: ""; position: absolute; right: -3px; top: 50%;
+    width: 7px; height: 7px; transform: translateY(-50%);
+    border-radius: 50%; background: var(--result);
+    border: 1.5px solid var(--block); opacity: 0.9;
+  }
+  .block.active .result::after { display: none; }
   .result.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
   .result.empty { background: transparent; color: var(--text-dim); }
   /* Reserved slot for a calc still being typed: muted "?" placeholder, no grab. */
@@ -383,11 +419,15 @@
     font-family: var(--sans);
     box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
   }
+  /* Chevron points down to "lower" the keypad; flips up when it's hidden. */
   #padToggle::before {
     content: "";
-    width: 24px; height: 4px; border-radius: 999px; background: currentColor;
-    opacity: 0.58;
+    width: 10px; height: 10px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    opacity: 0.6;
   }
+  #numpad.hidden #padToggle::before { transform: translateY(2px) rotate(225deg); }
   #padToggle span { display: none; }
   .padgrid {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -434,6 +474,7 @@
       width: min(360px, calc(100vw - min(88vw, 360px) - 168px));
       min-width: 240px;
     }
+    #varsBtn .vars-lbl { display: inline; }
   }
 
   /* Toast / confirm */
@@ -461,6 +502,23 @@
     background: var(--danger); color: #fff; font-size: 13px; line-height: 1.35;
     box-shadow: 0 4px 14px rgba(0,0,0,0.22);
   }
+  /* One-time link-gesture nudge — sits just above the keypad. */
+  #linkTip {
+    position: fixed; left: 50%; bottom: calc(34vh + 14px);
+    transform: translateX(-50%); z-index: 185; pointer-events: none;
+    display: flex; align-items: center; gap: 10px;
+    max-width: min(90vw, 380px); padding: 9px 10px 9px 14px;
+    background: var(--block); color: var(--text);
+    border: 1px solid var(--block-border); border-radius: 12px;
+    font-size: 13px; line-height: 1.35; box-shadow: var(--shadow-soft);
+  }
+  #linkTip[hidden] { display: none; }
+  #linkTip button {
+    flex: 0 0 auto; border: none; cursor: pointer; pointer-events: auto;
+    background: var(--accent); color: #fff; font-family: var(--sans);
+    font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 8px;
+  }
+  @media (min-width: 760px) { #linkTip { bottom: calc(18px + 240px); } }
   /* Empty-canvas hint — a band spanning the visible canvas (the surface it sits
      over is a scrolled 1600×2400 element, so it can't be centred relative to
      that). It fills #canvasWrap with its bottom raised above the keypad

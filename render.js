@@ -177,6 +177,26 @@
       parent.appendChild(cue);
     }
 
+    // Inline +/-/×/÷ chooser for a selected missing-operator gap.
+    function buildOpPicker(blockId, idx) {
+      var pick = doc.createElement('span');
+      pick.className = 'op-picker';
+      ['+', '-', '*', '/'].forEach(function (opv) {
+        var ob = doc.createElement('button');
+        ob.type = 'button';
+        ob.className = 'op-pick';
+        ob.textContent = deps.opSym(opv);
+        ob.dataset.op = opv;
+        ob.title = 'Insert ' + deps.opSym(opv);
+        ob.setAttribute('aria-label', 'Insert ' + deps.opSym(opv));
+        // Swallow the pointerdown so the block's drag/long-press logic stays idle.
+        ob.addEventListener('pointerdown', function (e) { e.stopPropagation(); e.preventDefault(); });
+        ob.addEventListener('click', function (e) { e.stopPropagation(); deps.fillMissingOp(blockId, idx, opv); });
+        pick.appendChild(ob);
+      });
+      return pick;
+    }
+
     function selectFromKeyboard(e, blockId, termIndex, kind) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
@@ -254,10 +274,12 @@
           if (gapSelected) gap.className += ' sel';
           gap.textContent = '?';
           gap.dataset.idx = missIdx;
-          gap.title = gapSelected ? 'Selected missing operator — press an operator to fill it' : 'Operator missing — tap to add one';
+          gap.title = gapSelected ? 'Pick an operator to fill the gap' : 'Operator missing — tap to add one';
           makeSelectable(gap, gap.title, b.id, missIdx, 'missing-op');
           expr.appendChild(gap);
-          if (gapSelected) appendSelectionCue(expr);
+          // Selecting the gap reveals an inline picker, so the repair action is
+          // visible instead of relying on the user knowing to press a keypad operator.
+          if (gapSelected) expr.appendChild(buildOpPicker(b.id, missIdx));
         }
         if (t.type==='operator') {
           var op = doc.createElement('span');
