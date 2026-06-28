@@ -65,13 +65,11 @@
       if (s.canvases.length <= 1) return;
       var c = s.canvases.filter(function (x) { return x.id === id; })[0];
       if (!c) return;
-      deps.confirmDialog('Delete "' + (c.title || 'this canvas') + '" and all its calculations?', function () {
-        s.canvases = s.canvases.filter(function (x) { return x.id !== id; });
-        deps.deleteUndoStack(id);
-        closeCanvasMenu();
-        if (s.activeCanvasId === id) setActiveCanvas(s.canvases[0].id);
-        else deps.save();
-      }, 'Delete', true);
+      s.canvases = s.canvases.filter(function (x) { return x.id !== id; });
+      deps.deleteUndoStack(id);
+      closeCanvasMenu();
+      if (s.activeCanvasId === id) setActiveCanvas(s.canvases[0].id);
+      else deps.save();
     }
 
     function renderCanvasMenu() {

@@ -27,6 +27,7 @@
   // the store (see store.js). snapshot/renderAll/save are hoisted below.
   var store = CanvasStore.create({ snapshot: snapshot, renderAll: renderAll, save: save });
   var SNAP = 20;
+  var BLOCK_GAP = 36;
   var FONT_SIZES = [18, 22, 28];
 
   var canvas = document.getElementById('canvas');
@@ -124,7 +125,7 @@
     updateUndoRedo: updateUndoRedo,
     positionAddBtn: positionAddBtn,
     updateViewport: updateViewport,
-    confirmDeleteBlock: confirmDeleteBlock,
+    deleteBlock: deleteBlock,
     linkedSource: linkedSource,
     linkedValue: linkedValue,
     resolve: resolve,
@@ -144,16 +145,6 @@
   function drawLinks(map){ renderer.drawLinks(map); }
   function layoutOverlays(){ renderer.layoutOverlays(); }
   function renderSidebar(){ renderer.renderSidebar(); }
-
-  // ---------- Dependents ----------
-  function dependentsOf(id) {
-    var deps = [];
-    cur().blocks.forEach(function(b){
-      if (b.id===id) return;
-      b.terms.forEach(function(t){ if (t.type==='linked' && t.sourceId===id) deps.push(b); });
-    });
-    return deps;
-  }
 
   // ---------- Viewport: dynamic size + zoom ----------
   function updateViewport() {
@@ -221,7 +212,7 @@
   function slotBelow(b) {
     if (!b) return { x: 40, y: 30 };
     var el = blockEl(b.id);
-    return { x: b.x, y: b.y + (el ? el.offsetHeight : 40) + 12 };
+    return { x: b.x, y: b.y + (el ? el.offsetHeight : 40) + BLOCK_GAP };
   }
 
   // The "+ add" button sits below the lowest block, and hides while editing.
@@ -243,9 +234,7 @@
 
   function clearCanvas() {
     if (!cur().blocks.length) return;
-    confirmDialog('Clear the whole canvas? This removes every calculation.', function(){
-      store.commit(function(){ cur().blocks=[]; store.setActiveBlockId(null); store.clearSelection(); });
-    }, 'Clear all', true);
+    store.commit(function(){ cur().blocks=[]; store.setActiveBlockId(null); store.clearSelection(); });
   }
 
   // ---------- Canvases (sheets) ----------
@@ -269,7 +258,7 @@
   function applyCanvasName(){ canvasManager.applyCanvasName(); }
 
   // ---------- Input controller (see input.js) ----------
-  // Created below, after removeBlock / confirmDeleteBlock / clearCanvas are defined.
+  // Created below, after removeBlock / deleteBlock / clearCanvas are defined.
   var inputCtl = null;
 
   function removeBlock(id) {
@@ -291,23 +280,12 @@
     if (store.getActiveBlockId()===id) store.setActiveBlockId(null);
   }
 
-  function confirmDeleteBlock(b) {
+  function deleteBlock(b) {
     if (!b) return;
-    // Empty block: nothing to lose, delete without asking.
-    if (!b.terms.length) {
-      store.commit(function(){ removeBlock(b.id); store.clearSelection(); });
-      return;
-    }
-    var deps = dependentsOf(b.id);
-    var msg = deps.length
-      ? deps.length+' other calculation'+(deps.length>1?'s':'')+' use this one. Deleting it will replace '+(deps.length>1?'those references':'that reference')+' with the current value.'
-      : 'Delete this calculation?';
-    confirmDialog(msg, function(){
-      store.commit(function(){ removeBlock(b.id); store.clearSelection(); });
-    }, 'Delete', true);
+    store.commit(function(){ removeBlock(b.id); store.clearSelection(); });
   }
 
-  // ---------- Toast / confirm ----------
+  // ---------- Toast / dialog ----------
   function confirmDialog(msg, onYes, yesLabel, danger) {
     var t=document.getElementById('toast'), sc=document.getElementById('scrim');
     var prevFocus = document.activeElement;
@@ -346,6 +324,7 @@
     newNumber: newNumber,
     snap: snap,
     nextSlot: nextSlot,
+    slotBelow: slotBelow,
     lastBlock: lowestBlock,
     isComplete: E.isComplete,
     commit: store.commit,
@@ -358,7 +337,7 @@
     getActiveBlockId: store.getActiveBlockId,
     setActiveBlockId: store.setActiveBlockId,
     removeBlock: removeBlock,
-    confirmDeleteBlock: confirmDeleteBlock,
+    deleteBlock: deleteBlock,
     clearCanvas: clearCanvas,
     linkedValue: linkedValue,
     parseExpression: parseExpression
@@ -390,7 +369,7 @@
     removeBlock: removeBlock,
     createsCycle: createsCycle,
     confirmDialog: confirmDialog,
-    confirmDeleteBlock: confirmDeleteBlock,
+    deleteBlock: deleteBlock,
     zoomAround: zoomAround
   });
 

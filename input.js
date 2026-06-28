@@ -90,14 +90,14 @@
 
     // ---------- Key dispatch ----------
     function pressKey(k) {
-      // Clear the whole canvas (with confirmation)
+      // Clear the whole canvas
       if (k === 'clear') { deps.clearCanvas(); return; }
 
       // Delete the selected (or active) block
       if (k === 'del') {
         var dSel = deps.getSelection();
         var dActive = deps.getActiveBlockId();
-        deps.confirmDeleteBlock(deps.byId(dSel.blockId) || (dActive ? deps.byId(dActive) : null));
+        deps.deleteBlock(deps.byId(dSel.blockId) || (dActive ? deps.byId(dActive) : null));
         return;
       }
 
@@ -202,7 +202,8 @@
       if (sel.kind === 'result' && sel.blockId && isOp(k)) {
         var srcB = deps.byId(sel.blockId); if (!srcB) return;
         deps.commit(function () {
-          var nb = deps.newBlock(deps.snap(srcB.x), deps.snap(srcB.y + 70));
+          var pt = deps.slotBelow ? deps.slotBelow(srcB) : { x: srcB.x, y: srcB.y + 100 };
+          var nb = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
           nb.terms.push({ type: 'linked', sourceId: srcB.id });
           nb.terms.push({ type: 'operator', value: k });
           deps.setActiveBlockId(nb.id); deps.clearSelection();

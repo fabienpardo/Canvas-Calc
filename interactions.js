@@ -206,7 +206,7 @@
       var onTerm = e.target.closest && e.target.closest('.term, .result, .cap, .block-del');
       if (bEl && !onTerm) {
         lpTimer = setTimeout(function(){
-          deps.confirmDeleteBlock(deps.byId(bEl.dataset.id));
+          deps.deleteBlock(deps.byId(bEl.dataset.id));
         }, 550);
       }
     });
