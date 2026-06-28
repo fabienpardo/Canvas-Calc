@@ -32,6 +32,34 @@ test('selected number + opening parenthesis inserts before the selected number',
   await expect(lastBlock(page).locator('.result')).toHaveText('6');
 });
 
+test('opening "(" after a number inserts an implicit multiplication', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '3');
+  await press(page, '(');
+  await type(page, '2 + 6');
+  await press(page, ')');
+  await expect(lastBlock(page).locator('.expr .term')).toHaveText(['3', '×', '(', '2', '+', '6', ')']);
+  await expect(lastBlock(page).locator('.op-missing')).toHaveCount(0);
+  await expect(lastBlock(page).locator('.result')).toHaveText('24');
+});
+
+test('tapping the missing-operator "?" lets you fill the operator', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  // Force a real gap: type an operand, then a second operand with no operator
+  // (operator selected + digit drops a new operand right after).
+  await type(page, '5 + 8');
+  await lastBlock(page).locator('.term.operator').click();
+  await press(page, '3'); // -> 5 + 8 3  (gap before the 3)
+  await expect(lastBlock(page).locator('.op-missing')).toHaveCount(1);
+  await lastBlock(page).locator('.op-missing').click();
+  await expect(lastBlock(page).locator('.op-missing')).toHaveClass(/sel/);
+  await press(page, '*'); // fill the gap with x
+  await expect(lastBlock(page).locator('.op-missing')).toHaveCount(0);
+  await expect(lastBlock(page).locator('.result')).toHaveText('29'); // 5 + 8*3
+});
+
 test('parentheses are selectable and deletable', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

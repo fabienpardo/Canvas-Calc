@@ -114,15 +114,43 @@
     return null;
   }
 
+  // A completed operand directly before '(' means implicit multiplication
+  // ("0(2+6)" === "0 * (2+6)"), so we materialise the '*' the way math does.
+  function isCompletedOperand(term) {
+    return !!term && (
+      (term.type === 'number' && term.value !== '') ||
+      term.type === 'linked' ||
+      (term.type === 'paren' && term.value === ')')
+    );
+  }
+
   function appendParen(block, k) {
-    block.terms.push({ type: 'paren', value: k });
+    var terms = block.terms;
+    if (k === '(' && isCompletedOperand(terms[terms.length - 1])) {
+      terms.push({ type: 'operator', value: '*' });
+    }
+    terms.push({ type: 'paren', value: k });
   }
 
   function insertParenNearSelection(block, idx, k) {
     var term = block && block.terms[idx];
     if (!term || (term.type !== 'number' && term.type !== 'linked') || (k !== '(' && k !== ')')) return false;
-    block.terms.splice(k === '(' ? idx : idx + 1, 0, { type: 'paren', value: k });
+    var at = k === '(' ? idx : idx + 1;
+    // Implicit multiplication when a '(' lands right after another operand.
+    if (k === '(' && isCompletedOperand(block.terms[at - 1])) {
+      block.terms.splice(at, 0, { type: 'operator', value: '*' });
+      at += 1;
+    }
+    block.terms.splice(at, 0, { type: 'paren', value: k });
     return true;
+  }
+
+  // Fill the gap flagged by missingOperatorIndex: drop an operator immediately
+  // before the operand (or '(') at idx, binding it to the operand on its left.
+  function insertOperatorAtGap(block, idx, k) {
+    if (!block || !isOp(k) || idx < 0 || idx > block.terms.length) return null;
+    block.terms.splice(idx, 0, { type: 'operator', value: k });
+    return { blockId: block.id, termIndex: idx, kind: 'operator' };
   }
 
   function backspaceActiveBlock(block) {
@@ -177,6 +205,7 @@
     backspaceSelectedTerm: backspaceSelectedTerm,
     appendParen: appendParen,
     insertParenNearSelection: insertParenNearSelection,
+    insertOperatorAtGap: insertOperatorAtGap,
     backspaceActiveBlock: backspaceActiveBlock,
     appendOperator: appendOperator,
     appendDigitOrDot: appendDigitOrDot

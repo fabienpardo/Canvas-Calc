@@ -165,7 +165,8 @@
 
     // Keyboard selection helpers mirror the pointer selection behavior.
     function selectedTerm(selection, blockId, termIndex) {
-      return selection.blockId === blockId && selection.termIndex === termIndex && selection.kind !== 'result';
+      return selection.blockId === blockId && selection.termIndex === termIndex &&
+        selection.kind !== 'result' && selection.kind !== 'missing-op';
     }
 
     function appendSelectionCue(parent) {
@@ -249,9 +250,14 @@
         if (idx === missIdx) {
           var gap = doc.createElement('span');
           gap.className = 'op-missing';
+          var gapSelected = selection.blockId === b.id && selection.kind === 'missing-op' && selection.termIndex === missIdx;
+          if (gapSelected) gap.className += ' sel';
           gap.textContent = '?';
-          gap.title = 'Operator missing';
+          gap.dataset.idx = missIdx;
+          gap.title = gapSelected ? 'Selected missing operator — press an operator to fill it' : 'Operator missing — tap to add one';
+          makeSelectable(gap, gap.title, b.id, missIdx, 'missing-op');
           expr.appendChild(gap);
+          if (gapSelected) appendSelectionCue(expr);
         }
         if (t.type==='operator') {
           var op = doc.createElement('span');

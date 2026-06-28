@@ -125,6 +125,39 @@ test('selecting a number after render then pressing "(" inserts before it', () =
   assert.equal(h.state.activeBlockId, b.id);
 });
 
+test('opening "(" right after an operand inserts implicit multiplication', () => {
+  const h = harness();
+  ['0', '('].forEach((k) => h.ctl.pressKey(k));
+  const b = h.canvas.blocks[0];
+  assert.equal(termSig(b), 'number:0 operator:* paren:(');
+  // and the expression stays well-formed (no missing-operator gap)
+  assert.equal(Engine.missingOperatorIndex(b.terms), -1);
+});
+
+test('selecting the missing-operator gap then pressing an operator fills it', () => {
+  const h = harness();
+  // Build "0 ( 2 + 6 )" with a real gap by injecting terms (e.g. a legacy save).
+  const b = h.canvas.blocks[0] = {
+    id: 'b1', x: 0, y: 0, label: '',
+    terms: [
+      { type: 'number', value: '0', tid: 't1' },
+      { type: 'paren', value: '(' },
+      { type: 'number', value: '2', tid: 't2' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '6', tid: 't3' },
+      { type: 'paren', value: ')' }
+    ]
+  };
+  const gap = Engine.missingOperatorIndex(b.terms);
+  assert.equal(gap, 1);
+  h.state.activeBlockId = b.id;
+  h.state.sel = { blockId: b.id, termIndex: gap, kind: 'missing-op' };
+  h.ctl.pressKey('*');
+  assert.equal(termSig(b), 'number:0 operator:* paren:( number:2 operator:+ number:6 paren:)');
+  assert.deepEqual(h.state.sel, { blockId: b.id, termIndex: 1, kind: 'operator' });
+  assert.equal(Engine.missingOperatorIndex(b.terms), -1);
+});
+
 test('backspace deletes a selected parenthesis and selects the previous term', () => {
   const h = harness();
   ['(', '2', '+', '4', ')'].forEach((k) => h.ctl.pressKey(k));

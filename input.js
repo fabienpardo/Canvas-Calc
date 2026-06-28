@@ -173,6 +173,26 @@
         return;
       }
 
+      // Missing-operator gap selected -> press an operator to fill it (binds the
+      // two adjacent operands); backspace removes the trailing operand instead.
+      if (sel.kind === 'missing-op' && sel.blockId && sel.termIndex !== null) {
+        var mgb = deps.byId(sel.blockId);
+        if (mgb) {
+          if (isOp(k)) {
+            deps.commit(function () {
+              deps.setSelection(Editing.insertOperatorAtGap(mgb, sel.termIndex, k));
+              deps.setActiveBlockId(mgb.id);
+            });
+            return;
+          }
+          if (k === 'back') {
+            deps.commit(function () { deleteTermAndSelectPrev(mgb, sel.termIndex); });
+            return;
+          }
+          return; // ignore other keys while a gap is selected
+        }
+      }
+
       // Operator selected -> tap then press a new operator to change it
       if (sel.kind === 'operator' && sel.blockId && sel.termIndex !== null) {
         var obk = deps.byId(sel.blockId);
