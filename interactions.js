@@ -22,6 +22,19 @@
       deps.canvas.querySelectorAll('.slot-target').forEach(function(e){e.classList.remove('slot-target');});
     }
 
+    // Insert a dragged value just before the term at `idx`, gluing it to its
+    // neighbours with '+' wherever two operands would otherwise touch — so
+    // dropping onto the leading "×" of "× 2.6" yields "15 × 2.6", and a drop
+    // between operands stays a well-formed expression.
+    function insertLinkBefore(tb, idx, link){
+      var seq = [link];
+      var at = tb.terms[idx];
+      var before = tb.terms[idx-1];
+      if (at && at.type!=='operator' && !(at.type==='paren' && at.value===')')) seq.push({type:'operator', value:'+'});
+      if (before && before.type!=='operator' && !(before.type==='paren' && before.value==='(')) seq.unshift({type:'operator', value:'+'});
+      Array.prototype.splice.apply(tb.terms, [idx, 0].concat(seq));
+    }
+
     function toCanvas(clientX, clientY){
       var r = deps.canvas.getBoundingClientRect();
       return { x: (clientX - r.left)/deps.getZoom(), y: (clientY - r.top)/deps.getZoom() };
@@ -44,6 +57,7 @@
         pointer.mode='maybe-link'; pointer.startX=e.clientX; pointer.startY=e.clientY;
         pointer.linkSrc = { sourceId: resEl.dataset.id, sourceTid: null }; pointer.moved=false;
         pointer.ghostText = resEl.textContent; pointer.pendingSelect = null;
+        pointer.touch = e.pointerType==='touch';
         return;
       }
 
@@ -68,6 +82,7 @@
         pointer.linkSrc = { sourceId: nbid, sourceTid: ntid };
         pointer.ghostText = termEl.textContent;
         pointer.pendingSelect = { blockId: nbid, termIndex: nidx, kind: 'number' };
+        pointer.touch = e.pointerType==='touch';
         return;
       }
 
@@ -129,13 +144,16 @@
         deps.ghost.style.display='block'; deps.ghost.textContent=pointer.ghostText;
       }
       if (pointer.mode==='linking') {
-        deps.ghost.style.left=e.clientX+'px'; deps.ghost.style.top=e.clientY+'px';
+        // Float the ghost above a finger so it isn't hidden under the fingertip.
+        deps.ghost.style.left=e.clientX+'px';
+        deps.ghost.style.top=(pointer.touch ? e.clientY-48 : e.clientY)+'px';
         clearTargets();
         var under = doc.elementFromPoint(e.clientX, e.clientY);
-        var slot = under && under.closest && under.closest('.term.number');
+        var termUnder = under && under.closest && under.closest('.term, .op-missing');
         var bUnder = under && under.closest && under.closest('.block');
-        if (slot) slot.classList.add('slot-target');
-        else if (bUnder && bUnder.dataset.id!==pointer.linkSrc.sourceId) bUnder.classList.add('slot-target');
+        var foreign = bUnder && bUnder.dataset.id!==pointer.linkSrc.sourceId;
+        if (termUnder && foreign) termUnder.classList.add('slot-target');
+        else if (foreign) bUnder.classList.add('slot-target');
         e.preventDefault();
         return;
       }
@@ -157,7 +175,7 @@
       if (pinching()) { resetPointer(); return; }
       if (pointer.mode==='linking') {
         var under = doc.elementFromPoint(e.clientX, e.clientY);
-        var slot = under && under.closest && under.closest('.term.number');
+        var termUnder = under && under.closest && under.closest('.term, .op-missing');
         var bUnder = under && under.closest && under.closest('.block');
         var ls = pointer.linkSrc, srcId = ls.sourceId;
         function cyc(targetId){ return ls.sourceTid==null && deps.createsCycle(targetId, srcId); }
@@ -165,22 +183,24 @@
         clearTargets();
         deps.ghost.style.display='none';
 
-        if (slot && bUnder && bUnder.dataset.id!==srcId) {
+        if (bUnder && bUnder.dataset.id!==srcId) {
           var tb = deps.byId(bUnder.dataset.id);
-          var ti = parseInt(slot.dataset.idx,10);
           if (tb && !cyc(tb.id)) {
             deps.snapshot();
-            tb.terms[ti] = newLink();
+            var idxAttr = termUnder && termUnder.dataset.idx;
+            if (termUnder && termUnder.classList.contains('term') && termUnder.classList.contains('number')) {
+              // Dropped on a number: swap it for the link.
+              tb.terms[parseInt(idxAttr,10)] = newLink();
+            } else if (idxAttr != null) {
+              // Dropped on an operator/paren/missing-op: insert before that spot.
+              insertLinkBefore(tb, parseInt(idxAttr,10), newLink());
+            } else {
+              // Dropped on the block but not on a term: append.
+              var lastT = tb.terms[tb.terms.length-1];
+              if (lastT && lastT.type!=='operator') tb.terms.push({type:'operator', value:'+'});
+              tb.terms.push(newLink());
+            }
             deps.setActiveBlockId(tb.id); deps.clearSelection(); deps.renderAll(); deps.save();
-          } else { flashCycle(); }
-        } else if (bUnder && bUnder.dataset.id!==srcId) {
-          var tb2 = deps.byId(bUnder.dataset.id);
-          if (tb2 && !cyc(tb2.id)) {
-            deps.snapshot();
-            var lastT = tb2.terms[tb2.terms.length-1];
-            if (lastT && lastT.type!=='operator') tb2.terms.push({type:'operator', value:'+'});
-            tb2.terms.push(newLink());
-            deps.setActiveBlockId(tb2.id); deps.clearSelection(); deps.renderAll(); deps.save();
           } else { flashCycle(); }
         } else if (!bUnder) {
           var pt = toCanvas(e.clientX, e.clientY);
