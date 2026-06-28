@@ -20,6 +20,7 @@
   var GROUPED_FMT = (function () {
     try { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 10 }); } catch (e) { return null; }
   })();
+  var MALFORMED = {};
 
   // ---------- Model helpers ----------
   function findTermByTid(b, tid) {
@@ -34,7 +35,8 @@
       var term = findTermByTid(src, t.sourceTid); if (!term) return null;
       var v = parseFloat(term.value); return isNaN(v) ? 0 : v;
     }
-    return resolve(src, map);
+    var result = resolveInternal(src, map);
+    return result === MALFORMED ? null : result;
   }
   // Label accessor for a linked term's source (number term or block title).
   function linkedSource(t, map) {
@@ -50,7 +52,8 @@
   // Build a token stream from a block's terms, resolving linked operands to numbers.
   function tokenize(block, map, stack) {
     var tokens = [];
-    block.terms.forEach(function (t) {
+    for (var i = 0; i < block.terms.length; i++) {
+      var t = block.terms[i];
       if (t.type === 'operator') tokens.push({ op: t.value });
       else if (t.type === 'paren') tokens.push({ paren: t.value });
       else if (t.type === 'number') { var v = parseFloat(t.value); tokens.push({ num: isNaN(v) ? 0 : v }); }
@@ -62,12 +65,14 @@
             var lv = lt ? parseFloat(lt.value) : NaN; val = isNaN(lv) ? 0 : lv;
           } else {
             var sub = {}; for (var k in stack) sub[k] = stack[k];
-            var r = resolve(src, map, sub); val = (r == null || isNaN(r)) ? 0 : r;
+            var r = resolveInternal(src, map, sub);
+            if (r === MALFORMED) return MALFORMED;
+            val = (r == null || isNaN(r)) ? 0 : r;
           }
         }
         tokens.push({ num: val });
       }
-    });
+    }
     return tokens;
   }
 
@@ -163,13 +168,20 @@
     return -1;
   }
 
-  function resolve(block, map, stack) {
+  function resolveInternal(block, map, stack) {
     stack = stack || {};
     if (stack[block.id]) return null; // cycle
+    if (missingOperatorIndex(block.terms) >= 0) return MALFORMED;
     stack[block.id] = true;
     var tokens = tokenize(block, map, stack);
     delete stack[block.id];
+    if (tokens === MALFORMED) return MALFORMED;
     return evalTokens(tokens);
+  }
+
+  function resolve(block, map, stack) {
+    var result = resolveInternal(block, map, stack);
+    return result === MALFORMED ? null : result;
   }
 
   // Would target depend (directly/indirectly) on itself if it links newSource?

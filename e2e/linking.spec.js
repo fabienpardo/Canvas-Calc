@@ -40,6 +40,41 @@ test('dropping a result onto a number slot replaces it with a link', async ({ pa
   await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('13');
 });
 
+test('pending missing-operator results cannot start links', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 3');
+  await page.locator('.block').first().locator('.term.operator').click();
+  await press(page, '8');
+
+  const block = page.locator('.block').first();
+  const box = await block.boundingBox();
+  await expect(block.locator('.result.pending')).toHaveText('?');
+  await dragResultTo(page, block.locator('.result.pending'), box.x + 260, box.y + 180);
+
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(page.locator('.term.linked')).toHaveCount(0);
+});
+
+test('malformed linked sources clear existing dependent results', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 3');
+  await press(page, '=');
+
+  const source = page.locator('.block').first();
+  const sourceBox = await source.boundingBox();
+  await dragResultTo(page, source.locator('.result'), sourceBox.x + 260, sourceBox.y + 180);
+  await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('8');
+
+  await source.locator('.term.operator').click();
+  await press(page, '8');
+
+  await expect(source.locator('.result.pending')).toHaveText('?');
+  await expect(page.locator('.block').nth(1).locator('.term.linked')).toHaveText('?');
+  await expect(page.locator('.block').nth(1).locator('.result.empty')).toHaveText('·');
+});
+
 test('a link that would create a cycle is refused with a dialog', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
