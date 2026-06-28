@@ -179,6 +179,7 @@
     function selectFromKeyboard(e, blockId, termIndex, kind) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
+      e.stopPropagation();
       deps.setSelection({ blockId: blockId, termIndex: termIndex, kind: kind });
       deps.setActiveBlockId(blockId);
       renderAll();
