@@ -1,6 +1,22 @@
 const { test, expect } = require('@playwright/test');
 const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
 
+// ---- link discoverability nudge -----------------------------------------
+test('link tip shows after the first result, then stays dismissed', async ({ page }) => {
+  await fresh(page);
+  await expect(page.locator('#linkTip')).toBeHidden(); // nothing linkable yet
+  await addBlock(page);
+  await type(page, '2 + 2');
+  await press(page, '=');
+  await expect(page.locator('#linkTip')).toBeVisible();
+  await page.locator('#linkTipClose').click();
+  await expect(page.locator('#linkTip')).toBeHidden();
+  // Dismissal is persisted: it does not come back on reload.
+  await page.reload();
+  await page.waitForSelector('.padgrid .key[data-k="("]');
+  await expect(page.locator('#linkTip')).toBeHidden();
+});
+
 // ---- block creation + evaluation ----------------------------------------
 test('+ button creates a block, types a live result, = re-anchors +', async ({ page }) => {
   await fresh(page);

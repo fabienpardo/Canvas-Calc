@@ -253,8 +253,13 @@
       var bEl = e.target.closest && e.target.closest('.block');
       var onTerm = e.target.closest && e.target.closest('.term, .result, .cap, .block-del');
       if (bEl && !onTerm) {
+        // Long-press reveals the block's actions (the × delete control) by
+        // making it active, rather than deleting outright — a stationary hold
+        // should never destroy a block with no warning.
         lpTimer = setTimeout(function(){
-          deps.deleteBlock(deps.byId(bEl.dataset.id));
+          var blk = deps.byId(bEl.dataset.id);
+          if (!blk) return;
+          deps.setActiveBlockId(blk.id); deps.clearSelection(); deps.renderAll();
         }, 550);
       }
     });

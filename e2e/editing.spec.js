@@ -111,6 +111,19 @@ test('tapping the missing-operator "?" lets you fill the operator', async ({ pag
   await expect(lastBlock(page).locator('.result')).toHaveText('29'); // 5 + 8*3
 });
 
+test('the missing-operator inline picker fills the gap', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 8');
+  await lastBlock(page).locator('.term.operator').click();
+  await press(page, '3'); // -> 5 + 8 3 (gap before the 3)
+  await lastBlock(page).locator('.op-missing').click(); // selecting reveals the picker
+  await expect(lastBlock(page).locator('.op-picker')).toBeVisible();
+  await lastBlock(page).locator('.op-pick[data-op="+"]').click();
+  await expect(lastBlock(page).locator('.op-missing')).toHaveCount(0);
+  await expect(lastBlock(page).locator('.result')).toHaveText('16'); // 5 + 8 + 3
+});
+
 test('parentheses are selectable and deletable', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
@@ -203,9 +216,29 @@ test('clear canvas then undo restores all blocks', async ({ page }) => {
   await expect(page.locator('.block')).toHaveCount(2);
   await page.locator('#menuBtn').click();
   await page.locator('#clearBtn').click();
+  await expect(page.locator('#toast')).toBeVisible(); // clearing the canvas now confirms first
+  await page.locator('#toastRow button.danger').click();
   await expect(page.locator('.block')).toHaveCount(0);
   await page.locator('#undoBtn').click();
   await expect(page.locator('.block')).toHaveCount(2);
+});
+
+test('text size submenu applies the chosen size and marks the active option', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '7');
+  await press(page, '=');
+  const block = lastBlock(page);
+  await page.locator('#menuBtn').click();
+  // Default size is Medium (22px).
+  await expect(page.locator('.size-item[data-size="22"]')).toHaveAttribute('aria-checked', 'true');
+  await page.locator('.size-item[data-size="28"]').click(); // Large
+  await expect
+    .poll(() => block.evaluate((el) => getComputedStyle(el).getPropertyValue('--fs').trim()))
+    .toBe('28px');
+  await page.locator('#menuBtn').click();
+  await expect(page.locator('.size-item[data-size="28"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.size-item[data-size="22"]')).toHaveAttribute('aria-checked', 'false');
 });
 
 test('paste then undo removes the pasted block', async ({ page }) => {

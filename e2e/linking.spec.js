@@ -111,7 +111,7 @@ test('a link that would create a cycle is refused with a dialog', async ({ page 
   await expect(page.locator('#toastMsg')).toContainText('loop');
 });
 
-test('deleting a linked-to block skips confirmation and freezes dependents', async ({ page }) => {
+test('deleting a linked-to block confirms before freezing dependents', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '8 + 2');
@@ -122,10 +122,29 @@ test('deleting a linked-to block skips confirmation and freezes dependents', asy
   await expect(page.locator('.block')).toHaveCount(2);
   await a.click({ position: { x: 6, y: 6 } }); // select A -> reveals × button
   await a.locator('.block-del').click();
-  await expect(page.locator('#toast')).toBeHidden();
+  // A has a dependent, so deletion is gated behind a confirm dialog.
+  await expect(page.locator('#toast')).toBeVisible();
+  await expect(page.locator('#toastMsg')).toContainText('freeze');
+  await expect(page.locator('.block')).toHaveCount(2); // nothing removed yet
+  await page.locator('#toastRow button.danger').click();
   await expect(page.locator('.block')).toHaveCount(1);
   await expect(page.locator('.block').first().locator('.term.number')).toHaveText('10');
   await expect(page.locator('.term.linked')).toHaveCount(0);
+});
+
+test('cancelling the freeze confirm keeps the source and its links', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const ab = await a.boundingBox();
+  await dragResultTo(page, a.locator('.result'), ab.x + 260, ab.y + 240); // B links A
+  await a.click({ position: { x: 6, y: 6 } });
+  await a.locator('.block-del').click();
+  await page.locator('#toastRow button', { hasText: 'Cancel' }).click();
+  await expect(page.locator('.block')).toHaveCount(2);
+  await expect(page.locator('.term.linked')).toHaveCount(1); // link intact
 });
 
 test('deleting a source freezes dependents to their last value', async ({ page }) => {
@@ -137,9 +156,10 @@ test('deleting a source freezes dependents to their last value', async ({ page }
   const ab = await a.boundingBox();
   await dragResultTo(page, a.locator('.result'), ab.x + 260, ab.y + 240); // B = linked(A) -> 10
   await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('10');
-  // delete A; B should keep 10 as a constant (not become malformed/empty)
+  // delete A (confirm the freeze); B should keep 10 as a constant (not malformed/empty)
   await a.click({ position: { x: 6, y: 6 } });
   await a.locator('.block-del').click();
+  await page.locator('#toastRow button.danger').click();
   await expect(page.locator('.block')).toHaveCount(1);
   await expect(page.locator('.block').first().locator('.term.number')).toHaveText('10');
   await expect(page.locator('.term.linked')).toHaveCount(0); // link was frozen to a number

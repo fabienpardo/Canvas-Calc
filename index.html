@@ -27,7 +27,7 @@
       </button>
       <div id="canvasMenu" hidden></div>
     </div>
-    <button class="tbtn txt" id="varsBtn" aria-label="Variables" aria-pressed="false">𝑥</button>
+    <button class="tbtn txt" id="varsBtn" aria-label="Variables" aria-pressed="false"><span class="vars-ico">ƒx</span><span class="vars-lbl">Values</span></button>
     <button class="tbtn" id="undoBtn" aria-label="Undo">↶</button>
     <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
     <div class="menu-wrap">
@@ -40,9 +40,19 @@
           <span class="menu-check"></span><span>Paste</span>
         </button>
         <div class="menu-sep"></div>
-        <button class="menu-item" id="sizeBtn" role="menuitem">
-          <span class="menu-check">A</span><span>Text size</span>
-        </button>
+        <div class="menu-label" id="sizeLabel">Text size</div>
+        <div role="radiogroup" aria-labelledby="sizeLabel">
+          <button class="menu-item size-item" data-size="18" role="menuitemradio" aria-checked="false">
+            <span class="menu-check">✓</span><span>Small</span>
+          </button>
+          <button class="menu-item size-item" data-size="22" role="menuitemradio" aria-checked="false">
+            <span class="menu-check">✓</span><span>Medium</span>
+          </button>
+          <button class="menu-item size-item" data-size="28" role="menuitemradio" aria-checked="false">
+            <span class="menu-check">✓</span><span>Large</span>
+          </button>
+        </div>
+        <div class="menu-sep"></div>
         <button class="menu-item" id="gridToggle" role="menuitemcheckbox" aria-checked="false">
           <span class="menu-check">✓</span><span>Show grid</span>
         </button>
@@ -111,6 +121,10 @@
 </div>
 
 <div id="ghost"></div>
+<div id="linkTip" role="status" aria-live="polite" hidden>
+  <span>Tip: drag a result onto another block’s number to link them.</span>
+  <button type="button" id="linkTipClose">Got it</button>
+</div>
 <div id="saveWarning" role="status" aria-live="polite">Changes may not be saved on this device.</div>
 <div id="scrim"></div>
 <div id="toast" role="dialog" aria-modal="true" aria-labelledby="toastMsg">
