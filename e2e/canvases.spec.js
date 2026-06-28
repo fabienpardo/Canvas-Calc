@@ -58,13 +58,14 @@ test('renaming the current canvas persists across reload', async ({ page }) => {
   await expect(page.locator('#canvasName')).toHaveText('Taxes');
 });
 
-test('deleting a canvas falls back without confirmation', async ({ page }) => {
+test('deleting a canvas asks for confirmation and falls back', async ({ page }) => {
   await fresh(page);
   await openMenu(page);
   await page.locator('#canvasMenu .cv-new').click(); // now 2 canvases, Canvas 2 active
   await openMenu(page);
   await page.locator('#canvasMenu .cv-row.active .cv-del').click();
-  await expect(page.locator('#toast')).toBeHidden();
+  await expect(page.locator('#toastMsg')).toContainText('Delete');
+  await page.locator('#toastRow button.danger').click();
   await expect(page.locator('#canvasName')).toHaveText('Canvas 1');
   await openMenu(page);
   await expect(page.locator('#canvasMenu .cv-row')).toHaveCount(1);
