@@ -501,6 +501,9 @@
   document.getElementById('sidebarClose').onclick = function(){
     setSidebarOpen(false);
   };
+  document.getElementById('sidebarScrim').onclick = function(){
+    setSidebarOpen(false);
+  };
 
   // ---------- Overflow menu ----------
   function applyGrid() {
