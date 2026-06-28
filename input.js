@@ -135,8 +135,22 @@
         return;
       }
 
-      // Parentheses: append to the active block
+      var sel = deps.getSelection();
+
+      // Parentheses: with a selected operand, anchor the paren to that operand;
+      // otherwise append to the active block.
       if (k === '(' || k === ')') {
+        if ((sel.kind === 'number' || sel.kind === 'linked') && sel.blockId && sel.termIndex !== null) {
+          var psb = deps.byId(sel.blockId);
+          if (psb && psb.terms[sel.termIndex]) {
+            deps.commit(function () {
+              Editing.insertParenNearSelection(psb, sel.termIndex, k);
+              deps.clearSelection();
+              deps.setActiveBlockId(psb.id);
+            });
+            return;
+          }
+        }
         deps.commit(function () {
           var pb = ensureActiveBlock();
           Editing.appendParen(pb, k);
@@ -144,8 +158,6 @@
         });
         return;
       }
-
-      var sel = deps.getSelection();
 
       // Operator selected -> tap then press a new operator to change it
       if (sel.kind === 'operator' && sel.blockId && sel.termIndex !== null) {

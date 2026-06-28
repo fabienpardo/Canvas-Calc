@@ -27,6 +27,15 @@ test('replaceSelectedOperator changes only operator terms', () => {
   assert.equal(b.terms[0].value, '8');
 });
 
+test('insertParenNearSelection anchors parentheses around selected operands', () => {
+  const b = block([num(2), op('+'), num(4)]);
+  assert.equal(Editing.insertParenNearSelection(b, 0, '('), true);
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['paren:(', 'number:2', 'operator:+', 'number:4']);
+  assert.equal(Editing.insertParenNearSelection(b, 3, ')'), true);
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['paren:(', 'number:2', 'operator:+', 'number:4', 'paren:)']);
+  assert.equal(Editing.insertParenNearSelection(b, 2, '('), false);
+});
+
 test('backspaceSelectedTerm clears a number before deleting it and stepping left', () => {
   const b = block([num(7), op('+'), num(55)]);
   let next = Editing.backspaceSelectedTerm(b, 2);
