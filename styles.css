@@ -482,6 +482,14 @@
   .hint-sub b { color: var(--accent); font-weight: 600; }
 
   /* Sidebar (variables) */
+  /* Dimmed backdrop behind the variables panel; tapping it closes the panel.
+     Sits just below #sidebar (z-index 40) and fades in with the same timing. */
+  #sidebarScrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 39;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.22s ease, visibility 0.22s ease;
+  }
+  body.sidebar-open #sidebarScrim { opacity: 1; visibility: visible; }
   #sidebar {
     position: fixed; top: 0; right: 0; bottom: 0; width: min(88vw, 360px);
     background: var(--bg); border-left: 1px solid var(--block-border);
