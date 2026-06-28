@@ -12,6 +12,32 @@
 
   var SEP = ''; // signature field separator (won't appear in user data)
 
+  function escapeRegex(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function normalizeSidebarNumber(raw, group, decimal) {
+    if (raw == null) return null;
+    group = group == null ? ',' : String(group);
+    decimal = decimal == null ? '.' : String(decimal);
+    var value = String(raw).trim();
+    if (!value) return null;
+
+    var g = group ? escapeRegex(group) : null;
+    var d = decimal ? escapeRegex(decimal) : '\\.';
+    var plainInt = '\\d+';
+    var groupedInt = g ? '\\d{1,3}(?:' + g + '\\d{3})+' : plainInt;
+    var intPart = '(?:' + plainInt + '|' + groupedInt + ')';
+    var pattern = new RegExp('^-?(?:(?:' + intPart + ')(?:' + d + '\\d*)?|' + d + '\\d+)$');
+    if (!pattern.test(value)) return null;
+
+    var normalized = group ? value.split(group).join('') : value;
+    if (decimal !== '.') normalized = normalized.split(decimal).join('.');
+    if (normalized.charAt(0) === '.') normalized = '0' + normalized;
+    if (normalized.slice(0, 2) === '-.') normalized = '-0' + normalized.slice(1);
+    return normalized;
+  }
+
   function create(deps) {
     var doc = deps.document || document;
     var linkColorMap = {};
@@ -137,14 +163,46 @@
       blockSigs = {};
     }
 
+    // Keyboard selection helpers mirror the pointer selection behavior.
+    function selectedTerm(selection, blockId, termIndex) {
+      return selection.blockId === blockId && selection.termIndex === termIndex && selection.kind !== 'result';
+    }
+
+    function appendSelectionCue(parent) {
+      var cue = doc.createElement('span');
+      cue.className = 'selection-caret';
+      cue.setAttribute('aria-hidden', 'true');
+      cue.title = 'Next input inserts here';
+      parent.appendChild(cue);
+    }
+
+    function selectFromKeyboard(e, blockId, termIndex, kind) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      deps.setSelection({ blockId: blockId, termIndex: termIndex, kind: kind });
+      deps.setActiveBlockId(blockId);
+      renderAll();
+    }
+
+    function makeSelectable(el, label, blockId, termIndex, kind) {
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', label);
+      el.addEventListener('keydown', function(e){ selectFromKeyboard(e, blockId, termIndex, kind); });
+    }
+
     // An editable caption that bonds a label to a value chip.
-    function makeCaption(getText, setText) {
+    function makeCaption(getText, setText, label) {
       var cap = doc.createElement('span');
       cap.className = 'cap';
       cap.contentEditable = 'true';
+      cap.spellcheck = false;
+      cap.setAttribute('role', 'textbox');
+      cap.setAttribute('aria-label', label || 'Name value');
       var txt = getText() || '';
       cap.textContent = txt;
-      if (txt) cap.title = txt; // full name on hover when clamped
+      cap.title = txt || (label || 'Name value');
       cap.addEventListener('pointerdown', function(e){
         e.stopPropagation();
         if (doc.activeElement !== cap) {
@@ -198,18 +256,27 @@
         if (t.type==='operator') {
           var op = doc.createElement('span');
           op.className = 'term operator';
-          if (selection.blockId===b.id && selection.termIndex===idx && selection.kind==='operator') op.className += ' sel';
+          var opSelected = selectedTerm(selection, b.id, idx);
+          if (opSelected && selection.kind==='operator') op.className += ' sel';
           op.textContent = deps.opSym(t.value);
           op.dataset.idx = idx;
+          op.title = opSelected ? 'Selected operator' : 'Select operator';
+          makeSelectable(op, op.title, b.id, idx, 'operator');
           expr.appendChild(op);
+          if (opSelected) appendSelectionCue(expr);
           return;
         }
         if (t.type==='paren') {
           var pp = doc.createElement('span');
           pp.className = 'term paren';
+          var parenSelected = selectedTerm(selection, b.id, idx);
+          if (parenSelected && selection.kind==='paren') pp.className += ' sel';
           pp.textContent = t.value;
           pp.dataset.idx = idx;
+          pp.title = parenSelected ? 'Selected parenthesis' : 'Select parenthesis';
+          makeSelectable(pp, pp.title, b.id, idx, 'paren');
           expr.appendChild(pp);
+          if (parenSelected) appendSelectionCue(expr);
           return;
         }
         var cell = doc.createElement('span');
@@ -222,12 +289,14 @@
           capGet = function(){ return t.label; };
           capSet = function(v){ var nb=deps.byId(b.id); if(nb) nb.terms[idx].label = v; };
         }
-        cell.appendChild(makeCaption(capGet, capSet));
+        cell.appendChild(makeCaption(capGet, capSet, t.type==='linked' ? 'Name linked value' : 'Name number'));
         var span = doc.createElement('span');
-        if (selection.blockId===b.id && selection.termIndex===idx) span.className = ' sel';
+        var termSelected = selectedTerm(selection, b.id, idx);
+        if (termSelected) span.className = ' sel';
         if (t.type==='number') {
           span.className = 'term number' + span.className;
           span.textContent = deps.groupDisplay(t.value);
+          span.title = termSelected ? 'Selected number' : 'Select or drag this number';
           var nkey = deps.srcKey(b.id, t.tid);
           if (linkColorMap[nkey]) span.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[nkey];
         } else {
@@ -235,6 +304,7 @@
           var lv = deps.linkedValue(t, map);
           span.textContent = (lv==null) ? '?' : deps.fmt(lv);
           span.dataset.linked = '1';
+          span.title = termSelected ? 'Selected linked value' : 'Select linked value';
           var lkey = deps.srcKey(t.sourceId, t.sourceTid);
           var lc = linkColorMap[lkey];
           if (lc) {
@@ -244,8 +314,10 @@
           }
         }
         span.dataset.idx = idx;
+        makeSelectable(span, span.title, b.id, idx, t.type==='linked' ? 'linked' : 'number');
         cell.appendChild(span);
         expr.appendChild(cell);
+        if (termSelected) appendSelectionCue(expr);
       });
 
       // Caret at the live input position when free-typing into the active block
@@ -268,7 +340,8 @@
         rcell.className = 'cell';
         rcell.appendChild(makeCaption(
           function(){ return b.label; },
-          function(v){ var nb=deps.byId(b.id); if(nb) nb.label = v; }
+          function(v){ var nb=deps.byId(b.id); if(nb) nb.label = v; },
+          'Name result'
         ));
         var res = doc.createElement('span');
         selection = sel();
@@ -283,6 +356,8 @@
           res.textContent = val===null ? '·' : deps.fmt(val);
           res.dataset.result = '1';
           res.dataset.id = b.id;
+          res.title = selection.blockId===b.id && selection.kind==='result' ? 'Selected result' : 'Select or drag this result';
+          makeSelectable(res, res.title, b.id, null, 'result');
           var rkey = deps.srcKey(b.id, null);
           if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[rkey];
         }
@@ -451,12 +526,22 @@
       val.addEventListener('input', function(){
         var b = deps.byId(it.bid); if (!b) return;
         var t = b.terms[it.idx]; if (!t) return;
+        var nextValue = normalizeSidebarNumber(val.value, deps.NUM_GROUP, deps.NUM_DECIMAL);
+        if (nextValue == null) {
+          val.classList.add('invalid');
+          val.setAttribute('aria-invalid', 'true');
+          return;
+        }
+        val.classList.remove('invalid');
+        val.removeAttribute('aria-invalid');
         if (!valDirty) { deps.snapshot(); valDirty = true; }
-        t.value = val.value.split(deps.NUM_GROUP).join('').split(deps.NUM_DECIMAL).join('.');
+        t.value = nextValue;
         deps.save(); renderAll();
       });
       val.addEventListener('blur', function(){
         valDirty = false;
+        val.classList.remove('invalid');
+        val.removeAttribute('aria-invalid');
         var b = deps.byId(it.bid), t = b && b.terms[it.idx];
         if (t) val.value = deps.groupDisplay(t.value);
         scheduleSidebarRebuild();
@@ -506,5 +591,5 @@
     };
   }
 
-  return { create: create };
+  return { create: create, normalizeSidebarNumber: normalizeSidebarNumber };
 });

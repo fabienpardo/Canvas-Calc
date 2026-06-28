@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { seed, lastBlock, addBlock } = require('./helpers');
+const { fresh, seed, type, lastBlock, addBlock } = require('./helpers');
 
 // An "old" saved state: number terms with no tid, and no zoom/showGrid/nextTid/fontSize.
 const OLD_STATE = {
@@ -30,7 +30,7 @@ test('migration assigns tids so old numbers can still be linked', async ({ page 
 test('missing view settings fall back to defaults (zoom 100%, grid off)', async ({ page }) => {
   await seed(page, OLD_STATE);
   await expect(page.locator('#zoomLevel')).toHaveText('100%');
-  await expect(page.locator('#canvasWrap')).not.toHaveClass(/grid-on/);
+  await expect(page.locator('#canvas')).not.toHaveClass(/grid-on/);
 });
 
 test('saved zoom and grid are restored', async ({ page }) => {
@@ -39,7 +39,18 @@ test('saved zoom and grid are restored', async ({ page }) => {
     nextId: 2, nextTid: 2, zoom: 1.2, showGrid: true
   });
   await expect(page.locator('#zoomLevel')).toHaveText('120%');
-  await expect(page.locator('#canvasWrap')).toHaveClass(/grid-on/);
+  await expect(page.locator('#canvas')).toHaveClass(/grid-on/);
+});
+
+test('pending edits are flushed on pagehide', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '12345');
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('canvascalc.v1')));
+  const terms = saved.canvases[0].blocks.flatMap((b) => b.terms || []);
+  expect(terms.some((t) => t.type === 'number' && t.value === '12345')).toBeTruthy();
 });
 
 test('corrupt localStorage does not crash the app', async ({ page }) => {

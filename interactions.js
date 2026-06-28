@@ -78,6 +78,15 @@
         return;
       }
 
+      if (termEl && termEl.classList.contains('paren')) {
+        var pblk = termEl.closest('.block');
+        deps.setSelection({ blockId: pblk.dataset.id, termIndex: parseInt(termEl.dataset.idx,10), kind: 'paren' });
+        deps.setActiveBlockId(pblk.dataset.id);
+        deps.renderAll();
+        e.preventDefault();
+        return;
+      }
+
       if (target.closest && target.closest('.cap')) return;
 
       var bEl = target.closest && target.closest('.block');

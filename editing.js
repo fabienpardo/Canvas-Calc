@@ -20,11 +20,13 @@
     if (!term) return null;
     if (term.type === 'operator') return 'operator';
     if (term.type === 'linked') return 'linked';
+    if (term.type === 'paren') return 'paren';
     return 'number';
   }
 
   function appendDigitValue(value, k) {
     value = value == null ? '' : String(value);
+    if (value === '-' && k === '.') return '-0.';
     if (k === '.') return value.indexOf('.') < 0 ? value + (value === '' ? '0.' : '.') : value;
     return value + k;
   }
@@ -32,8 +34,20 @@
   function toggleNumberSign(term) {
     if (!term || term.type !== 'number') return false;
     var value = term.value == null ? '' : String(term.value);
-    term.value = value.charAt(0) === '-' ? value.slice(1) : '-' + (value === '' ? '0' : value);
+    term.value = value.charAt(0) === '-' ? value.slice(1) : '-' + value;
     return true;
+  }
+
+  function startOrToggleNegativeInput(block, newNumber) {
+    if (!block) return null;
+    var terms = block.terms;
+    var last = terms[terms.length - 1];
+    if (last && last.type === 'number') {
+      toggleNumberSign(last);
+      return { blockId: block.id, termIndex: terms.length - 1, kind: 'number' };
+    }
+    terms.push(newNumber('-'));
+    return { blockId: block.id, termIndex: terms.length - 1, kind: 'number' };
   }
 
   function deleteTermAndSelectPrev(block, idx) {
@@ -96,7 +110,7 @@
       }
       return deleteTermAndSelectPrev(block, idx);
     }
-    if (term.type === 'linked') return deleteTermAndSelectPrev(block, idx);
+    if (term.type === 'linked' || term.type === 'paren') return deleteTermAndSelectPrev(block, idx);
     return null;
   }
 
@@ -155,6 +169,7 @@
     selectionKind: selectionKind,
     appendDigitValue: appendDigitValue,
     toggleNumberSign: toggleNumberSign,
+    startOrToggleNegativeInput: startOrToggleNegativeInput,
     deleteTermAndSelectPrev: deleteTermAndSelectPrev,
     replaceSelectedOperator: replaceSelectedOperator,
     insertNumberAfterOperator: insertNumberAfterOperator,

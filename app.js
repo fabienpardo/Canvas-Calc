@@ -43,6 +43,7 @@
 
   // ---------- Persistence ----------
   var saveTimer = null;
+  var savePending = false;
   var saveFailed = false;
   var saveWarning = document.getElementById('saveWarning');
   function setSaveFailed(failed) {
@@ -50,16 +51,31 @@
     saveFailed = failed;
     if (saveWarning) saveWarning.style.display = failed ? 'block' : 'none';
   }
+  function persistNow() {
+    try {
+      localStorage.setItem('canvascalc.v1', JSON.stringify(state));
+      setSaveFailed(false);
+    } catch (e) {
+      setSaveFailed(true);
+    }
+  }
   function save() {
+    savePending = true;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
-      try {
-        localStorage.setItem('canvascalc.v1', JSON.stringify(state));
-        setSaveFailed(false);
-      } catch (e) {
-        setSaveFailed(true);
-      }
+      saveTimer = null;
+      savePending = false;
+      persistNow();
     }, 400);
+  }
+  function flushSave() {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    if (!savePending) return;
+    savePending = false;
+    persistNow();
   }
   function load() {
     var saved = null;
@@ -70,6 +86,11 @@
     state = State.normalizeState(saved || state);
     zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cur().zoom));
   }
+  window.addEventListener('pagehide', flushSave);
+  window.addEventListener('beforeunload', flushSave);
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'hidden') flushSave();
+  });
 
   // ---------- History (per canvas) — see history.js ----------
   var historyCtl = CanvasHistory.create({
@@ -115,7 +136,9 @@
     zoomCtl: document.getElementById('zoomCtl'),
     cur: cur,
     getSelection: store.getSelection,
+    setSelection: store.setSelection,
     getActiveBlockId: store.getActiveBlockId,
+    setActiveBlockId: store.setActiveBlockId,
     getFontSize: function(){ return state.fontSize; },
     blocksMap: blocksMap,
     byId: byId,
@@ -314,6 +337,26 @@
     document.addEventListener('keydown', onKey, true);
     cancel.focus();
   }
+  function showNotice(msg) {
+    var t=document.getElementById('toast'), sc=document.getElementById('scrim');
+    var prevFocus = document.activeElement;
+    document.getElementById('toastMsg').textContent = msg;
+    var row=document.getElementById('toastRow'); row.innerHTML='';
+    var ok=document.createElement('button'); ok.textContent='OK';
+    function close(){
+      t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true);
+      if (prevFocus && prevFocus.focus) prevFocus.focus();
+    }
+    function onKey(e){
+      if(e.key==='Escape'){ e.preventDefault(); close(); return; }
+      if(e.key==='Tab' && document.activeElement === ok){ e.preventDefault(); ok.focus(); }
+    }
+    ok.onclick=function(){ close(); };
+    row.appendChild(ok);
+    t.style.display='block'; sc.style.display='block';
+    document.addEventListener('keydown', onKey, true);
+    ok.focus();
+  }
 
   inputCtl = CanvasInput.create({
     Editing: Editing,
@@ -343,7 +386,7 @@
     parseExpression: parseExpression
   });
   function pressKey(k){ inputCtl.pressKey(k); }
-  function pasteText(text){ inputCtl.pasteText(text); }
+  function pasteText(text){ return inputCtl.pasteText(text); }
   function currentSelectionText(){ return inputCtl.currentSelectionText(); }
 
   CanvasInteractions.create({
@@ -395,6 +438,10 @@
     if (hintMark) {
       hintMark.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
       hintMark.addEventListener('click', function(e){ e.stopPropagation(); addBlockAt(40, 30); });
+      hintMark.addEventListener('keydown', function(e){
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault(); e.stopPropagation(); addBlockAt(40, 30);
+      });
     }
   })();
 
@@ -456,34 +503,65 @@
 
   // ---------- Overflow menu ----------
   function applyGrid() {
-    document.getElementById('canvasWrap').classList.toggle('grid-on', !!state.showGrid);
+    canvas.classList.toggle('grid-on', !!state.showGrid);
     var gt = document.getElementById('gridToggle');
     gt.setAttribute('aria-checked', state.showGrid ? 'true' : 'false');
   }
   (function(){
     var menuBtn = document.getElementById('menuBtn');
     var menu = document.getElementById('menu');
-    function openMenu(){ menu.hidden = false; menuBtn.setAttribute('aria-expanded','true'); }
-    function closeMenu(){ menu.hidden = true; menuBtn.setAttribute('aria-expanded','false'); }
+    var items = Array.prototype.slice.call(menu.querySelectorAll('.menu-item'));
+    function openMenu(){
+      menu.hidden = false; menuBtn.setAttribute('aria-expanded','true');
+      if (items[0]) items[0].focus();
+    }
+    function closeMenu(restoreFocus){
+      menu.hidden = true; menuBtn.setAttribute('aria-expanded','false');
+      if (restoreFocus && menuBtn.focus) menuBtn.focus();
+    }
+    function focusMenuItem(delta) {
+      var idx = items.indexOf(document.activeElement);
+      if (idx < 0) idx = delta > 0 ? -1 : 0;
+      items[(idx + delta + items.length) % items.length].focus();
+    }
     menuBtn.addEventListener('click', function(e){
       e.stopPropagation();
-      if (menu.hidden) openMenu(); else closeMenu();
+      if (menu.hidden) openMenu(); else closeMenu(false);
+    });
+    menuBtn.addEventListener('keydown', function(e){
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (menu.hidden) openMenu(); else closeMenu(true);
+    });
+    menu.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') { e.preventDefault(); closeMenu(true); return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); focusMenuItem(1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); focusMenuItem(-1); return; }
+      if (e.key === 'Home') { e.preventDefault(); if (items[0]) items[0].focus(); return; }
+      if (e.key === 'End') { e.preventDefault(); if (items.length) items[items.length - 1].focus(); }
     });
     document.addEventListener('pointerdown', function(e){
-      if (!menu.hidden && !e.target.closest('.menu-wrap')) closeMenu();
+      if (!menu.hidden && !e.target.closest('.menu-wrap')) closeMenu(false);
     });
     document.getElementById('gridToggle').addEventListener('click', function(){
-      state.showGrid = !state.showGrid; applyGrid(); save(); closeMenu();
+      state.showGrid = !state.showGrid; applyGrid(); save(); closeMenu(false);
     });
     document.getElementById('copyItem').addEventListener('click', function(){
       var t = currentSelectionText();
-      if (t!=null && t!=='' && navigator.clipboard) navigator.clipboard.writeText(t).catch(function(){});
-      closeMenu();
+      if (t==null || t==='') { showNotice('Select a number, result, or calculation to copy.'); closeMenu(false); return; }
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { showNotice('Clipboard copy is not available.'); closeMenu(false); return; }
+      navigator.clipboard.writeText(t).catch(function(){ showNotice('Could not copy to the clipboard.'); });
+      closeMenu(false);
     });
     document.getElementById('pasteItem').addEventListener('click', function(){
-      closeMenu();
+      closeMenu(false);
       if (navigator.clipboard && navigator.clipboard.readText) {
-        navigator.clipboard.readText().then(pasteText).catch(function(){});
+        navigator.clipboard.readText().then(function(t){
+          if (!pasteText(t)) showNotice('Paste a calculation like 12 + 3 * (4).');
+        }).catch(function(){ showNotice('Could not read from the clipboard.'); });
+      } else {
+        showNotice('Clipboard paste is not available.');
       }
     });
   })();
@@ -499,7 +577,10 @@
     var ae = document.activeElement;
     if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
     var t = e.clipboardData.getData('text/plain');
-    if (t) { e.preventDefault(); pasteText(t); }
+    if (t) {
+      e.preventDefault();
+      if (!pasteText(t)) showNotice('Paste a calculation like 12 + 3 * (4).');
+    }
   });
 
   // ---------- Zoom controls ----------

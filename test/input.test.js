@@ -125,6 +125,22 @@ test('selecting a number after render then pressing "(" inserts before it', () =
   assert.equal(h.state.activeBlockId, b.id);
 });
 
+test('backspace deletes a selected parenthesis and selects the previous term', () => {
+  const h = harness();
+  ['(', '2', '+', '4', ')'].forEach((k) => h.ctl.pressKey(k));
+  const b = h.canvas.blocks[0];
+  h.state.sel = { blockId: b.id, termIndex: 4, kind: 'paren' };
+  h.state.activeBlockId = b.id;
+  h.ctl.pressKey('back');
+  assert.equal(termSig(b), 'paren:( number:2 operator:+ number:4');
+  assert.deepEqual(h.state.sel, { blockId: b.id, termIndex: 3, kind: 'number' });
+
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'paren' };
+  h.ctl.pressKey('back');
+  assert.equal(termSig(b), 'number:2 operator:+ number:4');
+  assert.deepEqual(h.state.sel, { blockId: null, termIndex: null, kind: null });
+});
+
 test('result selected + operator spawns a linked block below', () => {
   const h = harness();
   ['4'].forEach((k) => h.ctl.pressKey(k));
@@ -139,11 +155,18 @@ test('result selected + operator spawns a linked block below', () => {
 
 test('pasteText parses an expression into the active block', () => {
   const h = harness();
-  h.ctl.pasteText('10 + 2 * 3');
+  assert.equal(h.ctl.pasteText('10 + 2 * 3'), true);
   assert.equal(h.canvas.blocks.length, 1);
   assert.equal(termSig(h.canvas.blocks[0]), 'number:10 operator:+ number:2 operator:* number:3');
   assert.ok(h.canvas.blocks[0].terms.every((t) => t.type !== 'number' || t.tid)); // tids assigned
   assert.equal(h.state.snaps, 1); // create + fill is one undoable action
+});
+
+test('pasteText reports invalid expressions without changing state', () => {
+  const h = harness();
+  assert.equal(h.ctl.pasteText('abc 5'), false);
+  assert.equal(h.canvas.blocks.length, 0);
+  assert.equal(h.state.snaps, 0);
 });
 
 test('currentSelectionText returns the selected number, else the active block expression', () => {
@@ -154,6 +177,23 @@ test('currentSelectionText returns the selected number, else the active block ex
   assert.equal(h.ctl.currentSelectionText(), '9');
   h.state.sel = { blockId: null, termIndex: null, kind: null };
   assert.equal(h.ctl.currentSelectionText(), '9 + 1');
+});
+
+test('plus-minus starts a negative number in an empty block', () => {
+  const h = harness();
+  h.ctl.pressKey('neg');
+  h.ctl.pressKey('5');
+  assert.equal(h.canvas.blocks.length, 1);
+  assert.equal(termSig(h.canvas.blocks[0]), 'number:-5');
+  assert.deepEqual(h.state.sel, { blockId: h.canvas.blocks[0].id, termIndex: 0, kind: 'number' });
+});
+
+test('plus-minus after an operator prepares the next number as negative', () => {
+  const h = harness();
+  ['5', '+', 'neg', '8'].forEach((k) => h.ctl.pressKey(k));
+  const b = h.canvas.blocks[0];
+  assert.equal(termSig(b), 'number:5 operator:+ number:-8');
+  assert.deepEqual(h.state.sel, { blockId: b.id, termIndex: 2, kind: 'number' });
 });
 
 test('plus-minus toggles a selected linked source number, not the active fallback', () => {
@@ -185,6 +225,19 @@ test('plus-minus toggles a selected linked source number, not the active fallbac
   h.ctl.pressKey('neg');
   assert.equal(src.terms[0].value, '-58');
   assert.equal(dst.terms[2].value, '2554');
+});
+
+test('plus-minus on a selected result creates a locally negated linked calculation', () => {
+  const h = harness();
+  ['2', '+', '3'].forEach((k) => h.ctl.pressKey(k));
+  const src = h.canvas.blocks[0];
+  h.state.sel = { blockId: src.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('neg');
+  assert.equal(h.canvas.blocks.length, 2);
+  const negated = h.canvas.blocks[1];
+  assert.equal(termSig(negated), 'number:-1 operator:* linked:' + src.id);
+  assert.equal(h.state.activeBlockId, negated.id);
+  assert.deepEqual(h.state.sel, { blockId: null, termIndex: null, kind: null });
 });
 
 test('backspace clears a selected number, then deletes it, stepping left', () => {
