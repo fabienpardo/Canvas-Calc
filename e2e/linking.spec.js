@@ -56,7 +56,7 @@ test('pending missing-operator results cannot start links', async ({ page }) => 
   await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 
-test('malformed linked sources clear existing dependent results', async ({ page }) => {
+test('malformed linked sources show unknown dependent results', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '5 + 3');
@@ -72,7 +72,7 @@ test('malformed linked sources clear existing dependent results', async ({ page 
 
   await expect(source.locator('.result.pending')).toHaveText('?');
   await expect(page.locator('.block').nth(1).locator('.term.linked')).toHaveText('?');
-  await expect(page.locator('.block').nth(1).locator('.result.empty')).toHaveText('·');
+  await expect(page.locator('.block').nth(1).locator('.result.pending')).toHaveText('?');
 });
 
 test('a link that would create a cycle is refused with a dialog', async ({ page }) => {
@@ -92,7 +92,7 @@ test('a link that would create a cycle is refused with a dialog', async ({ page 
   await expect(page.locator('#toastMsg')).toContainText('loop');
 });
 
-test('deleting a linked-to block warns about dependents', async ({ page }) => {
+test('deleting a linked-to block skips confirmation and freezes dependents', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '8 + 2');
@@ -103,7 +103,10 @@ test('deleting a linked-to block warns about dependents', async ({ page }) => {
   await expect(page.locator('.block')).toHaveCount(2);
   await a.click({ position: { x: 6, y: 6 } }); // select A -> reveals × button
   await a.locator('.block-del').click();
-  await expect(page.locator('#toastMsg')).toContainText('use this one');
+  await expect(page.locator('#toast')).toBeHidden();
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(page.locator('.block').first().locator('.term.number')).toHaveText('10');
+  await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 
 test('deleting a source freezes dependents to their last value', async ({ page }) => {
@@ -118,7 +121,6 @@ test('deleting a source freezes dependents to their last value', async ({ page }
   // delete A; B should keep 10 as a constant (not become malformed/empty)
   await a.click({ position: { x: 6, y: 6 } });
   await a.locator('.block-del').click();
-  await page.locator('#toastRow button.danger').click();
   await expect(page.locator('.block')).toHaveCount(1);
   await expect(page.locator('.block').first().locator('.term.number')).toHaveText('10');
   await expect(page.locator('.term.linked')).toHaveCount(0); // link was frozen to a number

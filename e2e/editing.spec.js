@@ -68,7 +68,6 @@ test('delete a block then undo restores it; redo removes it again', async ({ pag
   await expect(page.locator('.block')).toHaveCount(1);
   await lastBlock(page).click({ position: { x: 6, y: 6 } }); // select -> reveals × button
   await lastBlock(page).locator('.block-del').click();
-  await page.locator('#toastRow button.danger').click(); // confirm Delete
   await expect(page.locator('.block')).toHaveCount(0);
   await page.locator('#undoBtn').click();
   await expect(page.locator('.block')).toHaveCount(1);
@@ -94,7 +93,6 @@ test('clear canvas then undo restores all blocks', async ({ page }) => {
   await expect(page.locator('.block')).toHaveCount(2);
   await page.locator('#menuBtn').click();
   await page.locator('#clearBtn').click();
-  await page.locator('#toastRow button.danger').click(); // confirm Clear all
   await expect(page.locator('.block')).toHaveCount(0);
   await page.locator('#undoBtn').click();
   await expect(page.locator('.block')).toHaveCount(2);

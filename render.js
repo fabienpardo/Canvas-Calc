@@ -33,6 +33,14 @@
     function cur() { return deps.cur(); }
     function sel() { return deps.getSelection(); }
 
+    function hasUnknownLinkedValue(b, map) {
+      for (var i = 0; i < b.terms.length; i++) {
+        var t = b.terms[i];
+        if (t.type === 'linked' && deps.linkedValue(t, map) == null) return true;
+      }
+      return false;
+    }
+
     // Everything renderBlock() reads for a given block. If this string is equal
     // between renders, the block's DOM is identical and can be skipped. Must
     // include every model-derived input — a missing field means a stale block.
@@ -59,7 +67,8 @@
           parts.push('=?'); // malformed: missing operator
         } else {
           var val = deps.resolve(b, map);
-          parts.push('=', val == null ? '·' : val, linkColorMap[deps.srcKey(b.id, null)] || '');
+          parts.push('=', val == null ? (hasUnknownLinkedValue(b, map) ? '?' : '·') : val,
+            linkColorMap[deps.srcKey(b.id, null)] || '');
         }
       }
       return parts.join(SEP);
@@ -170,7 +179,7 @@
       del.textContent = '×';
       del.setAttribute('aria-label', 'Delete block');
       del.addEventListener('pointerdown', function(e){ e.stopPropagation(); e.preventDefault(); });
-      del.addEventListener('click', function(e){ e.stopPropagation(); deps.confirmDeleteBlock(deps.byId(b.id)); });
+      del.addEventListener('click', function(e){ e.stopPropagation(); deps.deleteBlock(deps.byId(b.id)); });
       el.appendChild(del);
 
       var expr = doc.createElement('div');
@@ -250,7 +259,8 @@
 
       if (deps.hasResultSlot(b.terms)) {
         var malformed = missIdx >= 0;
-        var val = malformed ? null : deps.resolve(b, map);
+        var unknownLinked = !malformed && hasUnknownLinkedValue(b, map);
+        var val = (malformed || unknownLinked) ? null : deps.resolve(b, map);
         var eq = doc.createElement('span'); eq.className='eq'; eq.textContent='=';
         expr.appendChild(eq);
 
@@ -262,9 +272,9 @@
         ));
         var res = doc.createElement('span');
         selection = sel();
-        if (malformed) {
+        if (malformed || unknownLinked) {
           // Missing an operator: show "?" (not a draggable/linkable result) so a
-          // half-finished expression never reads as a real answer.
+          // half-finished expression, or one depending on it, never reads as a real answer.
           res.className = 'result pending';
           res.textContent = '?';
         } else {

@@ -16,7 +16,7 @@ function harness() {
     renders: 0,
     snaps: 0,
     cleared: false,
-    deletedPrompts: []
+    deletedRequests: []
   };
 
   function cur() { return canvas; }
@@ -59,7 +59,7 @@ function harness() {
     getActiveBlockId: () => state.activeBlockId,
     setActiveBlockId: (id) => { state.activeBlockId = id; },
     removeBlock,
-    confirmDeleteBlock: (b) => { state.deletedPrompts.push(b ? b.id : null); },
+    deleteBlock: (b) => { state.deletedRequests.push(b ? b.id : null); },
     clearCanvas: () => { state.cleared = true; },
     linkedValue: Engine.linkedValue,
     parseExpression: Engine.parseExpression
@@ -93,7 +93,7 @@ test('"=" finishes the block and drops an empty one', () => {
   assert.equal(h.canvas.blocks.length, 1);
 });
 
-test('"clear" and "del" route to the injected confirmation handlers', () => {
+test('"clear" and "del" route to the injected delete handlers', () => {
   const h = harness();
   h.ctl.pressKey('7');
   h.ctl.pressKey('clear');
@@ -101,7 +101,7 @@ test('"clear" and "del" route to the injected confirmation handlers', () => {
 
   h.state.sel = { blockId: h.canvas.blocks[0].id, termIndex: 0, kind: 'number' };
   h.ctl.pressKey('del');
-  assert.deepEqual(h.state.deletedPrompts, [h.canvas.blocks[0].id]);
+  assert.deepEqual(h.state.deletedRequests, [h.canvas.blocks[0].id]);
 });
 
 test('selecting an operator then pressing another replaces it in place', () => {

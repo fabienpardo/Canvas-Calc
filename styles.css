@@ -293,7 +293,9 @@
   .term.operator { color: var(--op); padding: 1px 2px; font-weight: 650; }
   /* Placeholder where an operator is expected between two adjacent operands. */
   .op-missing {
-    align-self: center; margin: 0 2px; padding: 0 5px;
+    align-self: flex-end; display: inline-flex; align-items: center; justify-content: center;
+    margin: 0 6px; padding: 1px 7px; min-height: calc(var(--fs, 22px) * 1.35);
+    line-height: 1; box-sizing: border-box; transform: translateY(2px);
     color: var(--op); font-weight: 700;
     border: 1px dashed var(--op); border-radius: 6px; opacity: 0.85;
   }

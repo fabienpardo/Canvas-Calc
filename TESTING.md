@@ -164,7 +164,7 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 - Fast keypad taps dropped (now `pointerdown`, not `click`)
 - Drag undo lost the original position (snapshot now on first move)
 - `setPointerCapture` on a detached node after `renderAll`
-- Empty block deletes without a confirm prompt
+- Block and clear-all deletes run without confirm prompts and rely on undo; canvas delete keeps a confirmation because canvases are not undoable
 - `+` button anchored to the lowest block (matched typing/drop placement)
 - Backspace chain clears → deletes → steps left
 - Links stay attached at non-1 zoom
