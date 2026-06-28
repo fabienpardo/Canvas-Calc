@@ -164,11 +164,11 @@
     background: var(--canvas);
     -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
   }
-  #canvasWrap.grid-on {
+  #canvas.grid-on {
     background-image:
       linear-gradient(var(--grid) 1px, transparent 1px),
       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-    background-size: 22px 22px;
+    background-size: 20px 20px;
   }
   #canvasSizer { position: relative; width: 1600px; height: 2400px; }
   #canvas {
@@ -264,9 +264,16 @@
   }
   .cap:empty { display: none; }
   .block.active .cap:empty, .block.selected .cap:empty {
-    display: block; min-width: 14px; opacity: 0.45;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; min-height: 14px; opacity: 0.7;
+    border: 1px dashed var(--block-border); border-radius: 999px;
   }
   .block.active .cap:empty::before, .block.selected .cap:empty::before { content: "+"; }
+  @media (hover: hover) {
+    .block.active .cap:hover, .block.selected .cap:hover {
+      color: var(--accent); border-color: var(--accent);
+    }
+  }
   /* Focused caption: a small labelled-input popover that floats above the
      expression, so a long name reads as an editor instead of clipped text. */
   .cap:focus {
@@ -289,7 +296,7 @@
     padding: 1px 4px; border-radius: 6px; min-width: 10px; text-align: center;
   }
   .term.number { color: var(--text); }
-  .term.number.sel { background: var(--accent); color: #fff; }
+  .term.number.sel { background: var(--accent); color: #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .term.operator { color: var(--op); padding: 1px 2px; font-weight: 650; }
   /* Placeholder where an operator is expected between two adjacent operands. */
   .op-missing {
@@ -299,19 +306,20 @@
     color: var(--op); font-weight: 700;
     border: 1px dashed var(--op); border-radius: 6px; opacity: 0.85;
   }
-  .term.operator.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; }
+  .term.operator.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .term.paren { color: var(--text-dim); padding: 1px 2px; }
+  .term.paren.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .term.linked {
     background: var(--linked-bg); color: var(--linked-text);
     border-radius: 7px; padding: 1px 6px;
   }
-  .term.linked.sel { outline: 2px solid var(--accent); }
+  .term.linked.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
   .eq { color: var(--text-dim); padding: 0 2px; }
   .result {
     color: var(--result); font-weight: 700; padding: 1px 7px;
     background: var(--result-bg); border-radius: 7px; cursor: grab;
   }
-  .result.sel { outline: 2px solid var(--accent); }
+  .result.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
   .result.empty { background: transparent; color: var(--text-dim); }
   /* Reserved slot for a calc still being typed: muted "?" placeholder, no grab. */
   .result.pending { background: transparent; color: var(--text-dim); cursor: default; }
@@ -326,6 +334,11 @@
     animation: caretBlink 1.05s step-end infinite;
   }
   @media (prefers-reduced-motion: reduce) { .expr-caret { animation: none; } }
+  .selection-caret {
+    align-self: flex-end; width: 2px; height: calc(var(--fs, 22px) * 1.08);
+    margin: 0 3px 3px 1px; background: var(--accent); border-radius: 1px;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
   /* The input caret is for digit entry — hide it while naming a value. */
   .block:has(.cap:focus) .expr-caret { display: none; }
 
@@ -450,6 +463,7 @@
     padding: 0 28px;
   }
   .hint-mark {
+    appearance: none; -webkit-appearance: none; padding: 0;
     width: 56px; height: 56px; border-radius: 50%; margin-bottom: 14px;
     display: flex; align-items: center; justify-content: center;
     font-size: 32px; line-height: 1; color: #fff;
@@ -501,6 +515,7 @@
     background: var(--key); border-radius: 8px; padding: 6px 8px; outline: none;
   }
   .var-val:focus { border-color: var(--accent); }
+  .var-val.invalid { border-color: var(--danger); color: var(--danger); }
   .var-val.ro {
     border-color: transparent; background: transparent; font-weight: 500;
   }

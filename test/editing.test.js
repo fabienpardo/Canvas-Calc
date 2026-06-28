@@ -55,6 +55,21 @@ test('backspaceSelectedTerm removes linked terms and selects the previous term',
   assert.deepEqual(next.selection, { blockId: 'b1', termIndex: 1, kind: 'operator' });
 });
 
+test('backspaceSelectedTerm removes parentheses and selects previous terms accurately', () => {
+  const b = block([{ type: 'paren', value: '(' }, num(12), { type: 'paren', value: ')' }]);
+  let next = Editing.backspaceSelectedTerm(b, 2);
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['paren:(', 'number:12']);
+  assert.deepEqual(next.selection, { blockId: 'b1', termIndex: 1, kind: 'number' });
+
+  next = Editing.backspaceSelectedTerm(b, 1);
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['paren:(', 'number:1']);
+  next = Editing.backspaceSelectedTerm(b, 1);
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['paren:(', 'number:']);
+  next = Editing.backspaceSelectedTerm(b, 1);
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['paren:(']);
+  assert.deepEqual(next.selection, { blockId: 'b1', termIndex: 0, kind: 'paren' });
+});
+
 test('deleteTermAndSelectPrev asks caller to remove empty blocks', () => {
   const b = block([num(1)]);
   const next = Editing.deleteTermAndSelectPrev(b, 0);
@@ -79,11 +94,29 @@ test('active typing helpers handle operators, decimals, and backspace', () => {
   assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['number:0.5', 'operator:*']);
 });
 
-test('toggleNumberSign handles empty and negative values', () => {
+test('toggleNumberSign handles empty starter and negative values', () => {
   const t = { type: 'number', value: '' };
   assert.equal(Editing.toggleNumberSign(t), true);
-  assert.equal(t.value, '-0');
+  assert.equal(t.value, '-');
+  assert.equal(Editing.appendDigitValue(t.value, '5'), '-5');
+  assert.equal(Editing.appendDigitValue(t.value, '.'), '-0.');
   assert.equal(Editing.toggleNumberSign(t), true);
-  assert.equal(t.value, '0');
+  assert.equal(t.value, '');
   assert.equal(Editing.toggleNumberSign({ type: 'operator', value: '+' }), false);
+});
+
+test('startOrToggleNegativeInput creates or toggles the active number slot', () => {
+  const empty = block([]);
+  let next = Editing.startOrToggleNegativeInput(empty, newNumber);
+  assert.deepEqual(empty.terms.map((t) => t.type + ':' + t.value), ['number:-']);
+  assert.deepEqual(next, { blockId: 'b1', termIndex: 0, kind: 'number' });
+
+  const afterOperator = block([num(5), op('+')]);
+  next = Editing.startOrToggleNegativeInput(afterOperator, newNumber);
+  assert.deepEqual(afterOperator.terms.map((t) => t.type + ':' + t.value), ['number:5', 'operator:+', 'number:-']);
+  assert.deepEqual(next, { blockId: 'b1', termIndex: 2, kind: 'number' });
+
+  next = Editing.startOrToggleNegativeInput(afterOperator, newNumber);
+  assert.deepEqual(afterOperator.terms.map((t) => t.type + ':' + t.value), ['number:5', 'operator:+', 'number:']);
+  assert.deepEqual(next, { blockId: 'b1', termIndex: 2, kind: 'number' });
 });

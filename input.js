@@ -77,7 +77,7 @@
     // Insert parsed terms into the active block (or a new one).
     function pasteText(text) {
       var terms = deps.parseExpression(text);
-      if (!terms.length) return;
+      if (!terms.length) return false;
       deps.commit(function () {
         var b = ensureActiveBlock();
         terms.forEach(function (t) {
@@ -86,6 +86,7 @@
         });
         deps.setActiveBlockId(b.id); deps.clearSelection();
       });
+      return true;
     }
 
     // ---------- Key dispatch ----------
@@ -110,7 +111,8 @@
         return;
       }
 
-      // ± : toggle the selected number/link source, else the last number typed
+      // ± : toggle the selected number/link source, negate a selected result
+      // into a linked calculation, or prepare/toggle the active number slot.
       if (k === 'neg') {
         var nSel = deps.getSelection();
         var nt = null, nb_ = null, ni = -1;
@@ -122,12 +124,24 @@
             else if (nSel.kind === 'linked') nt = linkedSourceNumber(nb_.terms[ni]);
           }
           if (!nt) return;
+        } else if (nSel.kind === 'result' && nSel.blockId != null) {
+          var nSrcB = deps.byId(nSel.blockId); if (!nSrcB) return;
+          deps.commit(function () {
+            var pt = deps.slotBelow ? deps.slotBelow(nSrcB) : { x: nSrcB.x, y: nSrcB.y + 100 };
+            var negBlock = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
+            negBlock.terms.push(deps.newNumber('-1'));
+            negBlock.terms.push({ type: 'operator', value: '*' });
+            negBlock.terms.push({ type: 'linked', sourceId: nSrcB.id });
+            deps.setActiveBlockId(negBlock.id); deps.clearSelection();
+          });
+          return;
         } else {
-          var nActive = deps.getActiveBlockId();
-          if (nActive) {
-            var ab2 = deps.byId(nActive);
-            if (ab2) for (var z = ab2.terms.length - 1; z >= 0; z--) { if (ab2.terms[z].type === 'number') { nt = ab2.terms[z]; break; } }
-          }
+          deps.commit(function () {
+            var nBlock = ensureActiveBlock();
+            deps.setSelection(Editing.startOrToggleNegativeInput(nBlock, deps.newNumber));
+            deps.setActiveBlockId(nBlock.id);
+          });
+          return;
         }
         if (nt) {
           deps.commit(function () { Editing.toggleNumberSign(nt); });
@@ -192,7 +206,7 @@
         }
       }
 
-      // Number/linked term selected -> edit digits, or backspace-chain (clear, then delete, stepping left)
+      // Number/linked/paren term selected -> edit digits, or backspace-chain (clear, then delete, stepping left)
       if (sel.blockId && sel.termIndex !== null && (k >= '0' && k <= '9' || k === '.' || k === 'back')) {
         var sb = deps.byId(sel.blockId); if (!sb) return;
         var term = sb.terms[sel.termIndex];
@@ -206,6 +220,10 @@
         }
         if (term && term.type === 'linked' && k === 'back') {
           deps.commit(function () { applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); }); // unlink & step left
+          return;
+        }
+        if (term && term.type === 'paren' && k === 'back') {
+          deps.commit(function () { applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); });
           return;
         }
       }

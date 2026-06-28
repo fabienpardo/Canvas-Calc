@@ -75,6 +75,20 @@ test('dragging a number to empty canvas creates a colored linked block', async (
   await expect(page.locator('#linkLayer path')).toHaveCount(1);
 });
 
+test('plus-minus starts negative entry in empty and after-operator slots', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await press(page, 'neg');
+  await press(page, '5');
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('-5');
+
+  await press(page, '+');
+  await press(page, 'neg');
+  await press(page, '8');
+  await expect(lastBlock(page).locator('.term.number').nth(1)).toHaveText('-8');
+  await expect(lastBlock(page).locator('.result')).toHaveText('-13');
+});
+
 test('plus-minus on a linked number toggles its source, not the active block tail', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
@@ -101,6 +115,21 @@ test('plus-minus on a linked number toggles its source, not the active block tai
   await expect(linkedBlock.locator('.result')).toHaveText('2,496');
 });
 
+test('plus-minus on a selected result creates a locally negated linked block', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  await lastBlock(page).locator('.result').click();
+  await press(page, 'neg');
+
+  await expect(page.locator('.block')).toHaveCount(2);
+  const negated = page.locator('.block').nth(1);
+  await expect(negated.locator('.term.number')).toHaveText('-1');
+  await expect(negated.locator('.term.linked')).toHaveText('5');
+  await expect(negated.locator('.result')).toHaveText('-5');
+});
+
 // ---- variables sidebar ---------------------------------------------------
 test('sidebar lists variables and editing an input recomputes', async ({ page }) => {
   await fresh(page);
@@ -115,14 +144,39 @@ test('sidebar lists variables and editing an input recomputes', async ({ page })
   await expect(page.locator('.block .result').first()).toHaveText('60');
 });
 
+test('sidebar rejects malformed numeric input', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '10 * 2');
+  await press(page, '=');
+  await page.locator('#varsBtn').click();
+  const firstInput = page.locator('#sidebarBody .var-val[data-kind="input"]').first();
+
+  await firstInput.fill('12abc');
+  await expect(firstInput).toHaveClass(/invalid/);
+  await expect(firstInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('.block .result').first()).toHaveText('20');
+
+  await firstInput.blur();
+  await expect(firstInput).toHaveValue('10');
+  await firstInput.fill('1..2');
+  await expect(firstInput).toHaveClass(/invalid/);
+  await expect(page.locator('.block .result').first()).toHaveText('20');
+
+  await firstInput.fill('12.5');
+  await expect(firstInput).not.toHaveClass(/invalid/);
+  await expect(page.locator('.block .result').first()).toHaveText('25');
+});
+
 // ---- grid toggle ---------------------------------------------------------
 test('grid is off by default and toggles via the menu', async ({ page }) => {
   await fresh(page);
-  const wrap = page.locator('#canvasWrap');
-  await expect(wrap).not.toHaveClass(/grid-on/);
+  const canvas = page.locator('#canvas');
+  await expect(canvas).not.toHaveClass(/grid-on/);
   await page.locator('#menuBtn').click();
   await page.locator('#gridToggle').click();
-  await expect(wrap).toHaveClass(/grid-on/);
+  await expect(canvas).toHaveClass(/grid-on/);
+  await expect(canvas).toHaveCSS('background-size', '20px 20px, 20px 20px');
 });
 
 // ---- zoom + scroll ------------------------------------------------------
@@ -148,6 +202,42 @@ test('paste from clipboard inserts parsed terms', async ({ page }) => {
   await expect(lastBlock(page).locator('.result')).toHaveText('1,244');
 });
 
+test('invalid clipboard paste shows feedback and leaves the canvas unchanged', async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(() => navigator.clipboard.writeText('abc 5'));
+  await page.locator('#menuBtn').click();
+  await page.locator('#pasteItem').click();
+  await expect(page.locator('#toast')).toBeVisible();
+  await expect(page.locator('#toastMsg')).toContainText('Paste a calculation');
+  await expect(page.locator('.block')).toHaveCount(0);
+});
+
+test('keyboard users can start, navigate the menu, and select terms', async ({ page }) => {
+  await fresh(page);
+  const hintAdd = page.locator('.hint-mark');
+  await expect(hintAdd).toHaveAttribute('aria-label', 'Start a calculation');
+  await hintAdd.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.block')).toHaveCount(1);
+
+  await page.locator('#menuBtn').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#menu')).toBeVisible();
+  await expect(page.locator('#copyItem')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#pasteItem')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#menuBtn')).toBeFocused();
+
+  await type(page, '12 + 3');
+  const firstNumber = lastBlock(page).locator('.term.number').first();
+  await expect(firstNumber).toHaveAttribute('role', 'button');
+  await firstNumber.focus();
+  await page.keyboard.press(' ');
+  await expect(firstNumber).toHaveClass(/sel/);
+});
+
 // ---- single-click label edit + backspace chain --------------------------
 test('a single click on a label enters edit mode', async ({ page }) => {
   await fresh(page);
@@ -160,6 +250,24 @@ test('a single click on a label enters edit mode', async ({ page }) => {
   await titleCap.click();
   const focused = await titleCap.evaluate((el) => el === document.activeElement);
   expect(focused).toBe(true);
+});
+
+test('selected terms show editing hints', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '12 + 3');
+
+  const firstNumber = lastBlock(page).locator('.term.number').first();
+  await firstNumber.click();
+  await expect(firstNumber).toHaveAttribute('title', 'Selected number');
+  await expect(lastBlock(page).locator('.selection-caret')).toHaveCount(1);
+  await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('aria-label', 'Name number');
+  await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('title', 'Name number');
+
+  const operator = lastBlock(page).locator('.term.operator');
+  await operator.click();
+  await expect(operator).toHaveAttribute('title', 'Selected operator');
+  await expect(lastBlock(page).locator('.selection-caret')).toHaveCount(1);
 });
 
 test('backspace chain clears to 0, deletes, then steps to the previous term', async ({ page }) => {

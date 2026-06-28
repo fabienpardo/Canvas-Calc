@@ -120,10 +120,14 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   definitions; `test/state.test.js` — saved-state migration, normalization,
   id repair, lookups; `test/editing.test.js` — expression editing reducers
   (selected insertion, operator replacement, backspace chain, linked unlink,
-  active typing, sign toggle); `test/input.test.js` — input controller wired to
+  active typing, sign toggle including negative entry starters, parenthesis
+  deletion/selection); `test/input.test.js` — input controller wired to
   the real editing/engine modules (digit/operator entry, `=` finish, clear/delete
   routing, operator replace, result→linked block, paste, selection text, backspace
-  chain); `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
+  chain, invalid paste no-op, `±` empty/after-operator/result selection,
+  parenthesis deletion);
+  `test/render.test.js` — renderer helpers including strict sidebar number
+  parsing; `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
   empty-stack no-ops, per-canvas isolation); `test/store.test.js` — view-state
   round-trips and `commit()` ordering/opt-outs (snapshot→mutate→render→save);
   `test/sw.test.js` — service-worker
@@ -131,21 +135,25 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   `interactions.js`, `canvases.js`, `editing.js`, `input.js`, `history.js`, and
   `store.js`), asset-revision hash guard, `res.ok` guard, non-GET ignored,
   old-cache cleanup.
-- **E2E (Playwright, 44 specs, shared `e2e/helpers.js`):**
+- **E2E (Playwright, 59 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
-    live separators, drag + undo-restore, drag-to-link + color, sidebar inline
-    edit, grid toggle, zoom + scroll, paste, single-click label, backspace chain.
-  - `e2e/editing.spec.js` — insert-after-select, operator replacement, linked
-    unlink, empty-block delete, undo/redo (typing, delete, clear, paste, redo,
-    redo-stack-cleared).
+    live separators, drag + undo-restore, drag-to-link + color, plus-minus
+    negative entry / result negation, sidebar inline edit and numeric
+    validation, snap-aligned canvas grid toggle, zoom + scroll, paste, invalid
+    paste feedback, single-click label, selected-term editing hints,
+    keyboard add/menu/term selection basics, backspace chain.
+  - `e2e/editing.spec.js` — insert-after-select, operator replacement,
+    parenthesis select/delete, linked unlink, empty-block delete, undo/redo
+    (typing, delete, clear, paste, redo, redo-stack-cleared).
   - `e2e/linking.spec.js` — result→operator link, drop onto a number slot,
     cycle-rejection dialog, delete-source-with-dependents warning.
   - `e2e/persistence.spec.js` — old-state load + tid migration, default
-    zoom/grid, restored zoom/grid, corrupt + malformed-but-valid localStorage survive.
+    zoom/grid, restored zoom/grid, pagehide save flush, corrupt +
+    malformed-but-valid localStorage survive.
   - `e2e/canvases.spec.js` — multi-canvas isolation/switch, per-canvas zoom,
     rename persistence, delete + fallback, multi-canvas persistence, migration.
   - `e2e/layout.spec.js` — zoom control pinned on scroll; canvas behind keypad.
-  - `e2e/mobile.spec.js` — mobile (Pixel 7) smoke + viewport fit.
+  - `e2e/mobile.spec.js` — mobile (iPhone 16 Pro Max-size viewport) smoke + viewport fit.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
 ### Backlog (nice to have)
@@ -167,5 +175,13 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 - Block and clear-all deletes run without confirm prompts and rely on undo; canvas delete keeps a confirmation because canvases are not undoable
 - `+` button anchored to the lowest block (matched typing/drop placement)
 - Backspace chain clears → deletes → steps left
+- `±` starts negative entry in empty/after-operator slots and can negate a selected result locally
+- Parentheses can be selected and deleted directly
+- Sidebar numeric inputs reject malformed values instead of saving parseFloat-like prefixes
+- Pending edits flush to localStorage on pagehide before the debounce window ends
+- The visible grid is drawn on the scaled canvas at the same 20px interval as snapping
+- Selected terms show a visible insertion cue and editable-name affordances
+- Invalid pasted expressions show feedback and do not mutate the canvas
+- Empty-state add, overflow-menu navigation, and term selection have keyboard smoke coverage
 - Links stay attached at non-1 zoom
 - Service worker no longer caches error responses

@@ -32,6 +32,26 @@ test('selected number + opening parenthesis inserts before the selected number',
   await expect(lastBlock(page).locator('.result')).toHaveText('6');
 });
 
+test('parentheses are selectable and deletable', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await press(page, '(');
+  await type(page, '2 + 4');
+  await press(page, ')');
+
+  const block = lastBlock(page);
+  await block.locator('.term.paren').first().click();
+  await expect(block.locator('.term.paren').first()).toHaveClass(/sel/);
+  await press(page, 'back');
+  await expect(block.locator('.term.paren')).toHaveCount(1);
+  await expect(block.locator('.term.paren')).toHaveText(')');
+
+  await block.locator('.term.paren').click();
+  await press(page, 'back');
+  await expect(block.locator('.term.paren')).toHaveCount(0);
+  await expect(block.locator('.result')).toHaveText('6');
+});
+
 test('backspace on a selected linked term unlinks it', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
