@@ -218,6 +218,7 @@
       var cap = doc.createElement('span');
       cap.className = 'cap';
       cap.contentEditable = 'true';
+      cap.tabIndex = 0;
       cap.spellcheck = false;
       cap.setAttribute('role', 'textbox');
       cap.setAttribute('aria-label', label || 'Name value');
@@ -232,6 +233,10 @@
           var r = doc.createRange(); r.selectNodeContents(cap); r.collapse(false);
           var sn = window.getSelection(); sn.removeAllRanges(); sn.addRange(r);
         }
+      });
+      cap.addEventListener('click', function(e){
+        e.stopPropagation();
+        if (doc.activeElement !== cap) cap.focus();
       });
       cap.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); cap.blur(); } });
       cap.addEventListener('blur', function(){
@@ -365,7 +370,7 @@
         expr.appendChild(eq);
 
         var rcell = doc.createElement('span');
-        rcell.className = 'cell';
+        rcell.className = 'cell result-cell';
         rcell.appendChild(makeCaption(
           function(){ return b.label; },
           function(v){ var nb=deps.byId(b.id); if(nb) nb.label = v; },

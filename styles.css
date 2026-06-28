@@ -261,9 +261,11 @@
   .block.selected .block-del, .block.active .block-del { display: flex; }
   @media (hover: hover) { .block:hover .block-del { display: flex; } }
   .block.empty-draft .block-del { display: none; }
+  .block:has(.result-cell) .block-del { top: -18px; right: -18px; }
+  .block:has(.cap:focus) .block-del { display: none; }
 
   /* Per-value captions */
-  .cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .cap {
     font-size: 10px; color: var(--text-dim); line-height: 1.2; font-weight: 550;
     max-width: 150px; text-align: center; outline: none;
@@ -276,6 +278,9 @@
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 16px; min-height: 14px; opacity: 0.7;
     border: 1px dashed var(--block-border); border-radius: 999px;
+  }
+  .block.active .result-cell .cap:empty, .block.selected .result-cell .cap:empty {
+    min-width: 44px; min-height: 22px;
   }
   .block.active .cap:empty::before, .block.selected .cap:empty::before { content: "+"; }
   @media (hover: hover) {
@@ -294,6 +299,15 @@
     border: 1px solid var(--accent); border-radius: 5px;
     padding: 2px 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.14);
     position: relative; z-index: 6;
+  }
+  .block.active .result-cell .cap:focus,
+  .block.selected .result-cell .cap:focus,
+  .result-cell .cap:focus {
+    position: absolute; left: 50%; bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    min-width: min(160px, 46vw); max-width: min(240px, 70vw);
+    min-height: 28px; text-align: left; white-space: nowrap;
+    overflow: hidden; overflow-wrap: normal; word-break: normal;
   }
   .block.active .cap:focus:empty::before, .block.selected .cap:focus:empty::before { content: none; }
 
@@ -382,6 +396,7 @@
   }
   /* The input caret is for digit entry — hide it while naming a value. */
   .block:has(.cap:focus) .expr-caret { display: none; }
+  .block:has(.cap:focus) .result.sel { outline: none; }
 
   /* Ghost (drag-to-link) */
   #ghost {

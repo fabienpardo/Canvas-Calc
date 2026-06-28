@@ -321,6 +321,25 @@ test('a single click on a label enters edit mode', async ({ page }) => {
   expect(focused).toBe(true);
 });
 
+test('empty result label editor has room and hides block controls', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 2');
+  await press(page, '=');
+
+  const block = lastBlock(page);
+  await block.click({ position: { x: 6, y: 6 } });
+  const resultCap = block.locator('.result-cell .cap');
+  await resultCap.click();
+  await expect(resultCap).toBeFocused();
+  await expect(block.locator('.block-del')).toBeHidden();
+
+  const capBox = await resultCap.boundingBox();
+  const resultBox = await block.locator('.result').boundingBox();
+  expect(capBox.width).toBeGreaterThanOrEqual(120);
+  expect(capBox.y + capBox.height).toBeLessThanOrEqual(resultBox.y - 2);
+});
+
 test('selected terms show editing hints', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
