@@ -508,14 +508,23 @@
     flex: 1 1 auto; overflow: auto;
     padding: 6px 14px calc(18px + env(safe-area-inset-bottom));
   }
-  .var-sec {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--text-dim); margin: 16px 2px 4px;
+  /* Each block is a group: a heading row (its result/name) with the block's
+     number operands nested beneath. */
+  .var-group { padding: 2px 0; }
+  .var-group + .var-group {
+    margin-top: 8px; border-top: 1px solid var(--block-border);
   }
+  .var-head { border-bottom: none; padding-bottom: 2px; }
+  .var-head .var-name { font-weight: 600; }
+  .var-pending { color: var(--text-dim); font-weight: 500; }
   .var-row {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
     padding: 9px 0; border-bottom: 1px solid var(--grid);
   }
+  .var-group .var-row:not(.var-head) {
+    margin-left: 12px; padding-left: 10px; border-left: 2px solid var(--grid);
+  }
+  .var-group .var-row:last-child { border-bottom: none; }
   .var-name {
     flex: 1 1 auto; min-width: 0; font-size: 14px; font-family: var(--sans);
     border: none; background: transparent; color: var(--text);
