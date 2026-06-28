@@ -46,6 +46,16 @@
         return;
       }
 
+      var gapEl = target.closest && target.closest('.op-missing');
+      if (gapEl) {
+        var gblk = gapEl.closest('.block');
+        deps.setSelection({ blockId: gblk.dataset.id, termIndex: parseInt(gapEl.dataset.idx,10), kind: 'missing-op' });
+        deps.setActiveBlockId(gblk.dataset.id);
+        deps.renderAll();
+        e.preventDefault();
+        return;
+      }
+
       var termEl = target.closest && target.closest('.term');
       if (termEl && termEl.classList.contains('number')) {
         var nblk = termEl.closest('.block');

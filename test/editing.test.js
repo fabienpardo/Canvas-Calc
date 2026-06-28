@@ -36,6 +36,42 @@ test('insertParenNearSelection anchors parentheses around selected operands', ()
   assert.equal(Editing.insertParenNearSelection(b, 2, '('), false);
 });
 
+test('appendParen inserts implicit multiplication after a completed operand', () => {
+  const afterNumber = block([num(0)]);
+  Editing.appendParen(afterNumber, '(');
+  assert.deepEqual(afterNumber.terms.map((t) => t.type + ':' + t.value), ['number:0', 'operator:*', 'paren:(']);
+
+  const afterClose = block([{ type: 'paren', value: '(' }, num(2), { type: 'paren', value: ')' }]);
+  Editing.appendParen(afterClose, '(');
+  assert.equal(afterClose.terms[3].type + ':' + afterClose.terms[3].value, 'operator:*');
+  assert.equal(afterClose.terms[4].value, '(');
+
+  // No phantom operand: a trailing operator or empty slot just opens the group.
+  const afterOperator = block([num(5), op('*')]);
+  Editing.appendParen(afterOperator, '(');
+  assert.deepEqual(afterOperator.terms.map((t) => t.type + ':' + t.value), ['number:5', 'operator:*', 'paren:(']);
+
+  // A closing paren never multiplies.
+  const closing = block([{ type: 'paren', value: '(' }, num(3)]);
+  Editing.appendParen(closing, ')');
+  assert.deepEqual(closing.terms.map((t) => t.type + ':' + t.value), ['paren:(', 'number:3', 'paren:)']);
+});
+
+test('insertParenNearSelection multiplies when an opening paren follows an operand', () => {
+  const b = block([num(2), num(4)]);
+  assert.equal(Editing.insertParenNearSelection(b, 1, '('), true);
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['number:2', 'operator:*', 'paren:(', 'number:4']);
+});
+
+test('insertOperatorAtGap fills the missing-operator gap and selects the new operator', () => {
+  // missingOperatorIndex (in engine.js) flags index 1 here: "0" then "(" with no operator.
+  const b = block([num(0), { type: 'paren', value: '(' }, num(2), { type: 'paren', value: ')' }]);
+  const next = Editing.insertOperatorAtGap(b, 1, '*');
+  assert.deepEqual(b.terms.map((t) => t.type + ':' + t.value), ['number:0', 'operator:*', 'paren:(', 'number:2', 'paren:)']);
+  assert.deepEqual(next, { blockId: 'b1', termIndex: 1, kind: 'operator' });
+  assert.equal(Editing.insertOperatorAtGap(b, 1, '5'), null);
+});
+
 test('backspaceSelectedTerm clears a number before deleting it and stepping left', () => {
   const b = block([num(7), op('+'), num(55)]);
   let next = Editing.backspaceSelectedTerm(b, 2);

@@ -305,6 +305,11 @@
     line-height: 1; box-sizing: border-box; transform: translateY(2px);
     color: var(--op); font-weight: 700;
     border: 1px dashed var(--op); border-radius: 6px; opacity: 0.85;
+    cursor: pointer;
+  }
+  .op-missing.sel {
+    background: var(--accent); color: #fff; border-style: solid; border-color: var(--accent);
+    opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
   }
   .term.operator.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .term.paren { color: var(--text-dim); padding: 1px 2px; }
