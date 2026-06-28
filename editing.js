@@ -132,6 +132,28 @@
     terms.push({ type: 'paren', value: k });
   }
 
+  // How many '(' in the block never get a matching ')'. Pure — no mutation.
+  function unmatchedOpenParens(block) {
+    var terms = block && block.terms;
+    var depth = 0;
+    if (terms) for (var i = 0; i < terms.length; i++) {
+      var t = terms[i];
+      if (t.type !== 'paren') continue;
+      if (t.value === '(') depth++;
+      else if (t.value === ')' && depth > 0) depth--;
+    }
+    return depth;
+  }
+
+  // Append the ')' needed to close any still-open groups. Used when a block is
+  // committed (e.g. '=') so the on-screen expression matches what the tolerant
+  // evaluator already computes. Returns how many closers were added.
+  function balanceParens(block) {
+    var depth = unmatchedOpenParens(block);
+    for (var j = 0; j < depth; j++) block.terms.push({ type: 'paren', value: ')' });
+    return depth;
+  }
+
   function insertParenNearSelection(block, idx, k) {
     var term = block && block.terms[idx];
     if (!term || (term.type !== 'number' && term.type !== 'linked') || (k !== '(' && k !== ')')) return false;
@@ -204,6 +226,8 @@
     insertOperatorAfterSelection: insertOperatorAfterSelection,
     backspaceSelectedTerm: backspaceSelectedTerm,
     appendParen: appendParen,
+    unmatchedOpenParens: unmatchedOpenParens,
+    balanceParens: balanceParens,
     insertParenNearSelection: insertParenNearSelection,
     insertOperatorAtGap: insertOperatorAtGap,
     backspaceActiveBlock: backspaceActiveBlock,

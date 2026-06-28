@@ -116,6 +116,20 @@
     return parseExpr();
   }
 
+  // Count '(' that never get a matching ')'. Closers below depth 0 (a stray ')'
+  // with no opener) don't go negative — they're ignored, matching the tolerant
+  // evaluator. The return value is how many ')' must be appended to balance.
+  function unmatchedOpenParens(terms) {
+    var depth = 0;
+    if (terms) for (var i = 0; i < terms.length; i++) {
+      var t = terms[i];
+      if (t.type !== 'paren') continue;
+      if (t.value === '(') depth++;
+      else if (t.value === ')' && depth > 0) depth--;
+    }
+    return depth;
+  }
+
   // A block shows a result once it represents more than a bare value and isn't
   // mid-entry. So "5" and "5 +" show nothing; "5 + 5" does. A lone *linked*
   // reference keeps its result on purpose — it's an alias, and that result is
@@ -348,6 +362,7 @@
     linkedValue: linkedValue, linkedSource: linkedSource,
     tokenize: tokenize, evalTokens: evalTokens, resolve: resolve,
     isComplete: isComplete,
+    unmatchedOpenParens: unmatchedOpenParens,
     hasResultSlot: hasResultSlot,
     missingOperatorIndex: missingOperatorIndex,
     createsCycle: createsCycle,

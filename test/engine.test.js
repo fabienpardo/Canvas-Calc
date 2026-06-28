@@ -29,6 +29,18 @@ test('nested parentheses', () => {
   assert.equal(evalExpr([num(2), op('*'), par('('), num(3), op('+'), par('('), num(4), op('-'), num(1), par(')'), par(')')]), 12);
 });
 
+test('unmatchedOpenParens counts only the unclosed openers', () => {
+  // 7 + 5 * ( 2 + 3 - 5  -> one '(' still open
+  assert.equal(E.unmatchedOpenParens([num(7), op('+'), num(5), op('*'), par('('), num(2), op('+'), num(3), op('-'), num(5)]), 1);
+  // balanced
+  assert.equal(E.unmatchedOpenParens([par('('), num(2), op('+'), num(3), par(')')]), 0);
+  // nested, both open
+  assert.equal(E.unmatchedOpenParens([par('('), num(1), op('+'), par('('), num(2)]), 2);
+  // stray closer with no opener doesn't go negative
+  assert.equal(E.unmatchedOpenParens([num(1), par(')'), op('+'), num(2)]), 0);
+  assert.equal(E.unmatchedOpenParens([]), 0);
+});
+
 test('division is left-associative', () => {
   assert.equal(evalExpr([num(10), op('/'), num(2), op('/'), num(5)]), 1);
 });

@@ -156,3 +156,25 @@ test('startOrToggleNegativeInput creates or toggles the active number slot', () 
   assert.deepEqual(afterOperator.terms.map((t) => t.type + ':' + t.value), ['number:5', 'operator:+', 'number:']);
   assert.deepEqual(next, { blockId: 'b1', termIndex: 2, kind: 'number' });
 });
+
+function par(value) { return { type: 'paren', value }; }
+
+test('balanceParens appends the closers needed to match open groups', () => {
+  // 7 + 5 * ( 2 + 3 - 5  -> one ')' appended
+  const b = block([num(7), op('+'), num(5), op('*'), par('('), num(2), op('+'), num(3), op('-'), num(5)]);
+  assert.equal(Editing.unmatchedOpenParens(b), 1);
+  assert.equal(Editing.balanceParens(b), 1);
+  assert.equal(b.terms[b.terms.length - 1].type + ':' + b.terms[b.terms.length - 1].value, 'paren:)');
+  assert.equal(Editing.unmatchedOpenParens(b), 0);
+});
+
+test('balanceParens closes nested groups and is a no-op when balanced', () => {
+  const nested = block([par('('), num(1), op('+'), par('('), num(2)]);
+  assert.equal(Editing.balanceParens(nested), 2);
+  assert.deepEqual(nested.terms.slice(-2).map((t) => t.value), [')', ')']);
+
+  const balanced = block([par('('), num(2), op('+'), num(3), par(')')]);
+  const before = balanced.terms.length;
+  assert.equal(Editing.balanceParens(balanced), 0);
+  assert.equal(balanced.terms.length, before);
+});
