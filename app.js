@@ -413,7 +413,8 @@
     createsCycle: createsCycle,
     confirmDialog: confirmDialog,
     deleteBlock: deleteBlock,
-    zoomAround: zoomAround
+    zoomAround: zoomAround,
+    Editing: Editing
   });
 
   // ---------- Add-calculation button ----------
