@@ -9,6 +9,35 @@ test.use({
   hasTouch: true,
 });
 
+async function touchDragToPoint(page, source, tx, ty) {
+  const box = await source.boundingBox();
+  const sx = box.x + box.width / 2;
+  const sy = box.y + box.height / 2;
+  const client = await page.context().newCDPSession(page);
+
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: sx, y: sy, radiusX: 3, radiusY: 3, id: 1 }],
+  });
+  for (let i = 1; i <= 12; i++) {
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{
+        x: sx + ((tx - sx) * i) / 12,
+        y: sy + ((ty - sy) * i) / 12,
+        radiusX: 3,
+        radiusY: 3,
+        id: 1,
+      }],
+    });
+    await page.waitForTimeout(16);
+  }
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  });
+}
+
 test('mobile: create a block and evaluate', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
@@ -43,4 +72,25 @@ test('mobile: keypad and add button fit within the viewport width', async ({ pag
   expect(pad.x + pad.width).toBeLessThanOrEqual(vw + 1);
   expect(pad.height).toBeLessThanOrEqual(page.viewportSize().height * 0.34);
   expect(bottomGap).toBeLessThanOrEqual(Math.max(32, padBottom + 6));
+});
+
+test('mobile: dropping just before a linked term inserts before it', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 8 ( 2 . 1 + 5');
+  await page.locator('#canvas').click({ position: { x: 360, y: 360 } });
+  await expect(lastBlock(page).locator('.result')).toHaveText('61.8');
+
+  await press(page, '+');
+  await press(page, '5');
+  const targetBlock = page.locator('.block').nth(1);
+  await expect(targetBlock.locator('.expr .term')).toHaveText(['61.8', '+', '5']);
+
+  const source = page.locator('.block').first().locator('.term.number', { hasText: '8' });
+  const linked = targetBlock.locator('.term.linked', { hasText: '61.8' });
+  const box = await linked.boundingBox();
+  await touchDragToPoint(page, source, box.x - 8, box.y + box.height / 2);
+
+  await expect(targetBlock.locator('.expr .term')).toHaveText(['8', '+', '61.8', '+', '5']);
+  await expect(targetBlock.locator('.result')).toHaveText('74.8');
 });

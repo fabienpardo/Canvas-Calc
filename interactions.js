@@ -22,6 +22,47 @@
       deps.canvas.querySelectorAll('.slot-target').forEach(function(e){e.classList.remove('slot-target');});
     }
 
+    function nearbyInsertionTerm(bEl, clientX, clientY) {
+      if (!bEl) return null;
+      var terms = Array.prototype.slice.call(bEl.querySelectorAll('.expr .term, .expr .op-missing'));
+      if (!terms.length) return null;
+      var pad = pointer.touch ? 28 : 10;
+      var best = null;
+      terms.forEach(function(el){
+        if (el.dataset.idx == null) return;
+        var r = el.getBoundingClientRect();
+        if (clientY < r.top - pad || clientY > r.bottom + pad) return;
+        var centerX = r.left + r.width / 2;
+        var dx = clientX < r.left ? r.left - clientX : (clientX > r.right ? clientX - r.right : 0);
+        var score = dx + Math.abs(clientY - (r.top + r.height / 2)) * 0.35;
+        if (!best || score < best.score) {
+          best = {
+            el: el,
+            idx: parseInt(el.dataset.idx, 10) + (clientX > centerX ? 1 : 0),
+            score: score
+          };
+        }
+      });
+      return best;
+    }
+
+    function dropTargetAt(clientX, clientY) {
+      var under = doc.elementFromPoint(clientX, clientY);
+      var termUnder = under && under.closest && under.closest('.term, .op-missing');
+      var bUnder = under && under.closest && under.closest('.block');
+      var insertionIdx = null;
+      var inferred = false;
+      if (bUnder && (!termUnder || termUnder.closest('.block') !== bUnder)) {
+        var nearby = nearbyInsertionTerm(bUnder, clientX, clientY);
+        if (nearby) {
+          termUnder = nearby.el;
+          insertionIdx = nearby.idx;
+          inferred = true;
+        }
+      }
+      return { under: under, term: termUnder, block: bUnder, insertionIdx: insertionIdx, inferred: inferred };
+    }
+
     // Insert a dragged value just before the term at `idx`, gluing it to its
     // neighbours with '+' wherever two operands would otherwise touch — so
     // dropping onto the leading "×" of "× 2.6" yields "15 × 2.6", and a drop
@@ -148,9 +189,9 @@
         deps.ghost.style.left=e.clientX+'px';
         deps.ghost.style.top=(pointer.touch ? e.clientY-48 : e.clientY)+'px';
         clearTargets();
-        var under = doc.elementFromPoint(e.clientX, e.clientY);
-        var termUnder = under && under.closest && under.closest('.term, .op-missing');
-        var bUnder = under && under.closest && under.closest('.block');
+        var target = dropTargetAt(e.clientX, e.clientY);
+        var termUnder = target.term;
+        var bUnder = target.block;
         var foreign = bUnder && bUnder.dataset.id!==pointer.linkSrc.sourceId;
         if (termUnder && foreign) termUnder.classList.add('slot-target');
         else if (foreign) bUnder.classList.add('slot-target');
@@ -174,9 +215,9 @@
     deps.wrap.addEventListener('pointerup', function(e){
       if (pinching()) { resetPointer(); return; }
       if (pointer.mode==='linking') {
-        var under = doc.elementFromPoint(e.clientX, e.clientY);
-        var termUnder = under && under.closest && under.closest('.term, .op-missing');
-        var bUnder = under && under.closest && under.closest('.block');
+        var target = dropTargetAt(e.clientX, e.clientY);
+        var termUnder = target.term;
+        var bUnder = target.block;
         var ls = pointer.linkSrc, srcId = ls.sourceId;
         function cyc(targetId){ return ls.sourceTid==null && deps.createsCycle(targetId, srcId); }
         function newLink(){ return { type:'linked', sourceId: srcId, sourceTid: ls.sourceTid }; }
@@ -187,8 +228,8 @@
           var tb = deps.byId(bUnder.dataset.id);
           if (tb && !cyc(tb.id)) {
             deps.snapshot();
-            var idxAttr = termUnder && termUnder.dataset.idx;
-            if (termUnder && termUnder.classList.contains('term') && termUnder.classList.contains('number')) {
+            var idxAttr = target.insertionIdx != null ? target.insertionIdx : (termUnder && termUnder.dataset.idx);
+            if (!target.inferred && termUnder && termUnder.classList.contains('term') && termUnder.classList.contains('number')) {
               // Dropped on a number: swap it for the link.
               tb.terms[parseInt(idxAttr,10)] = newLink();
             } else if (idxAttr != null) {
