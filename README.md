@@ -1,117 +1,180 @@
 # Canvas Calc
 
-A freeform calculator canvas for mobile. Instead of one running tape, you build
-calculations as blocks on a canvas and link results together — change a number
-anywhere and every dependent result updates live.
+Canvas Calc is a freeform calculator canvas for phone-sized screens and desktop
+browsers. Instead of typing one long tape, you make movable calculation blocks,
+link numbers between them, and let dependent results update as the canvas
+changes.
 
-Single-page, zero-dependency, offline-capable PWA. No build step, no framework,
-no network calls.
+The app is a static, offline-capable PWA:
 
-## Features
+- no framework
+- no build step
+- no runtime dependencies
+- no backend or app-data network calls
+- saved locally with `localStorage`
 
-- **Freeform canvas** — add a calculation with the **+** button (it sits below the
-  last block); drag blocks to rearrange. Typing with nothing active also starts a
-  new block. Scroll in any direction; zoom with the on-canvas controls, Ctrl/
-  trackpad-wheel, or pinch.
-- **Live expressions** — full PEMDAS with parentheses, unary sign (±), and
-  unlimited terms per block. Numbers show locale-aware thousand separators as you type.
-- **Linked numbers** — select a result + an operator to start a new linked block,
-  or drag any **result or input number** onto another block's number slot, onto a
-  block, or onto empty canvas. Linked values cascade automatically, and each
-  linked source gets its own color so references are easy to spot.
-- **Edit anything** — tap a number to retype, tap an operator to swap it, and type
-  an operator after a selected term to insert in the middle of an expression.
-- **Labels & variables** — name any number or result (a result's name is its block
-  title). The **𝑥** sidebar lists every variable, lets you edit values inline, and
-  shows each result's definition in terms of labels (e.g. `total = A + B × C`).
-- **Copy / paste** — copy a value or a whole expression; paste numbers or
-  number+operator combos (desktop shortcuts or the ⋯ menu on mobile).
-- **Undo / redo**, adjustable text size, grid toggle (off by default), clear all.
-- **Multiple canvases** — keep separate sheets, each with its own title, zoom, and
-  undo history; switch / rename / add / delete from the toolbar canvas menu.
-- **Auto-save** to the device (localStorage), restored on reopen.
-- **Cycle protection** — a link that would make a result depend on itself is refused.
-- **Delete safety** — deleting a block that others link to warns first.
+## What It Does
 
-## Run locally
+- **Freeform calculations:** add blocks anywhere on the canvas, drag them around,
+  and zoom or pan the workspace.
+- **Live math:** expressions support precedence, parentheses, decimals, unary
+  sign, division, and in-progress editing states.
+- **Linked values:** use one block's result, or one number inside a block, as an
+  input somewhere else. Changes cascade through every dependent block.
+- **Cycle protection:** links that would make a calculation depend on itself are
+  rejected.
+- **Variables sidebar:** label values and results, then inspect or edit them from
+  the `x` sidebar.
+- **Multi-canvas workspace:** keep separate canvases, each with its own title,
+  blocks, zoom, and undo history.
+- **Editing tools:** insert terms in the middle of an expression, replace
+  operators, copy and paste expressions, undo and redo changes, resize text, and
+  toggle the grid.
+- **Installable PWA:** serve it over HTTP or HTTPS, then add it to the home
+  screen on mobile.
 
-Any static file server works. Service workers require `http://` (or `https://`),
-not `file://`, so open it through a server:
+## Quick Start
+
+Use any static file server. Service workers do not run from `file://`, so open
+the app through `http://localhost` or another HTTP origin.
 
 ```bash
-# from this folder
 python3 -m http.server 8000
-# then open http://localhost:8000 on your phone (same network) or desktop
 ```
 
-On desktop, the number keys, operators, `.`, `(`, `)`, `=`/Enter, Backspace,
-Cmd/Ctrl+C/V (copy/paste), and Cmd/Ctrl+Z (Shift for redo) all work for quick
-testing.
+Then open:
 
-## Run tests
+```text
+http://localhost:8000
+```
+
+For testing on a phone, make sure the phone and computer are on the same network,
+then open the computer's local network address on port `8000`.
+
+## Basic Use
+
+- Tap `+` to create a calculation block.
+- Type with the on-screen keypad, or use the hardware keyboard on desktop.
+- Press `=` or Enter to finish the current block.
+- Drag blocks to rearrange the canvas.
+- Drag a result or number chip onto another number slot to create a link.
+- Use the toolbar canvas menu to add, rename, switch, or delete canvases.
+- Open the `x` sidebar to view named numbers and results.
+
+Desktop shortcuts:
+
+| Action | Shortcut |
+| --- | --- |
+| Enter numbers/operators | Number keys, `+`, `-`, `*`, `/`, `.`, `(`, `)` |
+| Finish block | `=` or Enter |
+| Delete/backspace | Backspace |
+| Copy/paste | Cmd/Ctrl+C, Cmd/Ctrl+V |
+| Undo/redo | Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z |
+
+## Development
+
+Install the dev-only test tooling:
 
 ```bash
 npm ci
+```
+
+Run the fast unit suite:
+
+```bash
 npm test
+```
+
+Run the browser suite:
+
+```bash
 npx playwright install chromium
 npm run test:e2e
 ```
 
-CI installs the browser dependencies for Playwright automatically.
+Run everything:
 
-## Deploy to GitHub Pages
+```bash
+npm run test:all
+```
 
-1. Create a repo and push the contents of this folder to the root (or to a
-   `/docs` folder).
-2. In the repo: **Settings → Pages → Build and deployment → Source: Deploy from
-   a branch**, pick your branch and the folder you used.
-3. Open the published URL on your phone. In the browser menu choose **Add to Home
-   Screen** to install it as a standalone app.
+The shipped app does not use the npm dependencies. They are only for local and
+CI verification.
 
-`.nojekyll` is included so GitHub Pages serves every file as-is. All paths are
-relative, so it works whether the site is at a domain root or a `/repo-name/`
+## Test Coverage
+
+The current suite is split between fast pure-module tests and a smaller real
+browser suite:
+
+- `test/engine.test.js` covers parsing, formatting, evaluation, linked values,
+  definitions, cycles, and edge cases such as `NaN` and infinity.
+- `test/state.test.js` covers saved-state migration and normalization.
+- `test/editing.test.js` covers expression editing reducers.
+- `test/input.test.js` covers keypad/keyboard input behavior.
+- `test/history.test.js` covers per-canvas undo and redo.
+- `test/store.test.js` covers view-state and commit ordering.
+- `test/sw.test.js` covers the service-worker precache manifest and cache
+  revision guard.
+- `e2e/*.spec.js` covers the browser wiring: creating blocks, dragging, linking,
+  persistence, multiple canvases, zoom/layout behavior, mobile viewport fit, and
+  undo/redo flows.
+
+More detail lives in [TESTING.md](TESTING.md).
+
+## Project Structure
+
+| Path | Purpose |
+| --- | --- |
+| `index.html` | Static app shell and script loading order. |
+| `styles.css` | Layout, theme variables, blocks, keypad, sidebar, and responsive UI. |
+| `app.js` | Application bootstrap and DOM wiring across the extracted modules. |
+| `engine.js` | Pure math engine: parsing, formatting, resolving links, definitions, and cycle checks. |
+| `state.js` | Pure saved-state normalization, migration, and lookup helpers. |
+| `render.js` | DOM rendering, block reconciliation, link drawing, and variables sidebar rendering. |
+| `interactions.js` | Pointer, drag, link-drop, long-press, wheel, pinch, and canvas interaction wiring. |
+| `canvases.js` | Canvas menu behavior: switch, add, rename, and delete. |
+| `editing.js` | Pure expression-editing reducers for digits, operators, deletion, selection, and sign toggles. |
+| `input.js` | Keypad, keyboard, copy, and paste controller. |
+| `history.js` | Per-canvas undo and redo stacks. |
+| `store.js` | Shared view state plus the snapshot, mutate, render, and save commit policy. |
+| `sw.js` | Offline cache and service-worker update strategy. |
+| `manifest.webmanifest` | PWA name, scope, theme, display mode, and icons. |
+| `test/` | Node unit tests. |
+| `e2e/` | Playwright browser tests. |
+| `.github/workflows/test.yml` | CI for unit and Playwright tests. |
+
+## Offline Behavior
+
+`sw.js` precaches the app shell, JavaScript modules, CSS, manifest, and icons.
+HTML navigations are network-first so deployments are not hidden behind stale
+cached pages. Static assets are cache-first and are refreshed when the service
+worker revision changes.
+
+The unit test `test/sw.test.js` checks the cached asset list and revision hash.
+If a shipped file changes without updating the service-worker revision, the test
+fails.
+
+## Deployment
+
+Canvas Calc can be hosted by any static web server. GitHub Pages works without a
+build step:
+
+1. Push the repository contents to the branch or folder you want to publish.
+2. In GitHub, open **Settings > Pages**.
+3. Set the source to **Deploy from a branch**.
+4. Choose the branch and folder that contain `index.html`.
+
+The included `.nojekyll` file tells GitHub Pages to serve the files as-is. All
+app paths are relative, so the app works from a domain root or a repository
 subpath.
 
-## Updating
+## Maintenance Notes
 
-The service worker (`sw.js`) precaches the app shell with `ASSET_REVISION` in the
-cache name. `test/sw.test.js` verifies that revision against the current cached
-asset contents, so `npm test` will fail if a cached file changes without updating
-the revision. Navigations are network-first; the revision guarantees cached JS,
-CSS, icons, and manifest assets refresh too.
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `index.html` | App shell — markup only; links `styles.css` and loads the modules below via `<script>` tags. |
-| `styles.css` | All app styles (theme variables, layout, blocks, keypad, sidebar). |
-| `app.js` | Application controller and bootstrap: wires the modules to the DOM, owns shared view state, persistence, viewport/zoom, toolbar, menu, and keyboard input. |
-| `engine.js` | Pure calculation/formatting/parsing engine (no DOM; unit-tested). |
-| `state.js` | Pure state normalization and lookup helpers (no DOM; unit-tested). |
-| `render.js` | DOM rendering (incremental — keyed per-block reconciliation skips unchanged blocks), link drawing, and variables sidebar helpers. |
-| `interactions.js` | Canvas pointer, drag/link, long-press, wheel, and touch interaction wiring. |
-| `canvases.js` | Multi-canvas switcher, rename, add, delete, and toolbar menu wiring. |
-| `editing.js` | Expression editing reducers for digits, operators, deletion, and selection movement. |
-| `input.js` | Keypad/keyboard input controller and copy/paste text (no DOM; unit-tested). |
-| `history.js` | Per-canvas undo/redo stacks (no DOM beyond the undo/redo buttons; unit-tested). |
-| `store.js` | View state (selection, active block) + `commit()`, which centralizes the snapshot→mutate→render→save policy (no DOM; unit-tested). |
-| `manifest.webmanifest` | PWA metadata (name, icons, standalone display). |
-| `sw.js` | Service worker; offline caching. |
-| `test/`, `e2e/` | Unit tests (`node --test`) and Playwright e2e; see TESTING.md. |
-| `icon-192.png`, `icon-512.png` | App icons. |
-| `icon-maskable-512.png` | Maskable icon (Android adaptive masks). |
-| `apple-touch-icon.png` | iOS home-screen icon. |
-| `favicon-32.png` | Browser tab icon. |
-| `.nojekyll` | Tells GitHub Pages to skip Jekyll processing. |
-
-## Notes & limitations
-
-- **Fonts are system fonts** (San Francisco on iOS, Roboto on Android) so the app
-  stays fully offline with no font downloads. To use specific typefaces, add them
-  and cache them in `sw.js`.
-- **Link lines** redraw continuously during a block drag, at any zoom level.
-- Tested: evaluation engine (PEMDAS, parentheses, linked cascade, deep chains,
-  cycle protection) and the build/select/link/cascade flow. Touch-geometry
-  behaviours (drag-to-link drop accuracy, drag positioning, pinch-zoom,
-  long-press delete) are best confirmed on a real device.
+- Keep the shipped app dependency-free. Test tools belong in `package.json`, not
+  in `index.html` or the service-worker precache.
+- When a shipped file listed in `sw.js` changes, update `ASSET_REVISION` and keep
+  `test/sw.test.js` passing.
+- Keep new state migrations inside `state.js` so old `localStorage` payloads
+  continue to load safely.
+- Prefer unit tests for pure calculation, editing, state, history, and store
+  behavior; use Playwright for browser wiring and interaction geometry.
