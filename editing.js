@@ -104,6 +104,13 @@
     block.terms.push({ type: 'paren', value: k });
   }
 
+  function insertParenNearSelection(block, idx, k) {
+    var term = block && block.terms[idx];
+    if (!term || (term.type !== 'number' && term.type !== 'linked') || (k !== '(' && k !== ')')) return false;
+    block.terms.splice(k === '(' ? idx : idx + 1, 0, { type: 'paren', value: k });
+    return true;
+  }
+
   function backspaceActiveBlock(block) {
     var terms = block.terms;
     var last = terms[terms.length - 1];
@@ -154,6 +161,7 @@
     insertOperatorAfterSelection: insertOperatorAfterSelection,
     backspaceSelectedTerm: backspaceSelectedTerm,
     appendParen: appendParen,
+    insertParenNearSelection: insertParenNearSelection,
     backspaceActiveBlock: backspaceActiveBlock,
     appendOperator: appendOperator,
     appendDigitOrDot: appendDigitOrDot

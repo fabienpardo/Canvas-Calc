@@ -21,6 +21,17 @@ test('operator replacement: tap + then press * changes the operator', async ({ p
   await expect(lastBlock(page).locator('.result')).toHaveText('40');
 });
 
+test('selected number + opening parenthesis inserts before the selected number', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 4');
+  await press(page, '=');
+  await lastBlock(page).locator('.term.number', { hasText: '2' }).click();
+  await press(page, '(');
+  await expect(lastBlock(page).locator('.expr .term')).toHaveText(['(', '2', '+', '4']);
+  await expect(lastBlock(page).locator('.result')).toHaveText('6');
+});
+
 test('backspace on a selected linked term unlinks it', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

@@ -113,6 +113,18 @@ test('selecting an operator then pressing another replaces it in place', () => {
   assert.equal(termSig(b), 'number:8 operator:* number:5');
 });
 
+test('selecting a number after render then pressing "(" inserts before it', () => {
+  const h = harness();
+  ['2', '+', '4', '='].forEach((k) => h.ctl.pressKey(k));
+  const b = h.canvas.blocks[0];
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' };
+  h.state.activeBlockId = b.id;
+  h.ctl.pressKey('(');
+  assert.equal(termSig(b), 'paren:( number:2 operator:+ number:4');
+  assert.deepEqual(h.state.sel, { blockId: null, termIndex: null, kind: null });
+  assert.equal(h.state.activeBlockId, b.id);
+});
+
 test('result selected + operator spawns a linked block below', () => {
   const h = harness();
   ['4'].forEach((k) => h.ctl.pressKey(k));
