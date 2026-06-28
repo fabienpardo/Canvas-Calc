@@ -1,4 +1,4 @@
-const ASSET_REVISION = '2840be531494';
+const ASSET_REVISION = 'fa348cc3ada0';
 const CACHE = 'canvas-calc-' + ASSET_REVISION;
 const ASSETS = [
   './',

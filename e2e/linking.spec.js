@@ -40,6 +40,25 @@ test('dropping a result onto a number slot replaces it with a link', async ({ pa
   await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('13');
 });
 
+test('dropping a result onto a leading operator inserts before it', async ({ page }) => {
+  await fresh(page);
+  // block A = 15
+  await addBlock(page);
+  await type(page, '7 + 8');
+  await press(page, '=');
+  // block B = "× 2.6" (leading operator, no left operand yet)
+  await addBlock(page);
+  await press(page, '*');
+  await type(page, '2.6');
+  const a = page.locator('.block').first();
+  const op = page.locator('.block').nth(1).locator('.term.operator');
+  const ob = await op.boundingBox();
+  await dragResultTo(page, a.locator('.result'), ob.x + ob.width / 2, ob.y + ob.height / 2);
+  // B becomes 15 × 2.6 = 39
+  await expect(page.locator('.block').nth(1).locator('.term.linked')).toHaveText('15');
+  await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('39');
+});
+
 test('pending missing-operator results cannot start links', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

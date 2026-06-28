@@ -356,7 +356,11 @@
     padding: 2px 8px; transform: translate(-50%, -50%); display: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }
-  .slot-target { outline: 2px dashed var(--accent) !important; outline-offset: 1px; }
+  .slot-target {
+    outline: 2px dashed var(--accent) !important; outline-offset: 1px;
+    background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+    border-radius: 6px;
+  }
 
   /* Numpad */
   #numpad {
