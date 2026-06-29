@@ -206,6 +206,12 @@
           if (!nt) return;
         } else if (nSel.kind === 'result' && nSel.blockId != null) {
           var nSrcB = deps.byId(nSel.blockId); if (!nSrcB) return;
+          // Repeated ± on an existing "-1 * (…)" negation toggles its sign in
+          // place rather than stacking yet another negated block.
+          if (Editing.isNegationBlock(nSrcB)) {
+            deps.commit(function () { Editing.toggleNumberSign(nSrcB.terms[0]); });
+            return;
+          }
           deps.commit(function () {
             var pt = deps.slotBelow ? deps.slotBelow(nSrcB) : { x: nSrcB.x, y: nSrcB.y + 100 };
             var negBlock = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));

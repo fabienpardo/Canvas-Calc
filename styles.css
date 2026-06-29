@@ -480,6 +480,7 @@
   }
   .key:active { background: var(--key-active); }
   .key.op { color: var(--op); font-weight: 500; }
+  .key[data-k="neg"] { grid-column: span 2; } /* ± spans two columns */
   .key.act { color: var(--accent); font-size: 17px; font-family: var(--sans); font-weight: 500; }
   .key.eq {
     grid-column: span 3; color: #fff; background: var(--accent);

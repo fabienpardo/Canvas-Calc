@@ -69,8 +69,9 @@ Desktop shortcuts:
 | Finish block | `=` or Enter |
 | Delete/backspace | Backspace |
 | Copy/paste | Cmd/Ctrl+C, Cmd/Ctrl+V |
-| Undo/redo | Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z |
+| Undo/redo | Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z (or Cmd/Ctrl+Y) |
 | Link without dragging | Select a result/number, press `L`, select a target, press `L` (Esc cancels) |
+| Move a selected block | Arrow keys (Shift = larger step) |
 
 ## Development
 

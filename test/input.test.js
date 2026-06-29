@@ -288,6 +288,26 @@ test('keyboard link: a link that would create a cycle is refused', () => {
   assert.equal(termSig(a), 'number:8'); // unchanged
 });
 
+test('repeated ± on a result toggles the negation in place, no extra blocks', () => {
+  const h = harness();
+  ['2', '+', '3'].forEach((k) => h.ctl.pressKey(k));
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  // First ± on A's result creates "-1 * linked(A)".
+  h.state.sel = { blockId: a.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('neg');
+  assert.equal(h.canvas.blocks.length, 2);
+  const neg = h.canvas.blocks[1];
+  assert.equal(termSig(neg), 'number:-1 operator:* linked:' + a.id);
+  // ± on the negation block's result toggles its sign instead of stacking another.
+  h.state.sel = { blockId: neg.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('neg');
+  assert.equal(h.canvas.blocks.length, 2);
+  assert.equal(termSig(neg), 'number:1 operator:* linked:' + a.id);
+  h.ctl.pressKey('neg'); // and back again
+  assert.equal(termSig(neg), 'number:-1 operator:* linked:' + a.id);
+});
+
 test('currentSelectionText returns the selected number, else the active block expression', () => {
   const h = harness();
   ['9', '+', '1'].forEach((k) => h.ctl.pressKey(k));

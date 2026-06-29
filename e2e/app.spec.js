@@ -146,6 +146,35 @@ test('plus-minus on a selected result creates a locally negated linked block', a
   await expect(negated.locator('.result')).toHaveText('-5');
 });
 
+test('repeated ± on a negated result toggles in place instead of stacking blocks', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  await lastBlock(page).locator('.result').click();
+  await press(page, 'neg'); // create "-1 × 5"
+  await expect(page.locator('.block')).toHaveCount(2);
+  const negated = page.locator('.block').nth(1);
+  await negated.locator('.result').click();
+  await press(page, 'neg'); // toggle, not a new block
+  await expect(page.locator('.block')).toHaveCount(2);
+  await expect(negated.locator('.term.number')).toHaveText('1');
+  await expect(negated.locator('.result')).toHaveText('5');
+});
+
+test('arrow keys move a selected block by one grid step', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  const block = lastBlock(page);
+  await block.click({ position: { x: 6, y: 6 } }); // select the whole block
+  const before = await block.evaluate((el) => parseInt(el.style.left, 10));
+  await page.keyboard.press('ArrowRight');
+  const after = await block.evaluate((el) => parseInt(el.style.left, 10));
+  expect(after - before).toBe(20);
+});
+
 // ---- variables sidebar ---------------------------------------------------
 test('sidebar lists variables and editing an input recomputes', async ({ page }) => {
   await fresh(page);

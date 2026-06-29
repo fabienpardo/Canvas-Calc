@@ -30,6 +30,15 @@ test('insertTermsAt glues with + only where two values would touch', () => {
   assert.equal(sig(par), 'number:2 operator:+ paren:( number:3 operator:+ number:4 paren:)');
 });
 
+test('isNegationBlock recognises only the ± result pattern', () => {
+  assert.equal(Editing.isNegationBlock(block([num(-1), op('*'), link('a')])), true);
+  assert.equal(Editing.isNegationBlock(block([num(1), op('*'), link('a')])), true);
+  assert.equal(Editing.isNegationBlock(block([num(2), op('*'), link('a')])), false);
+  assert.equal(Editing.isNegationBlock(block([num(-1), op('+'), link('a')])), false);
+  assert.equal(Editing.isNegationBlock(block([num(-1), op('*'), num(3)])), false);
+  assert.equal(Editing.isNegationBlock(block([num(-1), op('*'), link('a'), op('+'), num(1)])), false);
+});
+
 test('insertOperatorAfterSelection freezes empty numbers and selects the inserted slot', () => {
   const b = block([num(5), op('+'), { type: 'number', value: '', tid: 't-empty' }, op('+'), num(2)]);
   const next = Editing.insertOperatorAfterSelection(b, 2, '-', newNumber);

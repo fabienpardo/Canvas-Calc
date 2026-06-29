@@ -200,6 +200,17 @@
     return idx + seq.length;
   }
 
+  // A block created by ± on a result: exactly "(-1|1) * <linked>". Recognising
+  // it lets a repeated ± toggle that sign in place instead of stacking another
+  // negated block on top.
+  function isNegationBlock(block) {
+    var t = block && block.terms;
+    return !!t && t.length === 3 &&
+      t[0].type === 'number' && (t[0].value === '-1' || t[0].value === '1') &&
+      t[1].type === 'operator' && t[1].value === '*' &&
+      t[2].type === 'linked';
+  }
+
   function backspaceActiveBlock(block) {
     var terms = block.terms;
     var last = terms[terms.length - 1];
@@ -256,6 +267,7 @@
     insertParenNearSelection: insertParenNearSelection,
     insertOperatorAtGap: insertOperatorAtGap,
     insertTermsAt: insertTermsAt,
+    isNegationBlock: isNegationBlock,
     backspaceActiveBlock: backspaceActiveBlock,
     appendOperator: appendOperator,
     appendDigitOrDot: appendDigitOrDot

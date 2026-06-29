@@ -698,7 +698,29 @@
     else if ((k==='l'||k==='L')&&!e.metaKey&&!e.ctrlKey) { e.preventDefault(); pressKey('link'); }
     else if (k==='Escape') { pressKey('link-cancel'); }
     else if (k==='z'&&(e.metaKey||e.ctrlKey)) { e.preventDefault(); e.shiftKey?redo():undo(); }
+    else if (k==='y'&&(e.metaKey||e.ctrlKey)) { e.preventDefault(); redo(); } // Windows-style redo
+    else if (k==='ArrowLeft'||k==='ArrowRight'||k==='ArrowUp'||k==='ArrowDown') {
+      var step = e.shiftKey ? SNAP*5 : SNAP;
+      var dx = k==='ArrowLeft'?-step : k==='ArrowRight'?step : 0;
+      var dy = k==='ArrowUp'?-step : k==='ArrowDown'?step : 0;
+      if (nudgeSelectedBlock(dx, dy)) e.preventDefault(); // only when a block is selected
+    }
   });
+
+  // Move the selected block with the arrow keys (Shift = larger step), so blocks
+  // can be repositioned without a pointer. Returns false when nothing is selected
+  // so the arrow keys fall through to their default behavior.
+  function nudgeSelectedBlock(dx, dy) {
+    var sel = store.getSelection();
+    if (sel.kind !== 'result' || sel.blockId == null) return false;
+    var b = byId(sel.blockId);
+    if (!b) return false;
+    store.commit(function(){
+      b.x = Math.max(0, snap(b.x + dx));
+      b.y = Math.max(0, snap(b.y + dy));
+    });
+    return true;
+  }
 
   // ---------- Init ----------
   load();
