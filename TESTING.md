@@ -26,8 +26,8 @@
 The no-DOM logic is split into importable browser/Node modules, so the same files
 run in the shipped app and under `node --test`:
 
-- `engine.js`, `state.js`, `editing.js`, `input.js`, `history.js`, and `store.js`
-  use a small UMD tail (`if (typeof module !== 'undefined') module.exports = …;
+- `engine.js`, `state.js`, `sidebar.js`, `editing.js`, `input.js`, `history.js`,
+  and `store.js` use a small UMD tail (`if (typeof module !== 'undefined') module.exports = …;
   else window.CanvasX = …`).
 - `index.html` loads those modules with `<script>` tags (no build step), and
   `sw.js` precaches them.
@@ -126,16 +126,16 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   routing, operator replace, result→linked block, paste, selection text, backspace
   chain, invalid paste no-op, `±` empty/after-operator/result selection,
   parenthesis deletion);
-  `test/render.test.js` — renderer helpers including strict sidebar number
+  `test/sidebar.test.js` — sidebar helpers including strict sidebar number
   parsing; `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
   empty-stack no-ops, per-canvas isolation); `test/store.test.js` — view-state
   round-trips and `commit()` ordering/opt-outs (snapshot→mutate→render→save);
   `test/sw.test.js` — service-worker
-  precache (incl. `app.js`, `state.js`, `engine.js`, `render.js`,
+  precache (incl. `app.js`, `state.js`, `engine.js`, `sidebar.js`, `render.js`,
   `interactions.js`, `canvases.js`, `editing.js`, `input.js`, `history.js`, and
   `store.js`), asset-revision hash guard, `res.ok` guard, non-GET ignored,
-  old-cache cleanup.
-- **E2E (Playwright, 59 specs, shared `e2e/helpers.js`):**
+  Canvas Calc-only cache cleanup, and current-cache-scoped reads.
+- **E2E (Playwright, 75 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, plus-minus
     negative entry / result negation, sidebar inline edit and numeric
@@ -157,8 +157,6 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
 ### Backlog (nice to have)
-- Split the variables sidebar out of `render.js` if future UI work makes that
-  module painful to change.
 - Make `fmt` separators injectable (today only `groupDisplay`/`parseExpression`
   are; `fmt` uses `Intl` with the runtime locale — tests read `NUM_GROUP` to stay
   robust, but decimals/spaces could still vary across environments).

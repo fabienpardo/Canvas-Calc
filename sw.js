@@ -1,5 +1,6 @@
-const ASSET_REVISION = '67e39624296a';
-const CACHE = 'canvas-calc-' + ASSET_REVISION;
+const ASSET_REVISION = 'aa9153f70ebf';
+const CACHE_PREFIX = 'canvas-calc-';
+const CACHE = CACHE_PREFIX + ASSET_REVISION;
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +8,7 @@ const ASSETS = [
   './app.js',
   './state.js',
   './engine.js',
+  './sidebar.js',
   './render.js',
   './interactions.js',
   './canvases.js',
@@ -33,7 +35,7 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (k) {
-        if (k !== CACHE) return caches.delete(k);
+        if (k.indexOf(CACHE_PREFIX) === 0 && k !== CACHE) return caches.delete(k);
       }));
     }).then(function () { return self.clients.claim(); })
   );
@@ -56,8 +58,10 @@ self.addEventListener('fetch', function (e) {
         }
         return res;
       }).catch(function () {
-        return caches.match(req).then(function (hit) {
-          return hit || caches.match('./index.html');
+        return caches.open(CACHE).then(function (c) {
+          return c.match(req).then(function (hit) {
+            return hit || c.match('./index.html');
+          });
         });
       })
     );
@@ -66,14 +70,15 @@ self.addEventListener('fetch', function (e) {
 
   // Static assets: cache-first (with runtime fill).
   e.respondWith(
-    caches.match(req).then(function (hit) {
-      if (hit) return hit;
-      return fetch(req).then(function (res) {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(function (c) { c.put(req, copy); });
-        }
-        return res;
+    caches.open(CACHE).then(function (c) {
+      return c.match(req).then(function (hit) {
+        if (hit) return hit;
+        return fetch(req).then(function (res) {
+          if (res && res.ok) {
+            c.put(req, res.clone());
+          }
+          return res;
+        });
       });
     })
   );

@@ -130,7 +130,8 @@ More detail lives in [TESTING.md](TESTING.md).
 | `app.js` | Application bootstrap and DOM wiring across the extracted modules. |
 | `engine.js` | Pure math engine: parsing, formatting, resolving links, definitions, and cycle checks. |
 | `state.js` | Pure saved-state normalization, migration, and lookup helpers. |
-| `render.js` | DOM rendering, block reconciliation, link drawing, and variables sidebar rendering. |
+| `sidebar.js` | Variables sidebar rendering, grouping, and inline number/name editing. |
+| `render.js` | DOM rendering, block reconciliation, and link drawing. |
 | `interactions.js` | Pointer, drag, link-drop, long-press, wheel, pinch, and canvas interaction wiring. |
 | `canvases.js` | Canvas menu behavior: switch, add, rename, and delete. |
 | `editing.js` | Pure expression-editing reducers for digits, operators, deletion, selection, and sign toggles. |
@@ -148,7 +149,8 @@ More detail lives in [TESTING.md](TESTING.md).
 `sw.js` precaches the app shell, JavaScript modules, CSS, manifest, and icons.
 HTML navigations are network-first so deployments are not hidden behind stale
 cached pages. Static assets are cache-first and are refreshed when the service
-worker revision changes.
+worker revision changes. Runtime cache reads and cleanup are scoped to Canvas
+Calc cache names so other apps on the same origin are left alone.
 
 The unit test `test/sw.test.js` checks the cached asset list and revision hash.
 If a shipped file changes without updating the service-worker revision, the test
