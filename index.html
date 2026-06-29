@@ -28,7 +28,7 @@
     <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
     <div class="menu-wrap">
       <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋯</button>
-      <div id="menu" role="menu" hidden>
+      <div id="menu" role="menu" aria-orientation="vertical" hidden>
         <button class="menu-item" id="copyItem" role="menuitem">
           <span class="menu-check"></span><span>Copy selection</span>
         </button>
@@ -37,7 +37,7 @@
         </button>
         <div class="menu-sep"></div>
         <div class="menu-label" id="sizeLabel">Text size</div>
-        <div role="radiogroup" aria-labelledby="sizeLabel">
+        <div role="group" aria-labelledby="sizeLabel">
           <button class="menu-item size-item" data-size="18" role="menuitemradio" aria-checked="false">
             <span class="menu-check">✓</span><span>Small</span>
           </button>
