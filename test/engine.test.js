@@ -68,6 +68,83 @@ test('division by zero yields Infinity / NaN that fmt renders', () => {
   assert.equal(E.fmt(evalExpr([num(0), op('/'), num(0)])), '—');
 });
 
+// ---------- diagnosis ----------
+test('parenStatus reports open and stray separately', () => {
+  assert.deepEqual(E.parenStatus([par('('), num(2), op('+'), num(3)]), { open: 1, stray: 0 });
+  assert.deepEqual(E.parenStatus([num(1), par(')'), op('+'), num(2)]), { open: 0, stray: 1 });
+  assert.deepEqual(E.parenStatus([par('('), num(2), par(')'), par(')')]), { open: 0, stray: 1 });
+  assert.deepEqual(E.parenStatus([par('('), num(1), op('+'), par('('), num(2)]), { open: 2, stray: 0 });
+  assert.deepEqual(E.parenStatus([num(2), op('+'), num(3)]), { open: 0, stray: 0 });
+});
+
+test('hasEmptyParens detects an empty group', () => {
+  assert.equal(E.hasEmptyParens([num(2), op('*'), par('('), par(')')]), true);
+  assert.equal(E.hasEmptyParens([par('('), num(2), par(')')]), false);
+});
+
+test('diagnose: incomplete while still building', () => {
+  assert.equal(E.diagnose(block('b', []), {}).status, 'incomplete');
+  assert.equal(E.diagnose(block('b', [num(5)]), {}).status, 'incomplete');        // bare literal
+  assert.equal(E.diagnose(block('b', [num(5), op('+')]), {}).status, 'incomplete'); // no 2nd operand yet
+});
+
+test('diagnose: ok returns the value', () => {
+  var d = E.diagnose(block('b', [num(5), op('+'), num(8)]), {});
+  assert.equal(d.status, 'ok');
+  assert.equal(d.value, 13);
+  assert.equal(d.reason, null);
+});
+
+test('diagnose: missing operator', () => {
+  var d = E.diagnose(block('b', [num(5), op('+'), num(8), num(3)]), {});
+  assert.equal(d.status, 'unresolved');
+  assert.equal(d.reason, 'missing-operator');
+  assert.equal(d.message, 'Add an operator between these values.');
+});
+
+test('diagnose: unmatched open paren', () => {
+  var d = E.diagnose(block('b', [num(5), op('*'), par('('), num(2), op('+'), num(3)]), {});
+  assert.equal(d.reason, 'unmatched-open');
+  assert.equal(d.message, 'Close the parenthesis to calculate.');
+});
+
+test('diagnose: stray closing paren', () => {
+  var d = E.diagnose(block('b', [num(5), op('+'), num(2), par(')')]), {});
+  assert.equal(d.reason, 'unmatched-close');
+  assert.equal(d.message, 'Remove or match the closing parenthesis.');
+});
+
+test('diagnose: empty parens (was tolerant 0)', () => {
+  var d = E.diagnose(block('b', [num(2), op('*'), par('('), par(')')]), {});
+  assert.equal(d.reason, 'empty-parens');
+  assert.equal(d.message, 'Add a value inside the parentheses.');
+});
+
+test('diagnose: broken link to a missing source', () => {
+  var d = E.diagnose(block('b', [linkResult('gone'), op('+'), num(2)]), {});
+  assert.equal(d.reason, 'broken-link');
+  assert.equal(d.message, 'Linked value is no longer available.');
+  // a missing source number term is broken too
+  var a = block('a', [num(10)]);
+  var d2 = E.diagnose(block('b', [linkTerm('a', 'missing-tid'), op('+'), num(1)]), mapOf(a));
+  assert.equal(d2.reason, 'broken-link');
+});
+
+test('diagnose: division by zero is unresolved, not Infinity', () => {
+  var dInf = E.diagnose(block('b', [num(1), op('/'), num(0)]), {});
+  assert.equal(dInf.status, 'unresolved');
+  assert.equal(dInf.reason, 'divide-by-zero');
+  assert.equal(dInf.message, 'Cannot divide by zero.');
+  var dNan = E.diagnose(block('b', [num(0), op('/'), num(0)]), {});
+  assert.equal(dNan.reason, 'divide-by-zero');
+});
+
+test('diagnose: structural error outranks a parens error', () => {
+  // both a missing operator and an open paren -> missing operator wins
+  var d = E.diagnose(block('b', [par('('), num(5), num(8)]), {});
+  assert.equal(d.reason, 'missing-operator');
+});
+
 // ---------- linked values ----------
 test('linked result cascades and updates live', () => {
   var a = block('a', [num(10)]);

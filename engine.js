@@ -217,6 +217,88 @@
     return deps(newSourceId, {});
   }
 
+  // ---------- Diagnosis ----------
+  // One source of truth for *why* a block is unresolved. The view renders these
+  // messages; it never decides them. Pure and unit-tested.
+  var REASON_MESSAGES = {
+    'missing-operator': 'Add an operator between these values.',
+    'unmatched-open': 'Close the parenthesis to calculate.',
+    'unmatched-close': 'Remove or match the closing parenthesis.',
+    'empty-parens': 'Add a value inside the parentheses.',
+    'broken-link': 'Linked value is no longer available.',
+    'divide-by-zero': 'Cannot divide by zero.'
+  };
+
+  // Split paren accounting into still-open openers and stray closers (a ')' with
+  // no matching '('). unmatchedOpenParens reports only `open`; this reports both.
+  function parenStatus(terms) {
+    var open = 0, stray = 0;
+    if (terms) for (var i = 0; i < terms.length; i++) {
+      var t = terms[i];
+      if (t.type !== 'paren') continue;
+      if (t.value === '(') open++;
+      else if (t.value === ')') { if (open > 0) open--; else stray++; }
+    }
+    return { open: open, stray: stray };
+  }
+
+  // True if any '(' is immediately followed by ')' (an empty group like "2*()").
+  function hasEmptyParens(terms) {
+    if (!terms) return false;
+    for (var i = 0; i < terms.length - 1; i++) {
+      if (terms[i].type === 'paren' && terms[i].value === '(' &&
+          terms[i + 1].type === 'paren' && terms[i + 1].value === ')') return true;
+    }
+    return false;
+  }
+
+  // A linked term whose source is *gone* — the block or the referenced number
+  // term no longer exists. A present-but-malformed source is not "broken"; it
+  // just resolves to null and propagates the usual way.
+  function hasBrokenLink(block, map) {
+    for (var i = 0; i < block.terms.length; i++) {
+      var t = block.terms[i];
+      if (t.type !== 'linked') continue;
+      var src = map[t.sourceId];
+      if (!src) return true;
+      if (t.sourceTid != null && !findTermByTid(src, t.sourceTid)) return true;
+    }
+    return false;
+  }
+
+  // Classify a block: { status, value, reason, message }.
+  //   status 'incomplete'  -> nothing to show yet (still building the expression)
+  //   status 'unresolved'  -> a real problem; show "?" + message
+  //   status 'ok'          -> value is the answer (may be null -> neutral "·")
+  // Reason precedence runs structural -> parens -> links -> arithmetic, so a
+  // deeper error is never masked by one that only matters once structure is sound.
+  function diagnose(block, map) {
+    map = map || {};
+    var terms = block.terms;
+    var emptyP = hasEmptyParens(terms);
+    // Empty parens are a finished-looking but broken construct, so they surface
+    // even before a second operand exists ("2 * ()" must read "?", not "0").
+    if (!hasResultSlot(terms) && !emptyP) return { status: 'incomplete', value: null, reason: null, message: '' };
+
+    var reason = null;
+    if (missingOperatorIndex(terms) >= 0) reason = 'missing-operator';
+    else if (emptyP) reason = 'empty-parens';
+    else {
+      var ps = parenStatus(terms);
+      if (ps.stray > 0) reason = 'unmatched-close';
+      else if (ps.open > 0) reason = 'unmatched-open';
+    }
+    if (!reason && hasBrokenLink(block, map)) reason = 'broken-link';
+    if (reason) return { status: 'unresolved', value: null, reason: reason, message: REASON_MESSAGES[reason] };
+
+    var value = resolve(block, map);
+    // Only division can make a finite-input expression non-finite here.
+    if (value != null && !isFinite(value)) {
+      return { status: 'unresolved', value: null, reason: 'divide-by-zero', message: REASON_MESSAGES['divide-by-zero'] };
+    }
+    return { status: 'ok', value: value, reason: null, message: '' };
+  }
+
   // ---------- Formatting ----------
   function fmt(v) {
     if (v === null || v === undefined) return '';
@@ -366,6 +448,8 @@
     hasResultSlot: hasResultSlot,
     missingOperatorIndex: missingOperatorIndex,
     createsCycle: createsCycle,
+    parenStatus: parenStatus, hasEmptyParens: hasEmptyParens, hasBrokenLink: hasBrokenLink,
+    diagnose: diagnose, REASON_MESSAGES: REASON_MESSAGES,
     fmt: fmt, groupDisplay: groupDisplay,
     opSym: opSym, labelOf: labelOf, blockDefinition: blockDefinition,
     parseExpression: parseExpression
