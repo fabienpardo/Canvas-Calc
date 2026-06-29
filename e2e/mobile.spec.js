@@ -74,7 +74,9 @@ test('mobile: keypad and add button fit within the viewport width', async ({ pag
   expect(bottomGap).toBeLessThanOrEqual(Math.max(32, padBottom + 6));
 });
 
-test('mobile: dropping just before a linked term inserts before it', async ({ page }) => {
+test('mobile: dropping just before a linked term inserts before it', async ({ page, browserName }) => {
+  // touchDragToPoint drives synthetic touches via CDP, which is Chromium-only.
+  test.skip(browserName !== 'chromium', 'touch-drag helper uses Chromium-only CDP touch events');
   await fresh(page);
   await addBlock(page);
   await type(page, '5 + 8 ( 2 . 1 + 5');
