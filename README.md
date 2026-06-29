@@ -166,6 +166,14 @@ The unit test `test/sw.test.js` checks the cached asset list and revision hash.
 If a shipped file changes without updating the service-worker revision, the test
 fails.
 
+## Browser Support
+
+The app targets current evergreen browsers. The styling uses modern CSS —
+notably `:has()` and `color-mix()` — so the intended baseline is recent
+Chrome/Edge, Firefox, and Safari (roughly 2023+). It is not built for legacy
+engines; on browsers without those features some visual cues degrade, though the
+core calculation flow still works.
+
 ## Deployment
 
 Canvas Calc can be hosted by any static web server. GitHub Pages works without a
