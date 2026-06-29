@@ -100,6 +100,7 @@
     setActiveBlockId: store.setActiveBlockId,
     renderAll: renderAll,
     save: save,
+    afterRestore: function(){ applyCanvasName(); }, // keep the toolbar title in sync after undo/redo
     undoBtn: document.getElementById('undoBtn'),
     redoBtn: document.getElementById('redoBtn')
   });
@@ -313,6 +314,7 @@
     renderAll: renderAll,
     layoutOverlays: layoutOverlays,
     save: save,
+    snapshot: snapshot,
     deleteUndoStack: function(id){ historyCtl.deleteStack(id); },
     confirmDialog: confirmDialog
   });

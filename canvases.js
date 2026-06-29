@@ -86,7 +86,14 @@
           name = document.createElement('input');
           name.className = 'cv-name';
           name.value = c.title;
-          name.addEventListener('input', function () { renameCanvas(c.id, name.value); });
+          // Snapshot once at the first edit of a focus session so the whole
+          // rename is a single undo step (not one per keystroke).
+          var renaming = false;
+          name.addEventListener('focus', function () { renaming = false; });
+          name.addEventListener('input', function () {
+            if (!renaming) { renaming = true; if (deps.snapshot) deps.snapshot(); }
+            renameCanvas(c.id, name.value);
+          });
           name.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
               e.preventDefault();
