@@ -53,13 +53,6 @@
     function cur() { return deps.cur(); }
     function sel() { return deps.getSelection(); }
 
-    function hasUnknownLinkedValue(b, map) {
-      for (var i = 0; i < b.terms.length; i++) {
-        var t = b.terms[i];
-        if (t.type === 'linked' && deps.linkedValue(t, map) == null) return true;
-      }
-      return false;
-    }
 
     // Everything renderBlock() reads for a given block. If this string is equal
     // between renders, the block's DOM is identical and can be skipped. Must
@@ -82,14 +75,11 @@
       });
       var missIdx = deps.missingOperatorIndex(b.terms);
       parts.push('m' + missIdx); // missing-operator marker position
-      if (deps.hasResultSlot(b.terms)) {
-        if (missIdx >= 0) {
-          parts.push('=?'); // malformed: missing operator
-        } else {
-          var val = deps.resolve(b, map);
-          parts.push('=', val == null ? (hasUnknownLinkedValue(b, map) ? '?' : '·') : val,
-            linkColorMap[deps.srcKey(b.id, null)] || '');
-        }
+      var diag = deps.diagnose(b, map);
+      if (deps.hasResultSlot(b.terms) || diag.status === 'unresolved') {
+        parts.push('=', diag.status, diag.reason || '',
+          diag.status === 'ok' ? (diag.value == null ? '·' : diag.value) : '?',
+          linkColorMap[deps.srcKey(b.id, null)] || '');
       }
       return parts.join(SEP);
     }
@@ -356,10 +346,10 @@
         expr.appendChild(caret);
       }
 
-      if (deps.hasResultSlot(b.terms)) {
-        var malformed = missIdx >= 0;
-        var unknownLinked = !malformed && hasUnknownLinkedValue(b, map);
-        var val = (malformed || unknownLinked) ? null : deps.resolve(b, map);
+      var diag = deps.diagnose(b, map);
+      if (deps.hasResultSlot(b.terms) || diag.status === 'unresolved') {
+        var unresolved = diag.status === 'unresolved';
+        var val = unresolved ? null : diag.value;
         var eq = doc.createElement('span'); eq.className='eq'; eq.textContent='=';
         expr.appendChild(eq);
 
@@ -372,11 +362,16 @@
         ));
         var res = doc.createElement('span');
         selection = sel();
-        if (malformed || unknownLinked) {
-          // Missing an operator: show "?" (not a draggable/linkable result) so a
-          // half-finished expression, or one depending on it, never reads as a real answer.
+        if (unresolved) {
+          // An unresolved block shows "?" (not a draggable/linkable result) so a
+          // half-finished or broken expression never reads as a real answer. When
+          // the engine knows why, a soft caption explains how to fix it.
           res.className = 'result pending';
           res.textContent = '?';
+          if (diag.message) {
+            res.title = diag.message;
+            res.setAttribute('aria-describedby', 'why-' + b.id);
+          }
         } else {
           res.className = 'result' + (val===null?' empty':'');
           if (selection.blockId===b.id && selection.kind==='result') res.className += ' sel';
@@ -389,6 +384,13 @@
           if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[rkey];
         }
         rcell.appendChild(res);
+        if (unresolved && diag.message) {
+          var why = doc.createElement('span');
+          why.className = 'result-why';
+          why.id = 'why-' + b.id;
+          why.textContent = diag.message;
+          rcell.appendChild(why);
+        }
         expr.appendChild(rcell);
       }
 

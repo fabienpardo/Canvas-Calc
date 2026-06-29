@@ -291,6 +291,15 @@
     if (!reason && hasBrokenLink(block, map)) reason = 'broken-link';
     if (reason) return { status: 'unresolved', value: null, reason: reason, message: REASON_MESSAGES[reason] };
 
+    // A linked operand that resolves to nothing (its source is present but
+    // malformed or in a cycle) leaves this block unresolved too, but the repair
+    // belongs to the source — so no message, just an honest "?".
+    for (var j = 0; j < terms.length; j++) {
+      if (terms[j].type === 'linked' && linkedValue(terms[j], map) == null) {
+        return { status: 'unresolved', value: null, reason: null, message: '' };
+      }
+    }
+
     var value = resolve(block, map);
     // Only division can make a finite-input expression non-finite here.
     if (value != null && !isFinite(value)) {

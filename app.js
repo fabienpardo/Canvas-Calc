@@ -156,6 +156,7 @@
     isComplete: E.isComplete,
     hasResultSlot: E.hasResultSlot,
     missingOperatorIndex: E.missingOperatorIndex,
+    diagnose: E.diagnose,
     fmt: fmt,
     groupDisplay: groupDisplay,
     opSym: opSym,
