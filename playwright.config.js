@@ -6,7 +6,12 @@ const { defineConfig, devices } = require('@playwright/test');
 // Default lane is Chromium. The iOS/WebKit lane is opt-in (PW_IOS=1) because
 // WebKit isn't provisioned everywhere; install it with
 // `npx playwright install webkit` and run `npm run test:e2e:ios`.
-const projects = [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }];
+// Clipboard permissions are Chromium-only — WebKit rejects them at context
+// creation — so they live on the Chromium project, not the shared `use`.
+const projects = [{
+  name: 'chromium',
+  use: { ...devices['Desktop Chrome'], permissions: ['clipboard-read', 'clipboard-write'] }
+}];
 if (process.env.PW_IOS) projects.push({ name: 'ios-safari', use: { ...devices['iPhone 13'] } });
 
 module.exports = defineConfig({
@@ -16,7 +21,6 @@ module.exports = defineConfig({
   reporter: 'list',
   use: {
     baseURL: 'http://localhost:8765',
-    permissions: ['clipboard-read', 'clipboard-write'],
     trace: 'on-first-retry',
   },
   webServer: {
