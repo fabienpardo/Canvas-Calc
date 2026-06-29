@@ -104,6 +104,50 @@ test('dragging a result onto its own block is refused as an invalid zone', async
   await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 
+test('keyboard users can link a result into another block with the L key', async ({ page }) => {
+  await fresh(page);
+  // block A = 2 + 3
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  // block B = 10
+  await addBlock(page);
+  await type(page, '1 0');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const b = page.locator('.block').nth(1);
+
+  // Select A's result, pick it up with L.
+  await a.locator('.result').focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('l');
+  await expect(page.locator('#linkStatus')).toContainText('Linking 5');
+
+  // Select B's "10", place the link after it with L.
+  await b.locator('.term.number', { hasText: '10' }).focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('l');
+
+  await expect(b.locator('.expr .term')).toHaveText(['10', '+', '5']);
+  await expect(b.locator('.term.linked')).toHaveText('5');
+  await expect(b.locator('.result')).toHaveText('15');
+  await expect(page.locator('#linkStatus')).toBeHidden();
+});
+
+test('Escape cancels a pending keyboard link', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  await a.locator('.result').focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('l');
+  await expect(page.locator('#linkStatus')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#linkStatus')).toBeHidden();
+});
+
 test('pending missing-operator results cannot start links', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

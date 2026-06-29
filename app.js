@@ -341,6 +341,20 @@
     if (store.getActiveBlockId()===id) store.setActiveBlockId(null);
   }
 
+  // Freeze every term-link that points at one specific number term (sourceId +
+  // tid) into a constant of the given value. Used when that number term is about
+  // to be deleted, so its dependents stay valid numbers instead of dangling "?".
+  function freezeTermDependents(blockId, tid, value) {
+    var v = parseFloat(value);
+    var rv = isNaN(v) ? 0 : Math.round(v * 1e10) / 1e10;
+    cur().blocks.forEach(function(b){
+      b.terms = b.terms.map(function(t){
+        if (t.type==='linked' && t.sourceId===blockId && t.sourceTid===tid) return newNumber(String(rv));
+        return t;
+      });
+    });
+  }
+
   // How many linked terms in other blocks point at this block. Deleting it
   // freezes each into a constant, so warn before a non-obvious data change.
   function dependentLinkCount(id) {
@@ -416,6 +430,16 @@
     ok.focus();
   }
 
+  // Live status for the keyboard link flow: a visible pill that is also an
+  // aria-live region, so both sighted keyboard users and screen readers learn
+  // what to do next. Empty message hides it.
+  function setLinkStatus(msg) {
+    var el = document.getElementById('linkStatus');
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.hidden = false; }
+    else { el.textContent = ''; el.hidden = true; }
+  }
+
   inputCtl = CanvasInput.create({
     Editing: Editing,
     cur: cur,
@@ -441,7 +465,10 @@
     deleteBlock: deleteBlock,
     clearCanvas: clearCanvas,
     linkedValue: linkedValue,
-    parseExpression: parseExpression
+    parseExpression: parseExpression,
+    createsCycle: createsCycle,
+    freezeTermDependents: freezeTermDependents,
+    setLinkStatus: setLinkStatus
   });
   function pressKey(k){ inputCtl.pressKey(k); }
   function pasteText(text){ return inputCtl.pasteText(text); }
@@ -668,6 +695,8 @@
     else if (k==='Backspace') { e.preventDefault(); pressKey('back'); }
     else if (k==='='||k==='Enter') { e.preventDefault(); pressKey('='); }
     else if (k==='Delete') { e.preventDefault(); pressKey('del'); }
+    else if ((k==='l'||k==='L')&&!e.metaKey&&!e.ctrlKey) { e.preventDefault(); pressKey('link'); }
+    else if (k==='Escape') { pressKey('link-cancel'); }
     else if (k==='z'&&(e.metaKey||e.ctrlKey)) { e.preventDefault(); e.shiftKey?redo():undo(); }
   });
 

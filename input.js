@@ -13,6 +13,18 @@
   function create(deps) {
     var Editing = deps.Editing;
     var isOp = Editing.isOp;
+    var pendingLink = null; // keyboard link flow: the picked-up source, awaiting a target
+
+    function status(msg) { if (deps.setLinkStatus) deps.setLinkStatus(msg); }
+
+    // Freeze a number term's dependents into constants just before it's deleted,
+    // so other blocks that linked to it keep a valid value instead of a "?".
+    function freezeIfReferencedNumber(block, term) {
+      if (!deps.freezeTermDependents) return;
+      if (term && term.type === 'number' && term.tid != null) {
+        deps.freezeTermDependents(block.id, term.tid, term.value);
+      }
+    }
 
     // ---------- Active block ----------
     function ensureActiveBlock() {
@@ -41,6 +53,56 @@
         if (candidate.type === 'number' && candidate.tid === term.sourceTid) return candidate;
       }
       return null;
+    }
+
+    // ---------- Keyboard linking ----------
+    // A pointer-free equivalent of drag-to-link: select a result/number and press
+    // L to pick it up, select a target slot and press L again to place it.
+    function linkValueText(sourceId, sourceTid) {
+      var lv = deps.linkedValue({ type: 'linked', sourceId: sourceId, sourceTid: sourceTid }, deps.blocksMap());
+      return lv == null ? 'value' : String(lv);
+    }
+    function linkSourceFromSelection(sel) {
+      if (sel.blockId == null) return null;
+      if (sel.kind === 'result') return { sourceId: sel.blockId, sourceTid: null };
+      if (sel.termIndex == null) return null;
+      var b = deps.byId(sel.blockId), t = b && b.terms[sel.termIndex];
+      if (!t) return null;
+      if (sel.kind === 'number' && t.type === 'number') return { sourceId: sel.blockId, sourceTid: t.tid };
+      if (sel.kind === 'linked' && t.type === 'linked') return { sourceId: t.sourceId, sourceTid: t.sourceTid }; // chain
+      return null;
+    }
+    function placePendingLink(sel) {
+      var src = pendingLink;
+      var target = sel.blockId != null ? deps.byId(sel.blockId) : null;
+      if (!target) { status('Select a target slot, then press L to place the link.'); return; }
+      var idx;
+      if (sel.kind === 'missing-op') idx = sel.termIndex;     // fill the gap
+      else if (sel.termIndex != null) idx = sel.termIndex + 1; // just after the selected term
+      else idx = target.terms.length;                         // result selected / no term: append
+      if (src.sourceTid == null && deps.createsCycle && deps.createsCycle(target.id, src.sourceId)) {
+        pendingLink = null;
+        status('Can’t link — it would create a loop where a result depends on itself.');
+        return;
+      }
+      deps.commit(function () {
+        Editing.insertTermsAt(target, idx, [{ type: 'linked', sourceId: src.sourceId, sourceTid: src.sourceTid }]);
+        deps.setActiveBlockId(target.id); deps.clearSelection();
+      });
+      pendingLink = null;
+      status('');
+    }
+    function handleLinkKey() {
+      var sel = deps.getSelection();
+      if (!pendingLink) {
+        var src = linkSourceFromSelection(sel);
+        if (!src) { status('Select a result or number, then press L to start a link.'); return; }
+        pendingLink = src;
+        status('Linking ' + linkValueText(src.sourceId, src.sourceTid) +
+          '. Select a target slot, then press L to place it. Escape cancels.');
+        return;
+      }
+      placePendingLink(sel);
     }
 
     // Remove a term and move the selection to the previous one (backspace chain).
@@ -104,6 +166,10 @@
     function pressKey(k) {
       // Clear the whole canvas
       if (k === 'clear') { deps.clearCanvas(); return; }
+
+      // Keyboard linking: pick up / place a link, or cancel a pending one.
+      if (k === 'link') { handleLinkKey(); return; }
+      if (k === 'link-cancel') { if (pendingLink) { pendingLink = null; status(''); } return; }
 
       // Delete the selected (or active) block
       if (k === 'del') {
@@ -246,7 +312,10 @@
         var term = sb.terms[sel.termIndex];
         if (term && term.type === 'number') {
           if (k === 'back') {
-            deps.commit(function () { applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex)); });
+            deps.commit(function () {
+              if (term.value === '') freezeIfReferencedNumber(sb, term); // about to be removed
+              applyEditSelection(Editing.backspaceSelectedTerm(sb, sel.termIndex));
+            });
             return;
           }
           deps.commit(function () { term.value = Editing.appendDigitValue(term.value, k); });
@@ -280,7 +349,14 @@
         if (!backActive) return;
         deps.commit(function () {
           var backBlock = deps.byId(backActive);
-          if (backBlock) applyEditSelection(Editing.backspaceActiveBlock(backBlock));
+          if (backBlock) {
+            var lastT = backBlock.terms[backBlock.terms.length - 1];
+            // A single-char (or empty) trailing number is removed by this press.
+            if (lastT && lastT.type === 'number' && String(lastT.value).length <= 1) {
+              freezeIfReferencedNumber(backBlock, lastT);
+            }
+            applyEditSelection(Editing.backspaceActiveBlock(backBlock));
+          }
         });
         return;
       }

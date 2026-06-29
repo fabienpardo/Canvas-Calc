@@ -70,6 +70,7 @@ Desktop shortcuts:
 | Delete/backspace | Backspace |
 | Copy/paste | Cmd/Ctrl+C, Cmd/Ctrl+V |
 | Undo/redo | Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z |
+| Link without dragging | Select a result/number, press `L`, select a target, press `L` (Esc cancels) |
 
 ## Development
 

@@ -556,6 +556,17 @@
     font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 8px;
   }
   @media (min-width: 760px) { #linkTip { bottom: calc(18px + 240px); } }
+  /* Keyboard-linking status pill: visible feedback that doubles as the aria-live
+     region announcing the next step of the link flow. */
+  #linkStatus {
+    position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 56px);
+    transform: translateX(-50%); z-index: 186; pointer-events: none;
+    max-width: min(92vw, 420px); padding: 8px 14px; text-align: center;
+    background: var(--accent); color: #fff; border-radius: 10px;
+    font-family: var(--sans); font-size: 13px; line-height: 1.35;
+    box-shadow: var(--shadow-soft);
+  }
+  #linkStatus[hidden] { display: none; }
   /* Empty-canvas hint — a band spanning the visible canvas (the surface it sits
      over is a scrolled 1600×2400 element, so it can't be centred relative to
      that). It fills #canvasWrap with its bottom raised above the keypad

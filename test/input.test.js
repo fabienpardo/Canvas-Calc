@@ -62,7 +62,16 @@ function harness() {
     deleteBlock: (b) => { state.deletedRequests.push(b ? b.id : null); },
     clearCanvas: () => { state.cleared = true; },
     linkedValue: Engine.linkedValue,
-    parseExpression: Engine.parseExpression
+    parseExpression: Engine.parseExpression,
+    createsCycle: (targetId, srcId) => Engine.createsCycle(targetId, srcId, mapOf()),
+    freezeTermDependents: (blockId, tid, value) => {
+      const v = parseFloat(value); const rv = isNaN(v) ? 0 : Math.round(v * 1e10) / 1e10;
+      canvas.blocks.forEach((b) => {
+        b.terms = b.terms.map((t) =>
+          (t.type === 'linked' && t.sourceId === blockId && t.sourceTid === tid) ? newNumber(String(rv)) : t);
+      });
+    },
+    setLinkStatus: (msg) => { state.linkStatus = msg; }
   });
 
   return { ctl, state, canvas };
@@ -219,6 +228,64 @@ test('pasteText fills a missing-operator gap', () => {
   h.state.sel = { blockId: 'bg', termIndex: 1, kind: 'missing-op' };
   assert.equal(h.ctl.pasteText('9'), true);
   assert.equal(termSig(h.canvas.blocks.find((b) => b.id === 'bg')), 'number:5 operator:+ number:9 operator:+ number:8');
+});
+
+test('deleting a referenced number freezes its dependents to a constant', () => {
+  const h = harness();
+  // Source block with a number "7" that another block links to by term.
+  ['7'].forEach((k) => h.ctl.pressKey(k));
+  const src = h.canvas.blocks[0];
+  const tid = src.terms[0].tid;
+  h.canvas.blocks.push({ id: 'dep', x: 0, y: 0, label: '', terms: [
+    { type: 'linked', sourceId: src.id, sourceTid: tid }, { type: 'operator', value: '+' },
+    { type: 'number', value: '1', tid: 't-dep' }
+  ] });
+  // Select and backspace the "7" away (value already typed -> first back empties it).
+  h.state.sel = { blockId: src.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('back'); // "7" -> ""
+  h.ctl.pressKey('back'); // "" -> removed; dependents freeze
+  const dep = h.canvas.blocks.find((b) => b.id === 'dep');
+  // The dangling link is frozen into a constant (its now-empty source reads 0),
+  // so the dependent stays a valid expression instead of a broken "?" link.
+  assert.equal(termSig(dep), 'number:0 operator:+ number:1');
+  assert.equal(dep.terms.filter((t) => t.type === 'linked').length, 0);
+});
+
+test('keyboard link: pick up a result and place it into another block', () => {
+  const h = harness();
+  ['2', '+', '3'].forEach((k) => h.ctl.pressKey(k)); // block A = 2 + 3
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('='); // finish; no active block
+  // Make a second block B = 10
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k));
+  const b = h.canvas.blocks[1];
+  h.ctl.pressKey('='); // finish B
+
+  // Pick up A's result, then target B's number and place the link after it.
+  h.state.sel = { blockId: a.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /Linking 5/);
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.equal(termSig(b), 'number:10 operator:+ linked:' + a.id);
+  assert.equal(h.state.linkStatus, ''); // cleared after placing
+});
+
+test('keyboard link: a link that would create a cycle is refused', () => {
+  const h = harness();
+  ['8'].forEach((k) => h.ctl.pressKey(k)); // A = 8
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  // B links A's result
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [{ type: 'linked', sourceId: a.id }] });
+  const b = h.canvas.blocks.find((x) => x.id === 'B');
+  // Pick up B's result, try to place into A -> A would depend on B depend on A.
+  h.state.sel = { blockId: 'B', termIndex: null, kind: 'result' };
+  h.ctl.pressKey('link');
+  h.state.sel = { blockId: a.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /loop/);
+  assert.equal(termSig(a), 'number:8'); // unchanged
 });
 
 test('currentSelectionText returns the selected number, else the active block expression', () => {
