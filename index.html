@@ -28,7 +28,7 @@
     <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
     <div class="menu-wrap">
       <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋯</button>
-      <div id="menu" role="menu" hidden>
+      <div id="menu" role="menu" aria-orientation="vertical" hidden>
         <button class="menu-item" id="copyItem" role="menuitem">
           <span class="menu-check"></span><span>Copy selection</span>
         </button>
@@ -37,7 +37,7 @@
         </button>
         <div class="menu-sep"></div>
         <div class="menu-label" id="sizeLabel">Text size</div>
-        <div role="radiogroup" aria-labelledby="sizeLabel">
+        <div role="group" aria-labelledby="sizeLabel">
           <button class="menu-item size-item" data-size="18" role="menuitemradio" aria-checked="false">
             <span class="menu-check">✓</span><span>Small</span>
           </button>
@@ -100,7 +100,7 @@
       <button type="button" class="key op" data-k="+" aria-label="Add">+</button>
       <button type="button" class="key op" data-k="(" aria-label="Open parenthesis">(</button>
       <button type="button" class="key op" data-k=")" aria-label="Close parenthesis">)</button>
-      <button type="button" class="key op" data-k="neg" aria-label="Plus / minus sign" style="grid-column: span 2;">±</button>
+      <button type="button" class="key op" data-k="neg" aria-label="Plus / minus sign">±</button>
       <button type="button" class="key del" data-k="clear" aria-label="Clear canvas">Clear</button>
       <button type="button" class="key eq" data-k="=" aria-label="Equals — finish this block">=</button>
     </div>
@@ -117,6 +117,7 @@
 </div>
 
 <div id="ghost"></div>
+<div id="linkStatus" role="status" aria-live="polite" hidden></div>
 <div id="linkTip" role="status" aria-live="polite" hidden>
   <span>Tip: drag a result onto another block’s number to link them.</span>
   <button type="button" id="linkTipClose">Got it</button>

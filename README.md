@@ -69,7 +69,9 @@ Desktop shortcuts:
 | Finish block | `=` or Enter |
 | Delete/backspace | Backspace |
 | Copy/paste | Cmd/Ctrl+C, Cmd/Ctrl+V |
-| Undo/redo | Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z |
+| Undo/redo | Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z (or Cmd/Ctrl+Y) |
+| Link without dragging | Select a result/number, press `L`, select a target, press `L` (Esc cancels) |
+| Move a selected block | Arrow keys (Shift = larger step) |
 
 ## Development
 
@@ -90,6 +92,14 @@ Run the browser suite:
 ```bash
 npx playwright install chromium
 npm run test:e2e
+```
+
+Optionally run the iOS/WebKit lane for the mobile spec (opt-in, since WebKit is
+not installed by default):
+
+```bash
+npx playwright install webkit
+npm run test:e2e:ios
 ```
 
 Run everything:
@@ -155,6 +165,14 @@ Calc cache names so other apps on the same origin are left alone.
 The unit test `test/sw.test.js` checks the cached asset list and revision hash.
 If a shipped file changes without updating the service-worker revision, the test
 fails.
+
+## Browser Support
+
+The app targets current evergreen browsers. The styling uses modern CSS —
+notably `:has()` and `color-mix()` — so the intended baseline is recent
+Chrome/Edge, Firefox, and Safari (roughly 2023+). It is not built for legacy
+engines; on browsers without those features some visual cues degrade, though the
+core calculation flow still works.
 
 ## Deployment
 

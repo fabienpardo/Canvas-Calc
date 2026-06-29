@@ -5,13 +5,14 @@ const History = require('../history.js');
 
 // Minimal harness: a single active canvas plus fake undo/redo buttons.
 function harness() {
-  const canvas = { id: 'c1', blocks: [], nextId: 1, nextTid: 1 };
+  const canvas = { id: 'c1', title: 'Canvas 1', blocks: [], nextId: 1, nextTid: 1 };
   const env = {
     activeCanvasId: 'c1',
     activeBlockId: 'b9',
     selectionCleared: 0,
     renders: 0,
     saves: 0,
+    restores: 0,
     undoBtn: { disabled: false },
     redoBtn: { disabled: false }
   };
@@ -22,6 +23,7 @@ function harness() {
     setActiveBlockId: (id) => { env.activeBlockId = id; },
     renderAll: () => { env.renders++; },
     save: () => { env.saves++; },
+    afterRestore: () => { env.restores++; },
     undoBtn: env.undoBtn,
     redoBtn: env.redoBtn
   });
@@ -63,6 +65,17 @@ test('redo re-applies an undone change', () => {
   assert.equal(h.canvas.blocks.length, 1);
   assert.equal(h.canvas.blocks[0].id, 'b1');
   assert.equal(h.env.redoBtn.disabled, true);
+});
+
+test('undo restores the canvas title and runs the afterRestore hook', () => {
+  const h = harness();
+  h.ctl.snapshot();                 // capture "Canvas 1"
+  h.canvas.title = 'Budget';        // rename after snapshot
+  h.ctl.undo();
+  assert.equal(h.canvas.title, 'Canvas 1'); // title reverted
+  assert.equal(h.env.restores, 1);          // hook fired (refreshes the toolbar)
+  h.ctl.redo();
+  assert.equal(h.canvas.title, 'Budget');   // and re-applied
 });
 
 test('undo/redo are no-ops on empty stacks', () => {

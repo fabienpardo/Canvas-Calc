@@ -58,6 +58,18 @@ test('renaming the current canvas persists across reload', async ({ page }) => {
   await expect(page.locator('#canvasName')).toHaveText('Taxes');
 });
 
+test('renaming a canvas can be undone and redone in one step', async ({ page }) => {
+  await fresh(page);
+  await openMenu(page);
+  await page.locator('#canvasMenu input.cv-name').fill('Taxes');
+  await expect(page.locator('#canvasName')).toHaveText('Taxes');
+  await page.locator('#canvasBtn').click(); // close the menu
+  await page.locator('#undoBtn').click();
+  await expect(page.locator('#canvasName')).toHaveText('Canvas 1');
+  await page.locator('#redoBtn').click();
+  await expect(page.locator('#canvasName')).toHaveText('Taxes');
+});
+
 test('deleting a canvas asks for confirmation and falls back', async ({ page }) => {
   await fresh(page);
   await openMenu(page);

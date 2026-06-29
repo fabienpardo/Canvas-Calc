@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node --test",
     "test:e2e": "playwright test",
+    "test:e2e:ios": "PW_IOS=1 playwright test --project=ios-safari e2e/mobile.spec.js",
     "test:all": "node --test && playwright test"
   },
   "devDependencies": {

@@ -21,11 +21,12 @@
     }
     function snapOf() {
       var c = deps.cur();
-      return JSON.stringify({ blocks: c.blocks, nextId: c.nextId, nextTid: c.nextTid });
+      return JSON.stringify({ blocks: c.blocks, nextId: c.nextId, nextTid: c.nextTid, title: c.title });
     }
     function applySnap(s) {
       var c = deps.cur();
       c.blocks = s.blocks; c.nextId = s.nextId; if (s.nextTid) c.nextTid = s.nextTid;
+      if (s.title != null) c.title = s.title;
     }
     function snapshot() {
       var st = stacks();
@@ -39,7 +40,9 @@
       if (!st[fromKey].length) return;
       st[toKey].push(snapOf());
       applySnap(JSON.parse(st[fromKey].pop()));
-      deps.clearSelection(); deps.setActiveBlockId(null); deps.renderAll(); deps.save(); updateButtons();
+      deps.clearSelection(); deps.setActiveBlockId(null);
+      if (deps.afterRestore) deps.afterRestore(); // e.g. refresh the canvas title in the toolbar
+      deps.renderAll(); deps.save(); updateButtons();
     }
     function undo() { restore('history', 'future'); }
     function redo() { restore('future', 'history'); }

@@ -100,6 +100,7 @@
     setActiveBlockId: store.setActiveBlockId,
     renderAll: renderAll,
     save: save,
+    afterRestore: function(){ applyCanvasName(); }, // keep the toolbar title in sync after undo/redo
     undoBtn: document.getElementById('undoBtn'),
     redoBtn: document.getElementById('redoBtn')
   });
@@ -156,6 +157,7 @@
     isComplete: E.isComplete,
     hasResultSlot: E.hasResultSlot,
     missingOperatorIndex: E.missingOperatorIndex,
+    diagnose: E.diagnose,
     fmt: fmt,
     groupDisplay: groupDisplay,
     opSym: opSym,
@@ -312,6 +314,7 @@
     renderAll: renderAll,
     layoutOverlays: layoutOverlays,
     save: save,
+    snapshot: snapshot,
     deleteUndoStack: function(id){ historyCtl.deleteStack(id); },
     confirmDialog: confirmDialog
   });
@@ -338,6 +341,20 @@
     });
     cur().blocks = cur().blocks.filter(function(b){ return b.id!==id; });
     if (store.getActiveBlockId()===id) store.setActiveBlockId(null);
+  }
+
+  // Freeze every term-link that points at one specific number term (sourceId +
+  // tid) into a constant of the given value. Used when that number term is about
+  // to be deleted, so its dependents stay valid numbers instead of dangling "?".
+  function freezeTermDependents(blockId, tid, value) {
+    var v = parseFloat(value);
+    var rv = isNaN(v) ? 0 : Math.round(v * 1e10) / 1e10;
+    cur().blocks.forEach(function(b){
+      b.terms = b.terms.map(function(t){
+        if (t.type==='linked' && t.sourceId===blockId && t.sourceTid===tid) return newNumber(String(rv));
+        return t;
+      });
+    });
   }
 
   // How many linked terms in other blocks point at this block. Deleting it
@@ -415,6 +432,24 @@
     ok.focus();
   }
 
+  // Live status for the keyboard link flow: a visible pill that is also an
+  // aria-live region, so both sighted keyboard users and screen readers learn
+  // what to do next. Empty message hides it.
+  function setLinkStatus(msg) {
+    var el = document.getElementById('linkStatus');
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.hidden = false; }
+    else { el.textContent = ''; el.hidden = true; }
+  }
+
+  // One-time heads-up that ± on a linked number edits its shared source, since
+  // that ripples to every place the value is used (intentional, but surprising).
+  function notifyLinkedNeg() {
+    try { if (localStorage.getItem('canvascalc.linkedNegHint')) return; } catch (e) {}
+    try { localStorage.setItem('canvascalc.linkedNegHint', '1'); } catch (e) {}
+    showNotice('± on a linked number changes its source value everywhere it’s used.');
+  }
+
   inputCtl = CanvasInput.create({
     Editing: Editing,
     cur: cur,
@@ -440,11 +475,16 @@
     deleteBlock: deleteBlock,
     clearCanvas: clearCanvas,
     linkedValue: linkedValue,
-    parseExpression: parseExpression
+    parseExpression: parseExpression,
+    createsCycle: createsCycle,
+    freezeTermDependents: freezeTermDependents,
+    setLinkStatus: setLinkStatus,
+    notifyLinkedNeg: notifyLinkedNeg
   });
   function pressKey(k){ inputCtl.pressKey(k); }
   function pasteText(text){ return inputCtl.pasteText(text); }
   function currentSelectionText(){ return inputCtl.currentSelectionText(); }
+  function copySelection(){ return inputCtl.copySelection(); }
 
   CanvasInteractions.create({
     document: document,
@@ -615,7 +655,7 @@
       state.showGrid = !state.showGrid; applyGrid(); save(); closeMenu(false);
     });
     document.getElementById('copyItem').addEventListener('click', function(){
-      var t = currentSelectionText();
+      var t = copySelection();
       if (t==null || t==='') { showNotice('Select a number, result, or calculation to copy.'); closeMenu(false); return; }
       if (!navigator.clipboard || !navigator.clipboard.writeText) { showNotice('Clipboard copy is not available.'); closeMenu(false); return; }
       navigator.clipboard.writeText(t).catch(function(){ showNotice('Could not copy to the clipboard.'); });
@@ -637,7 +677,7 @@
   document.addEventListener('copy', function(e){
     var ae = document.activeElement;
     if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
-    var t = currentSelectionText();
+    var t = copySelection();
     if (t!=null && t!=='') { e.clipboardData.setData('text/plain', t); e.preventDefault(); }
   });
   document.addEventListener('paste', function(e){
@@ -667,8 +707,32 @@
     else if (k==='Backspace') { e.preventDefault(); pressKey('back'); }
     else if (k==='='||k==='Enter') { e.preventDefault(); pressKey('='); }
     else if (k==='Delete') { e.preventDefault(); pressKey('del'); }
+    else if ((k==='l'||k==='L')&&!e.metaKey&&!e.ctrlKey) { e.preventDefault(); pressKey('link'); }
+    else if (k==='Escape') { pressKey('link-cancel'); }
     else if (k==='z'&&(e.metaKey||e.ctrlKey)) { e.preventDefault(); e.shiftKey?redo():undo(); }
+    else if (k==='y'&&(e.metaKey||e.ctrlKey)) { e.preventDefault(); redo(); } // Windows-style redo
+    else if (k==='ArrowLeft'||k==='ArrowRight'||k==='ArrowUp'||k==='ArrowDown') {
+      var step = e.shiftKey ? SNAP*5 : SNAP;
+      var dx = k==='ArrowLeft'?-step : k==='ArrowRight'?step : 0;
+      var dy = k==='ArrowUp'?-step : k==='ArrowDown'?step : 0;
+      if (nudgeSelectedBlock(dx, dy)) e.preventDefault(); // only when a block is selected
+    }
   });
+
+  // Move the selected block with the arrow keys (Shift = larger step), so blocks
+  // can be repositioned without a pointer. Returns false when nothing is selected
+  // so the arrow keys fall through to their default behavior.
+  function nudgeSelectedBlock(dx, dy) {
+    var sel = store.getSelection();
+    if (sel.kind !== 'result' || sel.blockId == null) return false;
+    var b = byId(sel.blockId);
+    if (!b) return false;
+    store.commit(function(){
+      b.x = Math.max(0, snap(b.x + dx));
+      b.y = Math.max(0, snap(b.y + dy));
+    });
+    return true;
+  }
 
   // ---------- Init ----------
   load();

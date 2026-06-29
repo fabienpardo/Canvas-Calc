@@ -29,7 +29,9 @@ test('selected number + opening parenthesis inserts before the selected number',
   await lastBlock(page).locator('.term.number', { hasText: '2' }).click();
   await press(page, '(');
   await expect(lastBlock(page).locator('.expr .term')).toHaveText(['(', '2', '+', '4']);
-  await expect(lastBlock(page).locator('.result')).toHaveText('6');
+  // The '(' now has no match, so the block is unresolved until it's closed.
+  await expect(lastBlock(page).locator('.result')).toHaveText('?');
+  await expect(lastBlock(page).locator('.result-why')).toHaveText('Close the parenthesis to calculate.');
 });
 
 test('pressing = auto-closes an open parenthesis into the expression', async ({ page }) => {

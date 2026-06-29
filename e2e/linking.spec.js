@@ -22,7 +22,7 @@ test('selecting a result + an operator creates a linked block', async ({ page })
   await expect(page.locator('.term.linked')).toHaveCount(1);
 });
 
-test('dropping a result onto a number slot replaces it with a link', async ({ page }) => {
+test('dropping a result onto a number inserts a link, never overwrites it', async ({ page }) => {
   await fresh(page);
   // block A = 10
   await addBlock(page);
@@ -33,11 +33,15 @@ test('dropping a result onto a number slot replaces it with a link', async ({ pa
   await type(page, '2 + 3');
   await press(page, '=');
   const a = page.locator('.block').first();
-  const slot = page.locator('.block').nth(1).locator('.term.number', { hasText: '2' });
+  const b = page.locator('.block').nth(1);
+  const slot = b.locator('.term.number', { hasText: '2' });
   const sb = await slot.boundingBox();
+  // Drop on the centre of "2" -> insert before it, gluing with "+".
   await dragResultTo(page, a.locator('.result'), sb.x + sb.width / 2, sb.y + sb.height / 2);
-  // B becomes 10 + 3 = 13
-  await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('13');
+  // The original "2" survives; B becomes 10 + 2 + 3 = 15.
+  await expect(b.locator('.expr .term')).toHaveText(['10', '+', '2', '+', '3']);
+  await expect(b.locator('.term.linked')).toHaveText('10');
+  await expect(b.locator('.result')).toHaveText('15');
 });
 
 test('dropping a result onto a leading operator inserts before it', async ({ page }) => {
@@ -57,6 +61,122 @@ test('dropping a result onto a leading operator inserts before it', async ({ pag
   // B becomes 15 × 2.6 = 39
   await expect(page.locator('.block').nth(1).locator('.term.linked')).toHaveText('15');
   await expect(page.locator('.block').nth(1).locator('.result')).toHaveText('39');
+});
+
+test('an insertion caret previews the drop position while dragging', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const b = page.locator('.block').nth(1);
+  const rb = await a.locator('.result').boundingBox();
+  const sb = await b.locator('.term.number', { hasText: '3' }).boundingBox();
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rb.x + 30, rb.y + 30, { steps: 3 });
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2, { steps: 6 });
+  await expect(b).toHaveClass(/drop-ok/);
+  await expect(b.locator('.drop-caret')).toHaveCount(1);
+  await page.mouse.up();
+});
+
+test('dragging a result onto its own block is refused as an invalid zone', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const rb = await a.locator('.result').boundingBox();
+  const nb = await a.locator('.term.number', { hasText: '8' }).boundingBox();
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rb.x + 20, rb.y + 20, { steps: 3 });
+  await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height / 2, { steps: 5 });
+  await expect(a).toHaveClass(/drop-invalid/);
+  await expect(a.locator('.drop-caret')).toHaveCount(0);
+  await page.mouse.up();
+  // No-op: the block is unchanged and no link was created.
+  await expect(a.locator('.expr .term')).toHaveText(['8', '+', '2']);
+  await expect(page.locator('.term.linked')).toHaveCount(0);
+});
+
+test('copy/paste keeps a linked value live within the session', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const ab = await a.boundingBox();
+  // B = a live alias of A (drag A's result to empty canvas).
+  await dragResultTo(page, a.locator('.result'), ab.x + 280, ab.y + 240);
+  await expect(page.locator('.block')).toHaveCount(2);
+  const b = page.locator('.block').nth(1);
+  await expect(b.locator('.term.linked')).toHaveText('5');
+
+  // Copy B, deselect, paste -> a third block that is still a live link.
+  await b.locator('.result').click();
+  await page.locator('#menuBtn').click();
+  await page.locator('#copyItem').click();
+  await page.locator('#canvas').click({ position: { x: 520, y: 430 } }); // deselect
+  await page.locator('#menuBtn').click();
+  await page.locator('#pasteItem').click();
+  await expect(page.locator('.block')).toHaveCount(3);
+  const c = page.locator('.block').nth(2);
+  await expect(c.locator('.term.linked')).toHaveText('5'); // a link, not a frozen "5"
+
+  // Editing the source cascades to the pasted copy too.
+  await a.locator('.term.number', { hasText: '3' }).click();
+  await press(page, 'back');
+  await press(page, '8'); // A = 2 + 8 = 10
+  await expect(c.locator('.term.linked')).toHaveText('10');
+});
+
+test('keyboard users can link a result into another block with the L key', async ({ page }) => {
+  await fresh(page);
+  // block A = 2 + 3
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  // block B = 10
+  await addBlock(page);
+  await type(page, '1 0');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const b = page.locator('.block').nth(1);
+
+  // Select A's result, pick it up with L.
+  await a.locator('.result').focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('l');
+  await expect(page.locator('#linkStatus')).toContainText('Linking 5');
+
+  // Select B's "10", place the link after it with L.
+  await b.locator('.term.number', { hasText: '10' }).focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('l');
+
+  await expect(b.locator('.expr .term')).toHaveText(['10', '+', '5']);
+  await expect(b.locator('.term.linked')).toHaveText('5');
+  await expect(b.locator('.result')).toHaveText('15');
+  await expect(page.locator('#linkStatus')).toBeHidden();
+});
+
+test('Escape cancels a pending keyboard link', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  await a.locator('.result').focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('l');
+  await expect(page.locator('#linkStatus')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#linkStatus')).toBeHidden();
 });
 
 test('pending missing-operator results cannot start links', async ({ page }) => {

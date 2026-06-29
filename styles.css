@@ -378,6 +378,14 @@
   .result.empty { background: transparent; color: var(--text-dim); }
   /* Reserved slot for a calc still being typed: muted "?" placeholder, no grab. */
   .result.pending { background: transparent; color: var(--text-dim); cursor: default; }
+  /* Soft explanation under an unresolved "?": why it can't resolve and how to
+     fix it. Deliberately muted — never the alarming destructive treatment. */
+  .result-why {
+    margin-top: 2px; max-width: 20ch;
+    color: var(--text-dim); font-family: var(--sans);
+    font-size: 10px; font-weight: 500; line-height: 1.3;
+    text-align: center; white-space: normal; opacity: 0.85;
+  }
   /* While a block is being typed into, the result is a live preview: drop the
      filled pill so the input caret reads as the focus, not the answer. */
   .block.active .result:not(.sel) { background: transparent; }
@@ -407,11 +415,25 @@
     padding: 2px 8px; transform: translate(-50%, -50%); display: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }
-  .slot-target {
-    outline: 2px dashed var(--accent) !important; outline-offset: 1px;
-    background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
-    border-radius: 6px;
+  /* Valid drop zone while dragging a link into a block. */
+  .drop-ok {
+    outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
+  /* Invalid drop zone (own source, or would close a dependency loop): soft, not
+     a hard error — it just signals "not here" instead of an ambiguous drop. */
+  .drop-invalid {
+    outline: 2px dashed color-mix(in srgb, #c0392b 70%, transparent); outline-offset: 2px;
+    background: color-mix(in srgb, #c0392b 8%, transparent); border-radius: 12px;
+    cursor: not-allowed;
+  }
+  /* Insertion caret showing exactly where a dropped link will land. */
+  .drop-caret {
+    align-self: stretch; width: 3px; min-height: 1.1em; margin: 0 1px;
+    border-radius: 2px; background: var(--accent); pointer-events: none;
+    animation: dropCaretPulse 0.8s ease-in-out infinite;
+  }
+  @keyframes dropCaretPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   /* Numpad */
   #numpad {
@@ -458,6 +480,7 @@
   }
   .key:active { background: var(--key-active); }
   .key.op { color: var(--op); font-weight: 500; }
+  .key[data-k="neg"] { grid-column: span 2; } /* ± spans two columns */
   .key.act { color: var(--accent); font-size: 17px; font-family: var(--sans); font-weight: 500; }
   .key.eq {
     grid-column: span 3; color: #fff; background: var(--accent);
@@ -534,6 +557,17 @@
     font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 8px;
   }
   @media (min-width: 760px) { #linkTip { bottom: calc(18px + 240px); } }
+  /* Keyboard-linking status pill: visible feedback that doubles as the aria-live
+     region announcing the next step of the link flow. */
+  #linkStatus {
+    position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 56px);
+    transform: translateX(-50%); z-index: 186; pointer-events: none;
+    max-width: min(92vw, 420px); padding: 8px 14px; text-align: center;
+    background: var(--accent); color: #fff; border-radius: 10px;
+    font-family: var(--sans); font-size: 13px; line-height: 1.35;
+    box-shadow: var(--shadow-soft);
+  }
+  #linkStatus[hidden] { display: none; }
   /* Empty-canvas hint — a band spanning the visible canvas (the surface it sits
      over is a scrolled 1600×2400 element, so it can't be centred relative to
      that). It fills #canvasWrap with its bottom raised above the keypad

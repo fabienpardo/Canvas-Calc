@@ -62,7 +62,17 @@ function harness() {
     deleteBlock: (b) => { state.deletedRequests.push(b ? b.id : null); },
     clearCanvas: () => { state.cleared = true; },
     linkedValue: Engine.linkedValue,
-    parseExpression: Engine.parseExpression
+    parseExpression: Engine.parseExpression,
+    createsCycle: (targetId, srcId) => Engine.createsCycle(targetId, srcId, mapOf()),
+    freezeTermDependents: (blockId, tid, value) => {
+      const v = parseFloat(value); const rv = isNaN(v) ? 0 : Math.round(v * 1e10) / 1e10;
+      canvas.blocks.forEach((b) => {
+        b.terms = b.terms.map((t) =>
+          (t.type === 'linked' && t.sourceId === blockId && t.sourceTid === tid) ? newNumber(String(rv)) : t);
+      });
+    },
+    setLinkStatus: (msg) => { state.linkStatus = msg; },
+    notifyLinkedNeg: () => { state.linkedNegHints = (state.linkedNegHints || 0) + 1; }
   });
 
   return { ctl, state, canvas };
@@ -200,6 +210,185 @@ test('pasteText reports invalid expressions without changing state', () => {
   assert.equal(h.ctl.pasteText('abc 5'), false);
   assert.equal(h.canvas.blocks.length, 0);
   assert.equal(h.state.snaps, 0);
+});
+
+test('pasteText inserts after a selected term, gluing instead of appending', () => {
+  const h = harness();
+  ['5', '+', '3'].forEach((k) => h.ctl.pressKey(k)); // 5 + 3
+  const b = h.canvas.blocks[0];
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' }; // select the "5"
+  assert.equal(h.ctl.pasteText('9'), true);
+  assert.equal(termSig(b), 'number:5 operator:+ number:9 operator:+ number:3');
+});
+
+test('pasteText fills a missing-operator gap', () => {
+  const h = harness();
+  h.canvas.blocks.push({ id: 'bg', x: 0, y: 0, label: '', terms: [
+    { type: 'number', value: '5', tid: 't-a' }, { type: 'number', value: '8', tid: 't-b' }
+  ] });
+  h.state.sel = { blockId: 'bg', termIndex: 1, kind: 'missing-op' };
+  assert.equal(h.ctl.pasteText('9'), true);
+  assert.equal(termSig(h.canvas.blocks.find((b) => b.id === 'bg')), 'number:5 operator:+ number:9 operator:+ number:8');
+});
+
+test('deleting a referenced number freezes its dependents to a constant', () => {
+  const h = harness();
+  // Source block with a number "7" that another block links to by term.
+  ['7'].forEach((k) => h.ctl.pressKey(k));
+  const src = h.canvas.blocks[0];
+  const tid = src.terms[0].tid;
+  h.canvas.blocks.push({ id: 'dep', x: 0, y: 0, label: '', terms: [
+    { type: 'linked', sourceId: src.id, sourceTid: tid }, { type: 'operator', value: '+' },
+    { type: 'number', value: '1', tid: 't-dep' }
+  ] });
+  // Select and backspace the "7" away (value already typed -> first back empties it).
+  h.state.sel = { blockId: src.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('back'); // "7" -> ""
+  h.ctl.pressKey('back'); // "" -> removed; dependents freeze
+  const dep = h.canvas.blocks.find((b) => b.id === 'dep');
+  // The dangling link is frozen into a constant (its now-empty source reads 0),
+  // so the dependent stays a valid expression instead of a broken "?" link.
+  assert.equal(termSig(dep), 'number:0 operator:+ number:1');
+  assert.equal(dep.terms.filter((t) => t.type === 'linked').length, 0);
+});
+
+test('keyboard link: pick up a result and place it into another block', () => {
+  const h = harness();
+  ['2', '+', '3'].forEach((k) => h.ctl.pressKey(k)); // block A = 2 + 3
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('='); // finish; no active block
+  // Make a second block B = 10
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k));
+  const b = h.canvas.blocks[1];
+  h.ctl.pressKey('='); // finish B
+
+  // Pick up A's result, then target B's number and place the link after it.
+  h.state.sel = { blockId: a.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /Linking 5/);
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.equal(termSig(b), 'number:10 operator:+ linked:' + a.id);
+  assert.equal(h.state.linkStatus, ''); // cleared after placing
+});
+
+test('keyboard link: a source deleted after pickup cancels instead of dangling', () => {
+  const h = harness();
+  ['8'].forEach((k) => h.ctl.pressKey(k)); // A = 8
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k)); // B = 10
+  const b = h.canvas.blocks[1];
+  h.ctl.pressKey('=');
+  // Pick up A's result, then delete A before choosing a target.
+  h.state.sel = { blockId: a.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('link');
+  h.canvas.blocks = h.canvas.blocks.filter((x) => x.id !== a.id);
+  // Target B and try to place: it must cancel, not insert a dangling link.
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /no longer available/);
+  assert.equal(termSig(b), 'number:10'); // unchanged
+});
+
+test('keyboard link: a link that would create a cycle is refused', () => {
+  const h = harness();
+  ['8'].forEach((k) => h.ctl.pressKey(k)); // A = 8
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  // B links A's result
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [{ type: 'linked', sourceId: a.id }] });
+  const b = h.canvas.blocks.find((x) => x.id === 'B');
+  // Pick up B's result, try to place into A -> A would depend on B depend on A.
+  h.state.sel = { blockId: 'B', termIndex: null, kind: 'result' };
+  h.ctl.pressKey('link');
+  h.state.sel = { blockId: a.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /loop/);
+  assert.equal(termSig(a), 'number:8'); // unchanged
+});
+
+test('± on a linked number toggles its source and fires the one-time hint', () => {
+  const h = harness();
+  ['5'].forEach((k) => h.ctl.pressKey(k));
+  const a = h.canvas.blocks[0];
+  const tid = a.terms[0].tid;
+  h.ctl.pressKey('=');
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [{ type: 'linked', sourceId: a.id, sourceTid: tid }] });
+  h.state.sel = { blockId: 'B', termIndex: 0, kind: 'linked' };
+  h.ctl.pressKey('neg');
+  assert.equal(a.terms[0].value, '-5'); // the shared source flipped
+  assert.equal(h.state.linkedNegHints, 1); // hint surfaced once
+});
+
+test('repeated ± on a result toggles the negation in place, no extra blocks', () => {
+  const h = harness();
+  ['2', '+', '3'].forEach((k) => h.ctl.pressKey(k));
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  // First ± on A's result creates "-1 * linked(A)".
+  h.state.sel = { blockId: a.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('neg');
+  assert.equal(h.canvas.blocks.length, 2);
+  const neg = h.canvas.blocks[1];
+  assert.equal(termSig(neg), 'number:-1 operator:* linked:' + a.id);
+  // ± on the negation block's result toggles its sign instead of stacking another.
+  h.state.sel = { blockId: neg.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('neg');
+  assert.equal(h.canvas.blocks.length, 2);
+  assert.equal(termSig(neg), 'number:1 operator:* linked:' + a.id);
+  h.ctl.pressKey('neg'); // and back again
+  assert.equal(termSig(neg), 'number:-1 operator:* linked:' + a.id);
+});
+
+test('copy then paste rebuilds a live link in the same session', () => {
+  const h = harness();
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k)); // A = 10
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  // B = linked(A) + 1
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [
+    { type: 'linked', sourceId: a.id }, { type: 'operator', value: '+' }, { type: 'number', value: '1', tid: 't-b' }
+  ] });
+  // Copy B (select its result) -> text is value-based, structure is kept internally.
+  h.state.sel = { blockId: 'B', termIndex: null, kind: 'result' };
+  const text = h.ctl.copySelection();
+  assert.equal(text, '10 + 1');
+  // Paste into a fresh block.
+  h.state.sel = { blockId: null, termIndex: null, kind: null };
+  h.state.activeBlockId = null;
+  assert.equal(h.ctl.pasteText(text), true);
+  const pasted = h.canvas.blocks[h.canvas.blocks.length - 1];
+  assert.equal(termSig(pasted), 'linked:' + a.id + ' operator:+ number:1'); // link preserved
+});
+
+test('paste freezes a copied link whose source was deleted, to its copied value', () => {
+  const h = harness();
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k)); // A = 10
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [{ type: 'linked', sourceId: a.id }] });
+  h.state.sel = { blockId: 'B', termIndex: null, kind: 'result' };
+  const text = h.ctl.copySelection(); // "10"
+  // Source A disappears before pasting.
+  h.canvas.blocks = h.canvas.blocks.filter((b) => b.id !== a.id);
+  h.state.sel = { blockId: null, termIndex: null, kind: null };
+  h.state.activeBlockId = null;
+  assert.equal(h.ctl.pasteText(text), true);
+  const pasted = h.canvas.blocks[h.canvas.blocks.length - 1];
+  assert.equal(termSig(pasted), 'number:10'); // frozen to its copied value, no dangling link
+});
+
+test('external text that is not our copy still parses to plain numbers', () => {
+  const h = harness();
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k));
+  h.state.sel = { blockId: h.canvas.blocks[0].id, termIndex: 0, kind: 'number' };
+  h.ctl.copySelection(); // internal clip text is "10"
+  h.state.sel = { blockId: null, termIndex: null, kind: null };
+  h.state.activeBlockId = null;
+  assert.equal(h.ctl.pasteText('7 + 8'), true); // different text -> not internal
+  const pasted = h.canvas.blocks[h.canvas.blocks.length - 1];
+  assert.equal(termSig(pasted), 'number:7 operator:+ number:8');
 });
 
 test('currentSelectionText returns the selected number, else the active block expression', () => {
