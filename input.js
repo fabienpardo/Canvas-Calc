@@ -269,7 +269,10 @@
           ni = nSel.termIndex;
           if (nb_ && nb_.terms[ni]) {
             if (nSel.kind === 'number' && nb_.terms[ni].type === 'number') nt = nb_.terms[ni];
-            else if (nSel.kind === 'linked') nt = linkedSourceNumber(nb_.terms[ni]);
+            else if (nSel.kind === 'linked') {
+              nt = linkedSourceNumber(nb_.terms[ni]);
+              if (nt && deps.notifyLinkedNeg) deps.notifyLinkedNeg(); // one-time "edits the source" hint
+            }
           }
           if (!nt) return;
         } else if (nSel.kind === 'result' && nSel.blockId != null) {

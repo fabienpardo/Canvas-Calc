@@ -94,6 +94,14 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+Optionally run the iOS/WebKit lane for the mobile spec (opt-in, since WebKit is
+not installed by default):
+
+```bash
+npx playwright install webkit
+npm run test:e2e:ios
+```
+
 Run everything:
 
 ```bash

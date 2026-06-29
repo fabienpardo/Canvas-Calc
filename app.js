@@ -442,6 +442,14 @@
     else { el.textContent = ''; el.hidden = true; }
   }
 
+  // One-time heads-up that ± on a linked number edits its shared source, since
+  // that ripples to every place the value is used (intentional, but surprising).
+  function notifyLinkedNeg() {
+    try { if (localStorage.getItem('canvascalc.linkedNegHint')) return; } catch (e) {}
+    try { localStorage.setItem('canvascalc.linkedNegHint', '1'); } catch (e) {}
+    showNotice('± on a linked number changes its source value everywhere it’s used.');
+  }
+
   inputCtl = CanvasInput.create({
     Editing: Editing,
     cur: cur,
@@ -470,7 +478,8 @@
     parseExpression: parseExpression,
     createsCycle: createsCycle,
     freezeTermDependents: freezeTermDependents,
-    setLinkStatus: setLinkStatus
+    setLinkStatus: setLinkStatus,
+    notifyLinkedNeg: notifyLinkedNeg
   });
   function pressKey(k){ inputCtl.pressKey(k); }
   function pasteText(text){ return inputCtl.pasteText(text); }

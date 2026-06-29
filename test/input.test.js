@@ -71,7 +71,8 @@ function harness() {
           (t.type === 'linked' && t.sourceId === blockId && t.sourceTid === tid) ? newNumber(String(rv)) : t);
       });
     },
-    setLinkStatus: (msg) => { state.linkStatus = msg; }
+    setLinkStatus: (msg) => { state.linkStatus = msg; },
+    notifyLinkedNeg: () => { state.linkedNegHints = (state.linkedNegHints || 0) + 1; }
   });
 
   return { ctl, state, canvas };
@@ -286,6 +287,19 @@ test('keyboard link: a link that would create a cycle is refused', () => {
   h.ctl.pressKey('link');
   assert.match(h.state.linkStatus, /loop/);
   assert.equal(termSig(a), 'number:8'); // unchanged
+});
+
+test('± on a linked number toggles its source and fires the one-time hint', () => {
+  const h = harness();
+  ['5'].forEach((k) => h.ctl.pressKey(k));
+  const a = h.canvas.blocks[0];
+  const tid = a.terms[0].tid;
+  h.ctl.pressKey('=');
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [{ type: 'linked', sourceId: a.id, sourceTid: tid }] });
+  h.state.sel = { blockId: 'B', termIndex: 0, kind: 'linked' };
+  h.ctl.pressKey('neg');
+  assert.equal(a.terms[0].value, '-5'); // the shared source flipped
+  assert.equal(h.state.linkedNegHints, 1); // hint surfaced once
 });
 
 test('repeated ± on a result toggles the negation in place, no extra blocks', () => {

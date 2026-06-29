@@ -26,3 +26,17 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Run Playwright e2e tests
         run: npx playwright test
+
+  e2e-ios:
+    # iOS/WebKit lane for the mobile spec. Non-blocking while the lane is young.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - name: Run iOS/WebKit mobile tests
+        run: npm run test:e2e:ios
