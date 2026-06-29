@@ -415,11 +415,25 @@
     padding: 2px 8px; transform: translate(-50%, -50%); display: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }
-  .slot-target {
-    outline: 2px dashed var(--accent) !important; outline-offset: 1px;
-    background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
-    border-radius: 6px;
+  /* Valid drop zone while dragging a link into a block. */
+  .drop-ok {
+    outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
+  /* Invalid drop zone (own source, or would close a dependency loop): soft, not
+     a hard error — it just signals "not here" instead of an ambiguous drop. */
+  .drop-invalid {
+    outline: 2px dashed color-mix(in srgb, #c0392b 70%, transparent); outline-offset: 2px;
+    background: color-mix(in srgb, #c0392b 8%, transparent); border-radius: 12px;
+    cursor: not-allowed;
+  }
+  /* Insertion caret showing exactly where a dropped link will land. */
+  .drop-caret {
+    align-self: stretch; width: 3px; min-height: 1.1em; margin: 0 1px;
+    border-radius: 2px; background: var(--accent); pointer-events: none;
+    animation: dropCaretPulse 0.8s ease-in-out infinite;
+  }
+  @keyframes dropCaretPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   /* Numpad */
   #numpad {

@@ -12,6 +12,7 @@
     var pointer = { mode:null, startX:0, startY:0, block:null, moved:false, linkSrc:null, pendingSelect:null };
     var pinchPts = {}, pinch = null;
     var lpTimer = null;
+    var dropCaret = null;
 
     function pinchCount(){ return Object.keys(pinchPts).length; }
     function pinching(){ return !!pinch; }
@@ -19,7 +20,28 @@
     function resetPointer() { pointer = { mode:null }; }
 
     function clearTargets(){
-      deps.canvas.querySelectorAll('.slot-target').forEach(function(e){e.classList.remove('slot-target');});
+      deps.canvas.querySelectorAll('.drop-ok, .drop-invalid').forEach(function(e){
+        e.classList.remove('drop-ok', 'drop-invalid');
+      });
+    }
+
+    // A thin insertion caret shown between terms while dragging a link, so the
+    // exact drop position is visible before release. One reused node, injected
+    // into the live block DOM (pointermove never re-renders) and removed on the
+    // next move / on drop. pointer-events:none keeps it out of elementFromPoint.
+    function clearCaret(){ if (dropCaret && dropCaret.parentNode) dropCaret.parentNode.removeChild(dropCaret); }
+    function exprNodeForIdx(expr, idx){
+      var el = expr.querySelector('[data-idx="' + idx + '"]');
+      if (!el) return null;
+      return el.closest('.cell') || el; // number/linked spans live inside a .cell
+    }
+    function showCaretAt(blockEl, idx){
+      var expr = blockEl.querySelector('.expr'); if (!expr) return;
+      if (!dropCaret) { dropCaret = doc.createElement('span'); dropCaret.className = 'drop-caret'; }
+      var ref = exprNodeForIdx(expr, idx);
+      if (ref) { expr.insertBefore(dropCaret, ref); return; }
+      var eq = expr.querySelector('.eq');                 // append: land before the "=" result
+      if (eq) expr.insertBefore(dropCaret, eq); else expr.appendChild(dropCaret);
     }
 
     function nearbyInsertionTerm(bEl, clientX, clientY) {
@@ -46,21 +68,27 @@
       return best;
     }
 
-    function dropTargetAt(clientX, clientY) {
+    // Resolve a pointer position to an insertion point: the block under the
+    // cursor plus the term index a dropped link should be inserted *before*
+    // (cursor-relative, so the right half of a chip inserts after it). Always an
+    // insertion — never a term to overwrite. idx === terms.length means append.
+    function resolveDrop(clientX, clientY) {
       var under = doc.elementFromPoint(clientX, clientY);
-      var termUnder = under && under.closest && under.closest('.term, .op-missing');
       var bUnder = under && under.closest && under.closest('.block');
-      var insertionIdx = null;
-      var inferred = false;
-      if (bUnder && (!termUnder || termUnder.closest('.block') !== bUnder)) {
-        var nearby = nearbyInsertionTerm(bUnder, clientX, clientY);
-        if (nearby) {
-          termUnder = nearby.el;
-          insertionIdx = nearby.idx;
-          inferred = true;
-        }
-      }
-      return { under: under, term: termUnder, block: bUnder, insertionIdx: insertionIdx, inferred: inferred };
+      var blk = bUnder && deps.byId(bUnder.dataset.id);
+      if (!blk) return { blockEl: null, block: null, idx: null };
+      var nearby = nearbyInsertionTerm(bUnder, clientX, clientY);
+      return { blockEl: bUnder, block: blk, idx: nearby ? nearby.idx : blk.terms.length };
+    }
+
+    // A drop is invalid if it targets the link's own source block, or would
+    // close a dependency loop. Such zones are flagged softly; release is a no-op
+    // (self) or shows the loop explanation (cycle).
+    function dropInvalid(tb) {
+      var ls = pointer.linkSrc;
+      if (tb.id === ls.sourceId) return true;
+      if (ls.sourceTid == null && deps.createsCycle(tb.id, ls.sourceId)) return true;
+      return false;
     }
 
     // Insert a dragged value just before the term at `idx`, gluing it to its
@@ -188,13 +216,16 @@
         // Float the ghost above a finger so it isn't hidden under the fingertip.
         deps.ghost.style.left=e.clientX+'px';
         deps.ghost.style.top=(pointer.touch ? e.clientY-48 : e.clientY)+'px';
-        clearTargets();
-        var target = dropTargetAt(e.clientX, e.clientY);
-        var termUnder = target.term;
-        var bUnder = target.block;
-        var foreign = bUnder && bUnder.dataset.id!==pointer.linkSrc.sourceId;
-        if (termUnder && foreign) termUnder.classList.add('slot-target');
-        else if (foreign) bUnder.classList.add('slot-target');
+        clearTargets(); clearCaret();
+        var drop = resolveDrop(e.clientX, e.clientY);
+        if (drop.block) {
+          if (dropInvalid(drop.block)) {
+            drop.blockEl.classList.add('drop-invalid');
+          } else {
+            drop.blockEl.classList.add('drop-ok');
+            showCaretAt(drop.blockEl, drop.idx);
+          }
+        }
         e.preventDefault();
         return;
       }
@@ -215,35 +246,24 @@
     deps.wrap.addEventListener('pointerup', function(e){
       if (pinching()) { resetPointer(); return; }
       if (pointer.mode==='linking') {
-        var target = dropTargetAt(e.clientX, e.clientY);
-        var termUnder = target.term;
-        var bUnder = target.block;
         var ls = pointer.linkSrc, srcId = ls.sourceId;
-        function cyc(targetId){ return ls.sourceTid==null && deps.createsCycle(targetId, srcId); }
         function newLink(){ return { type:'linked', sourceId: srcId, sourceTid: ls.sourceTid }; }
-        clearTargets();
+        clearTargets(); clearCaret();
         deps.ghost.style.display='none';
 
-        if (bUnder && bUnder.dataset.id!==srcId) {
-          var tb = deps.byId(bUnder.dataset.id);
-          if (tb && !cyc(tb.id)) {
+        var drop = resolveDrop(e.clientX, e.clientY);
+        if (drop.block) {
+          var tb = drop.block;
+          if (tb.id === srcId) { /* dropped back on its own source: no-op */ }
+          else if (ls.sourceTid==null && deps.createsCycle(tb.id, srcId)) { flashCycle(); }
+          else {
+            // Always insert at the resolved gap, gluing with operators as needed.
+            // An existing term is never overwritten.
             deps.snapshot();
-            var idxAttr = target.insertionIdx != null ? target.insertionIdx : (termUnder && termUnder.dataset.idx);
-            if (!target.inferred && termUnder && termUnder.classList.contains('term') && termUnder.classList.contains('number')) {
-              // Dropped on a number: swap it for the link.
-              tb.terms[parseInt(idxAttr,10)] = newLink();
-            } else if (idxAttr != null) {
-              // Dropped on an operator/paren/missing-op: insert before that spot.
-              insertLinkBefore(tb, parseInt(idxAttr,10), newLink());
-            } else {
-              // Dropped on the block but not on a term: append.
-              var lastT = tb.terms[tb.terms.length-1];
-              if (lastT && lastT.type!=='operator') tb.terms.push({type:'operator', value:'+'});
-              tb.terms.push(newLink());
-            }
+            insertLinkBefore(tb, drop.idx, newLink());
             deps.setActiveBlockId(tb.id); deps.clearSelection(); deps.renderAll(); deps.save();
-          } else { flashCycle(); }
-        } else if (!bUnder) {
+          }
+        } else {
           var pt = toCanvas(e.clientX, e.clientY);
           deps.snapshot();
           var nb = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
@@ -320,7 +340,7 @@
       if (pinchCount()===2) {
         var ids=Object.keys(pinchPts), a=pinchPts[ids[0]], b=pinchPts[ids[1]];
         pinch = { dist: Math.hypot(b.x-a.x, b.y-a.y), z: deps.getZoom() };
-        resetPointer(); deps.ghost.style.display='none'; clearTargets();
+        resetPointer(); deps.ghost.style.display='none'; clearTargets(); clearCaret();
       }
     }, true);
     deps.wrap.addEventListener('pointermove', function(e){
