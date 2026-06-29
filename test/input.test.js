@@ -308,6 +308,56 @@ test('repeated ± on a result toggles the negation in place, no extra blocks', (
   assert.equal(termSig(neg), 'number:-1 operator:* linked:' + a.id);
 });
 
+test('copy then paste rebuilds a live link in the same session', () => {
+  const h = harness();
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k)); // A = 10
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  // B = linked(A) + 1
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [
+    { type: 'linked', sourceId: a.id }, { type: 'operator', value: '+' }, { type: 'number', value: '1', tid: 't-b' }
+  ] });
+  // Copy B (select its result) -> text is value-based, structure is kept internally.
+  h.state.sel = { blockId: 'B', termIndex: null, kind: 'result' };
+  const text = h.ctl.copySelection();
+  assert.equal(text, '10 + 1');
+  // Paste into a fresh block.
+  h.state.sel = { blockId: null, termIndex: null, kind: null };
+  h.state.activeBlockId = null;
+  assert.equal(h.ctl.pasteText(text), true);
+  const pasted = h.canvas.blocks[h.canvas.blocks.length - 1];
+  assert.equal(termSig(pasted), 'linked:' + a.id + ' operator:+ number:1'); // link preserved
+});
+
+test('paste freezes a copied link whose source was deleted, to its copied value', () => {
+  const h = harness();
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k)); // A = 10
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  h.canvas.blocks.push({ id: 'B', x: 0, y: 0, label: '', terms: [{ type: 'linked', sourceId: a.id }] });
+  h.state.sel = { blockId: 'B', termIndex: null, kind: 'result' };
+  const text = h.ctl.copySelection(); // "10"
+  // Source A disappears before pasting.
+  h.canvas.blocks = h.canvas.blocks.filter((b) => b.id !== a.id);
+  h.state.sel = { blockId: null, termIndex: null, kind: null };
+  h.state.activeBlockId = null;
+  assert.equal(h.ctl.pasteText(text), true);
+  const pasted = h.canvas.blocks[h.canvas.blocks.length - 1];
+  assert.equal(termSig(pasted), 'number:10'); // frozen to its copied value, no dangling link
+});
+
+test('external text that is not our copy still parses to plain numbers', () => {
+  const h = harness();
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k));
+  h.state.sel = { blockId: h.canvas.blocks[0].id, termIndex: 0, kind: 'number' };
+  h.ctl.copySelection(); // internal clip text is "10"
+  h.state.sel = { blockId: null, termIndex: null, kind: null };
+  h.state.activeBlockId = null;
+  assert.equal(h.ctl.pasteText('7 + 8'), true); // different text -> not internal
+  const pasted = h.canvas.blocks[h.canvas.blocks.length - 1];
+  assert.equal(termSig(pasted), 'number:7 operator:+ number:8');
+});
+
 test('currentSelectionText returns the selected number, else the active block expression', () => {
   const h = harness();
   ['9', '+', '1'].forEach((k) => h.ctl.pressKey(k));

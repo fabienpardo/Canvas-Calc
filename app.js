@@ -475,6 +475,7 @@
   function pressKey(k){ inputCtl.pressKey(k); }
   function pasteText(text){ return inputCtl.pasteText(text); }
   function currentSelectionText(){ return inputCtl.currentSelectionText(); }
+  function copySelection(){ return inputCtl.copySelection(); }
 
   CanvasInteractions.create({
     document: document,
@@ -645,7 +646,7 @@
       state.showGrid = !state.showGrid; applyGrid(); save(); closeMenu(false);
     });
     document.getElementById('copyItem').addEventListener('click', function(){
-      var t = currentSelectionText();
+      var t = copySelection();
       if (t==null || t==='') { showNotice('Select a number, result, or calculation to copy.'); closeMenu(false); return; }
       if (!navigator.clipboard || !navigator.clipboard.writeText) { showNotice('Clipboard copy is not available.'); closeMenu(false); return; }
       navigator.clipboard.writeText(t).catch(function(){ showNotice('Could not copy to the clipboard.'); });
@@ -667,7 +668,7 @@
   document.addEventListener('copy', function(e){
     var ae = document.activeElement;
     if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
-    var t = currentSelectionText();
+    var t = copySelection();
     if (t!=null && t!=='') { e.clipboardData.setData('text/plain', t); e.preventDefault(); }
   });
   document.addEventListener('paste', function(e){

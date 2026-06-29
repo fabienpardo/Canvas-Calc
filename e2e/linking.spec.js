@@ -104,6 +104,37 @@ test('dragging a result onto its own block is refused as an invalid zone', async
   await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 
+test('copy/paste keeps a linked value live within the session', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const ab = await a.boundingBox();
+  // B = a live alias of A (drag A's result to empty canvas).
+  await dragResultTo(page, a.locator('.result'), ab.x + 280, ab.y + 240);
+  await expect(page.locator('.block')).toHaveCount(2);
+  const b = page.locator('.block').nth(1);
+  await expect(b.locator('.term.linked')).toHaveText('5');
+
+  // Copy B, deselect, paste -> a third block that is still a live link.
+  await b.locator('.result').click();
+  await page.locator('#menuBtn').click();
+  await page.locator('#copyItem').click();
+  await page.locator('#canvas').click({ position: { x: 520, y: 430 } }); // deselect
+  await page.locator('#menuBtn').click();
+  await page.locator('#pasteItem').click();
+  await expect(page.locator('.block')).toHaveCount(3);
+  const c = page.locator('.block').nth(2);
+  await expect(c.locator('.term.linked')).toHaveText('5'); // a link, not a frozen "5"
+
+  // Editing the source cascades to the pasted copy too.
+  await a.locator('.term.number', { hasText: '3' }).click();
+  await press(page, 'back');
+  await press(page, '8'); // A = 2 + 8 = 10
+  await expect(c.locator('.term.linked')).toHaveText('10');
+});
+
 test('keyboard users can link a result into another block with the L key', async ({ page }) => {
   await fresh(page);
   // block A = 2 + 3

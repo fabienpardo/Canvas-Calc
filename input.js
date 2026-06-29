@@ -111,6 +111,70 @@
     }
 
     // ---------- Copy / paste ----------
+    // In-memory structural clipboard so an in-app copy can be pasted back as live
+    // links rather than flattened numbers. Matched against the system clipboard
+    // text on paste, so external text still parses normally and our own copy is
+    // only rebuilt when the clipboard still holds exactly what we wrote.
+    var internalClip = null; // { text, terms }
+
+    function cloneTermForClip(t) {
+      if (t.type === 'number') return { type: 'number', value: t.value };
+      if (t.type === 'linked') {
+        // Remember the value now, so if the source is gone by paste time the link
+        // freezes to what it actually showed when copied, not 0.
+        var lv = deps.linkedValue(t, deps.blocksMap());
+        return { type: 'linked', sourceId: t.sourceId, sourceTid: t.sourceTid,
+          frozen: lv == null ? 0 : Math.round(lv * 1e10) / 1e10 };
+      }
+      return { type: t.type, value: t.value };
+    }
+    // The terms the current selection represents (single value, or a whole block).
+    function selectionTerms() {
+      var sel = deps.getSelection();
+      if (sel.blockId != null && sel.termIndex != null && (sel.kind === 'number' || sel.kind === 'linked')) {
+        var b = deps.byId(sel.blockId), t = b && b.terms[sel.termIndex];
+        return t ? [cloneTermForClip(t)] : null;
+      }
+      var activeBlockId = deps.getActiveBlockId();
+      var rb = (sel.kind === 'result' && sel.blockId != null) ? deps.byId(sel.blockId)
+             : (activeBlockId ? deps.byId(activeBlockId) : null);
+      return rb && rb.terms.length ? rb.terms.map(cloneTermForClip) : null;
+    }
+    // Capture the selection both as text (for the system clipboard / external
+    // apps) and as structure (for same-session link-preserving paste).
+    function copySelection() {
+      var text = currentSelectionText();
+      if (text == null || text === '') { internalClip = null; return null; }
+      internalClip = { text: text, terms: selectionTerms() };
+      return text;
+    }
+
+    function sourcePresent(t, map) {
+      var src = map[t.sourceId];
+      if (!src) return false;
+      if (t.sourceTid == null) return true; // result link: the block still exists
+      for (var i = 0; i < src.terms.length; i++) {
+        if (src.terms[i].type === 'number' && src.terms[i].tid === t.sourceTid) return true;
+      }
+      return false;
+    }
+    // Turn clipped terms into insertable terms: keep a link live when its source
+    // still exists and wouldn't loop into the target; otherwise freeze it to its
+    // last value so the paste is always a valid expression.
+    function rebuildClip(terms, target) {
+      var map = deps.blocksMap();
+      return terms.map(function (t) {
+        if (t.type !== 'linked') return { type: t.type, value: t.value };
+        var cycles = t.sourceTid == null && target && deps.createsCycle && deps.createsCycle(target.id, t.sourceId);
+        if (sourcePresent(t, map) && !cycles && (!target || t.sourceId !== target.id)) {
+          return { type: 'linked', sourceId: t.sourceId, sourceTid: t.sourceTid };
+        }
+        var lv = deps.linkedValue(t, map);
+        var v = lv == null ? (t.frozen != null ? t.frozen : 0) : Math.round(lv * 1e10) / 1e10;
+        return { type: 'number', value: String(v) };
+      });
+    }
+
     // Plain-text expression for a block (used when copying a result/block).
     function expressionText(b) {
       return b.terms.map(function (t) {
@@ -140,8 +204,9 @@
     // block (or a new one) when nothing is selected. Insertion glues with '+' so
     // it never overwrites a term — the same rule as a drag-drop insert.
     function pasteText(text) {
-      var terms = deps.parseExpression(text);
-      if (!terms.length) return false;
+      var isInternal = !!(internalClip && internalClip.terms && internalClip.text === text);
+      var rawTerms = isInternal ? internalClip.terms : deps.parseExpression(text);
+      if (!rawTerms || !rawTerms.length) return false;
       deps.commit(function () {
         var sel = deps.getSelection();
         var target = null, idx = null;
@@ -153,6 +218,9 @@
           }
         }
         if (!target) { target = ensureActiveBlock(); idx = target.terms.length; }
+        // Internal paste rebuilds live links (relative to the target); external
+        // text is just the parsed terms.
+        var terms = isInternal ? rebuildClip(rawTerms, target) : rawTerms;
         terms.forEach(function (t) {
           if (t.type === 'number' && t.tid == null) t.tid = 't' + (deps.cur().nextTid++); // engine returns tid-less numbers
         });
@@ -396,7 +464,8 @@
       pressKey: pressKey,
       pasteText: pasteText,
       expressionText: expressionText,
-      currentSelectionText: currentSelectionText
+      currentSelectionText: currentSelectionText,
+      copySelection: copySelection
     };
   }
 
