@@ -202,6 +202,25 @@ test('pasteText reports invalid expressions without changing state', () => {
   assert.equal(h.state.snaps, 0);
 });
 
+test('pasteText inserts after a selected term, gluing instead of appending', () => {
+  const h = harness();
+  ['5', '+', '3'].forEach((k) => h.ctl.pressKey(k)); // 5 + 3
+  const b = h.canvas.blocks[0];
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' }; // select the "5"
+  assert.equal(h.ctl.pasteText('9'), true);
+  assert.equal(termSig(b), 'number:5 operator:+ number:9 operator:+ number:3');
+});
+
+test('pasteText fills a missing-operator gap', () => {
+  const h = harness();
+  h.canvas.blocks.push({ id: 'bg', x: 0, y: 0, label: '', terms: [
+    { type: 'number', value: '5', tid: 't-a' }, { type: 'number', value: '8', tid: 't-b' }
+  ] });
+  h.state.sel = { blockId: 'bg', termIndex: 1, kind: 'missing-op' };
+  assert.equal(h.ctl.pasteText('9'), true);
+  assert.equal(termSig(h.canvas.blocks.find((b) => b.id === 'bg')), 'number:5 operator:+ number:9 operator:+ number:8');
+});
+
 test('currentSelectionText returns the selected number, else the active block expression', () => {
   const h = harness();
   ['9', '+', '1'].forEach((k) => h.ctl.pressKey(k));

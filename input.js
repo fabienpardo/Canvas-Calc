@@ -74,17 +74,28 @@
       return rb && rb.terms.length ? expressionText(rb) : null;
     }
 
-    // Insert parsed terms into the active block (or a new one).
+    // Insert parsed terms at the current selection/gap, or append to the active
+    // block (or a new one) when nothing is selected. Insertion glues with '+' so
+    // it never overwrites a term — the same rule as a drag-drop insert.
     function pasteText(text) {
       var terms = deps.parseExpression(text);
       if (!terms.length) return false;
       deps.commit(function () {
-        var b = ensureActiveBlock();
+        var sel = deps.getSelection();
+        var target = null, idx = null;
+        if (sel.blockId != null && sel.termIndex != null) {
+          target = deps.byId(sel.blockId);
+          if (target) {
+            // Land in a missing-operator gap; otherwise just after the selection.
+            idx = sel.kind === 'missing-op' ? sel.termIndex : sel.termIndex + 1;
+          }
+        }
+        if (!target) { target = ensureActiveBlock(); idx = target.terms.length; }
         terms.forEach(function (t) {
           if (t.type === 'number' && t.tid == null) t.tid = 't' + (deps.cur().nextTid++); // engine returns tid-less numbers
-          b.terms.push(t);
         });
-        deps.setActiveBlockId(b.id); deps.clearSelection();
+        Editing.insertTermsAt(target, idx, terms);
+        deps.setActiveBlockId(target.id); deps.clearSelection();
       });
       return true;
     }

@@ -10,6 +10,26 @@ function link(id) { return { type: 'linked', sourceId: id }; }
 function block(terms) { return { id: 'b1', terms: terms.slice() }; }
 function newNumber(value) { return num(value); }
 
+test('insertTermsAt glues with + only where two values would touch', () => {
+  const sig = (b) => b.terms.map((t) => t.type + ':' + (t.value ?? t.sourceId)).join(' ');
+  // into a missing-operator gap between two numbers -> + on both sides
+  const gap = block([num(5), num(8)]);
+  Editing.insertTermsAt(gap, 1, [num(9)]);
+  assert.equal(sig(gap), 'number:5 operator:+ number:9 operator:+ number:8');
+  // after a number, before an operator -> + before only
+  const mid = block([num(5), op('+'), num(3)]);
+  Editing.insertTermsAt(mid, 1, [num(9)]);
+  assert.equal(sig(mid), 'number:5 operator:+ number:9 operator:+ number:3');
+  // appending after a trailing operator needs no glue
+  const tail = block([num(5), op('+')]);
+  Editing.insertTermsAt(tail, tail.terms.length, [num(3)]);
+  assert.equal(sig(tail), 'number:5 operator:+ number:3');
+  // a parenthesised run keeps its own operators and binds with +
+  const par = block([num(2)]);
+  Editing.insertTermsAt(par, 1, [{ type: 'paren', value: '(' }, num(3), op('+'), num(4), { type: 'paren', value: ')' }]);
+  assert.equal(sig(par), 'number:2 operator:+ paren:( number:3 operator:+ number:4 paren:)');
+});
+
 test('insertOperatorAfterSelection freezes empty numbers and selects the inserted slot', () => {
   const b = block([num(5), op('+'), { type: 'number', value: '', tid: 't-empty' }, op('+'), num(2)]);
   const next = Editing.insertOperatorAfterSelection(b, 2, '-', newNumber);

@@ -175,6 +175,31 @@
     return { blockId: block.id, termIndex: idx, kind: 'operator' };
   }
 
+  // A term that a following value would collide with (its right edge is a value).
+  function endsWithValue(t) {
+    return !!t && (t.type === 'number' || t.type === 'linked' || (t.type === 'paren' && t.value === ')'));
+  }
+  // A term that a preceding value would collide with (its left edge is a value).
+  function startsWithValue(t) {
+    return !!t && (t.type === 'number' || t.type === 'linked' || (t.type === 'paren' && t.value === '('));
+  }
+
+  // Splice a run of terms (e.g. a pasted sub-expression) into a block at idx,
+  // gluing with '+' wherever the insertion would leave two values touching.
+  // idx === block.terms.length appends. Never overwrites; mirrors the drag-drop
+  // insertion rule so paste and drag behave the same. Returns the index just
+  // past the inserted run.
+  function insertTermsAt(block, idx, terms) {
+    if (!block || !terms || !terms.length) return idx;
+    var seq = terms.slice();
+    var before = block.terms[idx - 1];
+    var at = block.terms[idx];
+    if (endsWithValue(seq[seq.length - 1]) && startsWithValue(at)) seq.push({ type: 'operator', value: '+' });
+    if (endsWithValue(before) && startsWithValue(seq[0])) seq.unshift({ type: 'operator', value: '+' });
+    Array.prototype.splice.apply(block.terms, [idx, 0].concat(seq));
+    return idx + seq.length;
+  }
+
   function backspaceActiveBlock(block) {
     var terms = block.terms;
     var last = terms[terms.length - 1];
@@ -230,6 +255,7 @@
     balanceParens: balanceParens,
     insertParenNearSelection: insertParenNearSelection,
     insertOperatorAtGap: insertOperatorAtGap,
+    insertTermsAt: insertTermsAt,
     backspaceActiveBlock: backspaceActiveBlock,
     appendOperator: appendOperator,
     appendDigitOrDot: appendDigitOrDot
