@@ -13,6 +13,7 @@ test('service worker precaches the app shell + engine', () => {
   assert.match(sw, /'\.\/app\.js'/);
   assert.match(sw, /'\.\/state\.js'/);
   assert.match(sw, /'\.\/engine\.js'/); // forgetting this would silently break offline mode
+  assert.match(sw, /'\.\/sidebar\.js'/);
   assert.match(sw, /'\.\/render\.js'/);
   assert.match(sw, /'\.\/interactions\.js'/);
   assert.match(sw, /'\.\/canvases\.js'/);
@@ -31,8 +32,15 @@ test('non-GET requests are not intercepted', () => {
   assert.match(sw, /method !== 'GET'/);
 });
 
-test('old caches are cleaned on activate', () => {
-  assert.match(sw, /caches\.delete/);
+test('old Canvas Calc caches are cleaned without touching other cache namespaces', () => {
+  assert.match(sw, /CACHE_PREFIX = 'canvas-calc-'/);
+  assert.match(sw, /k\.indexOf\(CACHE_PREFIX\) === 0 && k !== CACHE/);
+  assert.match(sw, /caches\.delete\(k\)/);
+});
+
+test('runtime cache reads are scoped to the current app cache', () => {
+  assert.doesNotMatch(sw, /caches\.match\(req\)/);
+  assert.match(sw, /c\.match\(req\)/);
 });
 
 test('asset revision matches the precached app shell contents', () => {

@@ -2,11 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<!-- maximum-scale/user-scalable disable the browser's own zoom (incl. iOS's
-     auto-zoom when focusing a sub-16px field, which left users stranded since
-     the canvas uses touch-action:none). The app owns zoom via its own pinch
-     handler and zoom controls. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f8fafc">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon-32.png" sizes="32x32">
@@ -134,6 +130,7 @@
 
 <script src="state.js"></script>
 <script src="engine.js"></script>
+<script src="sidebar.js"></script>
 <script src="render.js"></script>
 <script src="interactions.js"></script>
 <script src="canvases.js"></script>

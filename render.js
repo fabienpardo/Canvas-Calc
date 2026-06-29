@@ -1,5 +1,5 @@
 /* Canvas Calc - DOM rendering helpers.
- * Owns block rendering, link drawing, and the variables sidebar.
+ * Owns block rendering, keyed reconciliation, and link drawing.
  */
 (function (root, factory) {
   var api = factory();
@@ -10,33 +10,7 @@
 
   var LINK_PALETTE = ['#c9772f','#3f8f6b','#7b5ea7','#b8456b','#3d7bb0','#9a7b1f','#5a8f3d','#b0568f'];
 
-  var SEP = ''; // signature field separator (won't appear in user data)
-
-  function escapeRegex(s) {
-    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  function normalizeSidebarNumber(raw, group, decimal) {
-    if (raw == null) return null;
-    group = group == null ? ',' : String(group);
-    decimal = decimal == null ? '.' : String(decimal);
-    var value = String(raw).trim();
-    if (!value) return null;
-
-    var g = group ? escapeRegex(group) : null;
-    var d = decimal ? escapeRegex(decimal) : '\\.';
-    var plainInt = '\\d+';
-    var groupedInt = g ? '\\d{1,3}(?:' + g + '\\d{3})+' : plainInt;
-    var intPart = '(?:' + plainInt + '|' + groupedInt + ')';
-    var pattern = new RegExp('^-?(?:(?:' + intPart + ')(?:' + d + '\\d*)?|' + d + '\\d+)$');
-    if (!pattern.test(value)) return null;
-
-    var normalized = group ? value.split(group).join('') : value;
-    if (decimal !== '.') normalized = normalized.split(decimal).join('.');
-    if (normalized.charAt(0) === '.') normalized = '0' + normalized;
-    if (normalized.slice(0, 2) === '-.') normalized = '-0' + normalized.slice(1);
-    return normalized;
-  }
+  var SEP = '\u0001'; // signature field separator (won't appear in user data)
 
   function create(deps) {
     var doc = deps.document || document;
@@ -46,6 +20,26 @@
     var blockEls = {};  // id -> element
     var blockSigs = {}; // id -> signature string
     var lastCanvasId = null; // reconcile is keyed by block id, which repeats across canvases
+    var SidebarApi = deps.Sidebar || (typeof CanvasSidebar !== 'undefined' ? CanvasSidebar : null);
+    var sidebarCtl = SidebarApi ? SidebarApi.create({
+      document: doc,
+      cur: cur,
+      sidebar: deps.sidebar,
+      sidebarBody: deps.sidebarBody,
+      byId: deps.byId,
+      blocksMap: deps.blocksMap,
+      isComplete: deps.isComplete,
+      missingOperatorIndex: deps.missingOperatorIndex,
+      fmt: deps.fmt,
+      resolve: deps.resolve,
+      groupDisplay: deps.groupDisplay,
+      blockDefinition: deps.blockDefinition,
+      snapshot: deps.snapshot,
+      save: deps.save,
+      renderAll: renderAll,
+      NUM_GROUP: deps.NUM_GROUP,
+      NUM_DECIMAL: deps.NUM_DECIMAL
+    }) : null;
 
     // Wipe reconciliation state and any rendered blocks (used when the active
     // canvas changes, since block ids are only unique within a canvas).
@@ -454,24 +448,6 @@
       });
     }
 
-    // One entry per block (in canvas order): its number operands plus whether
-    // the block currently evaluates to a result. Empty drafts are skipped.
-    function collectGroups() {
-      var groups = [];
-      cur().blocks.forEach(function(b){
-        var inputs = [];
-        b.terms.forEach(function(t, idx){
-          if (t.type==='number') inputs.push({ bid:b.id, idx:idx, t:t });
-        });
-        var isResult = deps.isComplete(b.terms) && deps.missingOperatorIndex(b.terms) < 0;
-        if (!inputs.length && !isResult) return;
-        groups.push({ block:b, inputs:inputs, isResult:isResult });
-      });
-      return groups;
-    }
-
-    function sidebarOpen(){ return deps.sidebar.classList.contains('open'); }
-
     function layoutOverlays() {
       var win = doc.defaultView || window;
       var wide = win.matchMedia && win.matchMedia('(min-width: 760px)').matches;
@@ -484,145 +460,11 @@
     }
 
     function syncSidebar() {
-      if (!sidebarOpen()) return;
-      if (deps.sidebar.contains(doc.activeElement)) refreshSidebarValues();
-      else renderSidebar();
-    }
-
-    function scheduleSidebarRebuild() {
-      setTimeout(function(){
-        if (deps.sidebar.classList.contains('open') && !deps.sidebar.contains(doc.activeElement)) renderSidebar();
-      }, 0);
-    }
-
-    function refreshSidebarValues() {
-      var map = deps.blocksMap();
-      deps.sidebarBody.querySelectorAll('.var-val[data-kind="result"]').forEach(function(el){
-        var b = deps.byId(el.dataset.bid); if (b) el.textContent = deps.fmt(deps.resolve(b, map));
-      });
-      deps.sidebarBody.querySelectorAll('.var-def').forEach(function(el){
-        var b = deps.byId(el.dataset.bid); if (b) el.textContent = '= ' + deps.blockDefinition(b, map);
-      });
-      deps.sidebarBody.querySelectorAll('.var-val[data-kind="input"]').forEach(function(el){
-        if (el === doc.activeElement) return;
-        var b = deps.byId(el.dataset.bid); if (!b) return;
-        var t = b.terms[el.dataset.idx]; if (t) el.value = deps.groupDisplay(t.value);
-      });
+      if (sidebarCtl) sidebarCtl.syncSidebar();
     }
 
     function renderSidebar() {
-      var body = deps.sidebarBody;
-      var map = deps.blocksMap();
-      var groups = collectGroups();
-      body.innerHTML = '';
-
-      if (!groups.length) {
-        var e = doc.createElement('div'); e.className = 'var-empty';
-        e.textContent = 'No variables yet. Numbers and results show up here once you start a calculation — tap a name to label them.';
-        body.appendChild(e);
-        return;
-      }
-
-      // Each block becomes a group: its result (or a pending marker) as the
-      // heading, with the block's number operands nested below it.
-      groups.forEach(function(g){
-        var sec = doc.createElement('div'); sec.className = 'var-group';
-        sec.appendChild(groupHead(g.block, g.isResult, map));
-        g.inputs.forEach(function(it){ sec.appendChild(inputRow(it)); });
-        body.appendChild(sec);
-      });
-    }
-
-    function inputRow(it) {
-      var row = doc.createElement('div'); row.className = 'var-row';
-
-      var name = doc.createElement('input');
-      name.className = 'var-name'; name.value = it.t.label || '';
-      name.placeholder = 'unnamed';
-      var nameDirty = false;
-      name.addEventListener('focus', function(){ nameDirty = false; });
-      name.addEventListener('input', function(){
-        var b = deps.byId(it.bid); if (!b) return;
-        var t = b.terms[it.idx]; if (!t) return;
-        if (!nameDirty) { deps.snapshot(); nameDirty = true; }
-        t.label = name.value; deps.save(); renderAll();
-      });
-      name.addEventListener('blur', function(){ nameDirty = false; scheduleSidebarRebuild(); });
-
-      var val = doc.createElement('input');
-      val.className = 'var-val'; val.value = deps.groupDisplay(it.t.value);
-      val.inputMode = 'decimal';
-      val.dataset.bid = it.bid; val.dataset.idx = it.idx; val.dataset.kind = 'input';
-      var valDirty = false;
-      val.addEventListener('focus', function(){
-        valDirty = false;
-        var b = deps.byId(it.bid), t = b && b.terms[it.idx];
-        if (t) val.value = t.value;
-      });
-      val.addEventListener('input', function(){
-        var b = deps.byId(it.bid); if (!b) return;
-        var t = b.terms[it.idx]; if (!t) return;
-        var nextValue = normalizeSidebarNumber(val.value, deps.NUM_GROUP, deps.NUM_DECIMAL);
-        if (nextValue == null) {
-          val.classList.add('invalid');
-          val.setAttribute('aria-invalid', 'true');
-          return;
-        }
-        val.classList.remove('invalid');
-        val.removeAttribute('aria-invalid');
-        if (!valDirty) { deps.snapshot(); valDirty = true; }
-        t.value = nextValue;
-        deps.save(); renderAll();
-      });
-      val.addEventListener('blur', function(){
-        valDirty = false;
-        val.classList.remove('invalid');
-        val.removeAttribute('aria-invalid');
-        var b = deps.byId(it.bid), t = b && b.terms[it.idx];
-        if (t) val.value = deps.groupDisplay(t.value);
-        scheduleSidebarRebuild();
-      });
-
-      row.appendChild(name); row.appendChild(val);
-      return row;
-    }
-
-    // The heading for a block's group: an editable block name, plus either its
-    // computed result + definition (when complete) or a muted pending marker.
-    function groupHead(b, isResult, map) {
-      var row = doc.createElement('div'); row.className = 'var-row var-head';
-
-      var name = doc.createElement('input');
-      name.className = 'var-name'; name.value = b.label || '';
-      name.placeholder = 'unnamed';
-      var nameDirty = false;
-      name.addEventListener('focus', function(){ nameDirty = false; });
-      name.addEventListener('input', function(){
-        var nb = deps.byId(b.id); if (!nb) return;
-        if (!nameDirty) { deps.snapshot(); nameDirty = true; }
-        nb.label = name.value; deps.save(); renderAll();
-      });
-      name.addEventListener('blur', function(){ nameDirty = false; scheduleSidebarRebuild(); });
-      row.appendChild(name);
-
-      if (isResult) {
-        var val = doc.createElement('span');
-        val.className = 'var-val ro'; val.dataset.bid = b.id; val.dataset.kind = 'result';
-        val.textContent = deps.fmt(deps.resolve(b, map));
-        row.appendChild(val);
-
-        var def = doc.createElement('div');
-        def.className = 'var-def'; def.dataset.bid = b.id;
-        def.textContent = '= ' + deps.blockDefinition(b, map);
-        row.appendChild(def);
-      } else {
-        var pend = doc.createElement('span');
-        pend.className = 'var-val ro var-pending';
-        pend.textContent = '…'; // … : block isn't a complete calculation yet
-        row.appendChild(pend);
-      }
-
-      return row;
+      if (sidebarCtl) sidebarCtl.renderSidebar();
     }
 
     return {
@@ -633,10 +475,9 @@
       drawLinks: drawLinks,
       layoutOverlays: layoutOverlays,
       renderSidebar: renderSidebar,
-      syncSidebar: syncSidebar,
-      scheduleSidebarRebuild: scheduleSidebarRebuild
+      syncSidebar: syncSidebar
     };
   }
 
-  return { create: create, normalizeSidebarNumber: normalizeSidebarNumber };
+  return { create: create };
 });
