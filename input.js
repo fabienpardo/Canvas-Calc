@@ -74,6 +74,13 @@
     }
     function placePendingLink(sel) {
       var src = pendingLink;
+      // The source can be deleted between pickup and placement (it stays selected
+      // after L, so Delete reaches it). Never commit a link to a vanished source.
+      if (!sourcePresent({ type: 'linked', sourceId: src.sourceId, sourceTid: src.sourceTid }, deps.blocksMap())) {
+        pendingLink = null;
+        status('Link cancelled — the value is no longer available.');
+        return;
+      }
       var target = sel.blockId != null ? deps.byId(sel.blockId) : null;
       if (!target) { status('Select a target slot, then press L to place the link.'); return; }
       var idx;

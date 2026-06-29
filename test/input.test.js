@@ -272,6 +272,25 @@ test('keyboard link: pick up a result and place it into another block', () => {
   assert.equal(h.state.linkStatus, ''); // cleared after placing
 });
 
+test('keyboard link: a source deleted after pickup cancels instead of dangling', () => {
+  const h = harness();
+  ['8'].forEach((k) => h.ctl.pressKey(k)); // A = 8
+  const a = h.canvas.blocks[0];
+  h.ctl.pressKey('=');
+  ['1', '0'].forEach((k) => h.ctl.pressKey(k)); // B = 10
+  const b = h.canvas.blocks[1];
+  h.ctl.pressKey('=');
+  // Pick up A's result, then delete A before choosing a target.
+  h.state.sel = { blockId: a.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('link');
+  h.canvas.blocks = h.canvas.blocks.filter((x) => x.id !== a.id);
+  // Target B and try to place: it must cancel, not insert a dangling link.
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /no longer available/);
+  assert.equal(termSig(b), 'number:10'); // unchanged
+});
+
 test('keyboard link: a link that would create a cycle is refused', () => {
   const h = harness();
   ['8'].forEach((k) => h.ctl.pressKey(k)); // A = 8
