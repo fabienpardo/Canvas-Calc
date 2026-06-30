@@ -58,6 +58,12 @@
     overscroll-behavior: none; touch-action: none;
     -webkit-user-select: none; user-select: none;
   }
+  /* While a real text field is focused (e.g. canvas rename), allow native
+     pinch-zoom so the user isn't stuck unable to zoom out from under the
+     iOS keyboard. See the focusin/focusout handler in app.js. */
+  html.text-editing, html.text-editing body {
+    touch-action: auto;
+  }
   input, textarea, [contenteditable="true"] {
     -webkit-user-select: text; user-select: text;
   }
