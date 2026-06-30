@@ -135,6 +135,7 @@
     sidebarBody: document.getElementById('sidebarBody'),
     numpad: document.getElementById('numpad'),
     zoomCtl: document.getElementById('zoomCtl'),
+    linkTip: document.getElementById('linkTip'),
     cur: cur,
     getSelection: store.getSelection,
     setSelection: store.setSelection,
