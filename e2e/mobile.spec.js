@@ -9,7 +9,7 @@ test.use({
   hasTouch: true,
 });
 
-async function touchDragToPoint(page, source, tx, ty) {
+async function touchDragToPoint(page, source, tx, ty, beforeEnd) {
   const box = await source.boundingBox();
   const sx = box.x + box.width / 2;
   const sy = box.y + box.height / 2;
@@ -32,6 +32,7 @@ async function touchDragToPoint(page, source, tx, ty) {
     });
     await page.waitForTimeout(16);
   }
+  if (beforeEnd) await beforeEnd();
   await client.send('Input.dispatchTouchEvent', {
     type: 'touchEnd',
     touchPoints: [],
@@ -101,7 +102,7 @@ test('mobile: long expression input follows the caret above the keypad', async (
   expect(caret.y + caret.height).toBeLessThan(pad.y - 12);
 });
 
-test('mobile: dropping just before a linked term inserts before it', async ({ page, browserName }) => {
+test('mobile: dropping with the finger below the preview inserts at the visible target', async ({ page, browserName }) => {
   // touchDragToPoint drives synthetic touches via CDP, which is Chromium-only.
   test.skip(browserName !== 'chromium', 'touch-drag helper uses Chromium-only CDP touch events');
   await fresh(page);
@@ -118,7 +119,10 @@ test('mobile: dropping just before a linked term inserts before it', async ({ pa
   const source = page.locator('.block').first().locator('.term.number', { hasText: '8' });
   const linked = targetBlock.locator('.term.linked', { hasText: '61.8' });
   const box = await linked.boundingBox();
-  await touchDragToPoint(page, source, box.x - 8, box.y + box.height / 2);
+  await touchDragToPoint(page, source, box.x - 8, box.y + box.height / 2 + 48, async () => {
+    await expect(targetBlock).toHaveClass(/drop-ok/);
+    await expect(targetBlock.locator('.drop-caret')).toHaveCount(1);
+  });
 
   await expect(targetBlock.locator('.expr .term')).toHaveText(['8', '+', '61.8', '+', '5']);
   await expect(targetBlock.locator('.result')).toHaveText('74.8');

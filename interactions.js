@@ -13,6 +13,7 @@
     var pinchPts = {}, pinch = null;
     var lpTimer = null;
     var dropCaret = null;
+    var TOUCH_DROP_Y_OFFSET = 48;
 
     function pinchCount(){ return Object.keys(pinchPts).length; }
     function pinching(){ return !!pinch; }
@@ -79,6 +80,13 @@
       if (!blk) return { blockEl: null, block: null, idx: null };
       var nearby = nearbyInsertionTerm(bUnder, clientX, clientY);
       return { blockEl: bUnder, block: blk, idx: nearby ? nearby.idx : blk.terms.length };
+    }
+
+    function linkIntentPoint(e) {
+      return {
+        x: e.clientX,
+        y: pointer.touch ? e.clientY - TOUCH_DROP_Y_OFFSET : e.clientY
+      };
     }
 
     // A drop is invalid if it targets the link's own source block, or would
@@ -215,9 +223,10 @@
       if (pointer.mode==='linking') {
         // Float the ghost above a finger so it isn't hidden under the fingertip.
         deps.ghost.style.left=e.clientX+'px';
-        deps.ghost.style.top=(pointer.touch ? e.clientY-48 : e.clientY)+'px';
+        deps.ghost.style.top=(pointer.touch ? e.clientY-TOUCH_DROP_Y_OFFSET : e.clientY)+'px';
         clearTargets(); clearCaret();
-        var drop = resolveDrop(e.clientX, e.clientY);
+        var intent = linkIntentPoint(e);
+        var drop = resolveDrop(intent.x, intent.y);
         if (drop.block) {
           if (dropInvalid(drop.block)) {
             drop.blockEl.classList.add('drop-invalid');
@@ -251,7 +260,8 @@
         clearTargets(); clearCaret();
         deps.ghost.style.display='none';
 
-        var drop = resolveDrop(e.clientX, e.clientY);
+        var intent = linkIntentPoint(e);
+        var drop = resolveDrop(intent.x, intent.y);
         if (drop.block) {
           var tb = drop.block;
           if (tb.id === srcId) { /* dropped back on its own source: no-op */ }
@@ -264,7 +274,7 @@
             deps.setActiveBlockId(tb.id); deps.clearSelection(); deps.renderAll(); deps.save();
           }
         } else {
-          var pt = toCanvas(e.clientX, e.clientY);
+          var pt = toCanvas(intent.x, intent.y);
           deps.snapshot();
           var nb = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
           nb.terms.push(newLink());
