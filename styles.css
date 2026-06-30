@@ -400,7 +400,19 @@
     margin: 0; background: var(--accent); border-radius: 1px;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
   }
+  /* While a label is being edited, the caret in the caption is the only focus
+     the eye should track — mute every term/operator/number/result selection so
+     a stray selected chip doesn't compete with the text being typed. */
+  .block:has(.cap:focus) .term.number.sel { background: transparent; color: var(--text); box-shadow: none; }
+  .block:has(.cap:focus) .term.operator.sel { background: transparent; color: var(--op); box-shadow: none; padding: 1px 2px; }
+  .block:has(.cap:focus) .term.paren.sel { background: transparent; color: var(--text-dim); box-shadow: none; padding: 1px 2px; }
+  .block:has(.cap:focus) .term.linked.sel { outline: none; }
+  .block:has(.cap:focus) .op-missing.sel {
+    background: transparent; color: var(--op);
+    border-style: dashed; border-color: var(--op); opacity: 0.85; box-shadow: none;
+  }
   .block:has(.cap:focus) .result.sel { outline: none; }
+  .block:has(.cap:focus) .selection-caret { display: none; }
 
   /* Ghost (drag-to-link) */
   #ghost {
@@ -540,19 +552,24 @@
   #linkTip {
     position: fixed; left: 50%; bottom: calc(34vh + 14px);
     transform: translateX(-50%); z-index: 185; pointer-events: none;
-    display: flex; align-items: center; gap: 10px;
-    max-width: min(90vw, 380px); padding: 9px 10px 9px 14px;
+    display: flex; align-items: center; gap: 12px;
+    width: max-content; max-width: min(92vw, 384px);
+    padding: 11px 12px 11px 16px;
     background: var(--block); color: var(--text);
-    border: 1px solid var(--block-border); border-radius: 12px;
-    font-size: 13px; line-height: 1.35; box-shadow: var(--shadow-soft);
+    border: 1px solid var(--block-border); border-radius: 14px;
+    font-size: 13px; line-height: 1.4; box-shadow: var(--shadow-soft);
   }
+  #linkTip > span { flex: 1 1 auto; min-width: 0; text-wrap: pretty; }
   #linkTip[hidden] { display: none; }
   #linkTip button {
-    flex: 0 0 auto; border: none; cursor: pointer; pointer-events: auto;
+    flex: 0 0 auto; align-self: center; border: none; cursor: pointer; pointer-events: auto;
     background: var(--accent); color: #fff; font-family: var(--sans);
-    font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 9px;
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 35%, transparent);
   }
-  @media (min-width: 760px) { #linkTip { bottom: calc(18px + 240px); } }
+  #linkTip button:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+  /* #linkTip vertical/horizontal anchoring is owned by layoutOverlays so it
+     always sits just above the keypad (see render.js). */
   /* Keyboard-linking status pill: visible feedback that doubles as the aria-live
      region announcing the next step of the link flow. */
   #linkStatus {

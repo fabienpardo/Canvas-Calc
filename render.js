@@ -333,7 +333,9 @@
           var lc = linkColorMap[lkey];
           if (lc) {
             span.style.color = lc;
-            span.style.background = lc + '2e';
+            // Opaque tint (the colour composited over the block) so the dotted
+            // link line behind the chip doesn't bleed through its body.
+            span.style.background = 'color-mix(in srgb, ' + lc + ' 18%, var(--block))';
             span.style.boxShadow = 'inset 0 0 0 2px ' + lc + '99, 0 1px 5px ' + lc + '26';
           }
         }
@@ -458,6 +460,35 @@
       // The empty-canvas hint is a band over the visible canvas (toolbar to
       // keypad), so its contents centre in the space the user actually sees.
       if (deps.hint) deps.hint.style.bottom = h + 'px';
+
+      // The link tip is a transient hint that must never float in dead canvas or
+      // collide with the keypad. Anchor it just above the keypad: right-aligned
+      // over the docked keypad on wide screens, centred above the full-width
+      // keypad on narrow ones. Measuring the keypad keeps it correct whether the
+      // keypad is expanded or collapsed to its tab.
+      if (deps.linkTip) {
+        var pad = deps.numpad;
+        var clearance;
+        if (pad.classList.contains('hidden')) {
+          clearance = 44; // only the pull tab pokes above the bottom edge
+        } else {
+          var top = pad.getBoundingClientRect().top;
+          clearance = Math.max(44, (win.innerHeight - top) + 10);
+        }
+        var tip = deps.linkTip;
+        if (wide) {
+          tip.style.left = 'auto'; tip.style.right = '18px'; tip.style.transform = 'none';
+        } else {
+          tip.style.left = '50%'; tip.style.right = 'auto'; tip.style.transform = 'translateX(-50%)';
+          // On narrow screens the centred tip would sit on top of the bottom-left
+          // zoom control (same band above the keypad); lift it clear of that too.
+          if (deps.zoomCtl) {
+            var zTop = deps.zoomCtl.getBoundingClientRect().top;
+            if (zTop) clearance = Math.max(clearance, (win.innerHeight - zTop) + 10);
+          }
+        }
+        tip.style.bottom = clearance + 'px';
+      }
     }
 
     function syncSidebar() {
