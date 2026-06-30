@@ -135,7 +135,7 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   `interactions.js`, `canvases.js`, `editing.js`, `input.js`, `history.js`, and
   `store.js`), asset-revision hash guard, `res.ok` guard, non-GET ignored,
   Canvas Calc-only cache cleanup, and current-cache-scoped reads.
-- **E2E (Playwright, 75 specs, shared `e2e/helpers.js`):**
+- **E2E (Playwright, 91 specs, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, plus-minus
     negative entry / result negation, sidebar inline edit and numeric
@@ -145,15 +145,17 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   - `e2e/editing.spec.js` — insert-after-select, operator replacement,
     parenthesis select/delete, linked unlink, empty-block delete, undo/redo
     (typing, delete, clear, paste, redo, redo-stack-cleared).
-  - `e2e/linking.spec.js` — result→operator link, drop onto a number slot,
-    cycle-rejection dialog, delete-source-with-dependents warning.
+  - `e2e/linking.spec.js` — result→operator link, before/after insertion
+    when dropping onto a number chip, cycle-rejection dialog,
+    delete-source-with-dependents warning.
   - `e2e/persistence.spec.js` — old-state load + tid migration, default
     zoom/grid, restored zoom/grid, pagehide save flush, corrupt +
     malformed-but-valid localStorage survive.
   - `e2e/canvases.spec.js` — multi-canvas isolation/switch, per-canvas zoom,
     rename persistence, delete + fallback, multi-canvas persistence, migration.
   - `e2e/layout.spec.js` — zoom control pinned on scroll; canvas behind keypad.
-  - `e2e/mobile.spec.js` — mobile (iPhone 16 Pro Max-size viewport) smoke + viewport fit.
+  - `e2e/mobile.spec.js` — mobile (iPhone 16 Pro Max-size viewport) smoke,
+    viewport fit, long-expression caret follow, and touch link-drop insertion.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
 ### Backlog (nice to have)

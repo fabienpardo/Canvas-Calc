@@ -153,13 +153,17 @@
         selection.kind !== 'result' && selection.kind !== 'missing-op';
     }
 
-    function appendSelectionCue(parent) {
+    function appendCaret(parent, className) {
       var cue = doc.createElement('span');
-      cue.className = 'selection-caret';
+      cue.className = className;
       cue.setAttribute('aria-hidden', 'true');
       cue.title = 'Next input inserts here';
+      parent.className += ' has-caret';
       parent.appendChild(cue);
     }
+
+    function appendSelectionCue(parent) { appendCaret(parent, 'selection-caret'); }
+    function appendInputCue(parent) { appendCaret(parent, 'expr-caret'); }
 
     // Inline +/-/×/÷ chooser for a selected missing-operator gap.
     function buildOpPicker(blockId, idx) {
@@ -253,6 +257,7 @@
       var expr = doc.createElement('div');
       expr.className = 'expr';
       var missIdx = deps.missingOperatorIndex(b.terms);
+      var activeTailIdx = (deps.getActiveBlockId()===b.id && sel().blockId !== b.id && b.terms.length) ? b.terms.length - 1 : -1;
       b.terms.forEach(function(t, idx){
         selection = sel();
         // A gap where an operator is expected (two operands with none between).
@@ -280,7 +285,8 @@
           op.title = opSelected ? 'Selected operator' : 'Select operator';
           makeSelectable(op, op.title, b.id, idx, 'operator');
           expr.appendChild(op);
-          if (opSelected) appendSelectionCue(expr);
+          if (opSelected) appendSelectionCue(op);
+          else if (idx === activeTailIdx) appendInputCue(op);
           return;
         }
         if (t.type==='paren') {
@@ -293,7 +299,8 @@
           pp.title = parenSelected ? 'Selected parenthesis' : 'Select parenthesis';
           makeSelectable(pp, pp.title, b.id, idx, 'paren');
           expr.appendChild(pp);
-          if (parenSelected) appendSelectionCue(expr);
+          if (parenSelected) appendSelectionCue(pp);
+          else if (idx === activeTailIdx) appendInputCue(pp);
           return;
         }
         var cell = doc.createElement('span');
@@ -315,7 +322,7 @@
           span.textContent = deps.groupDisplay(t.value);
           span.title = termSelected ? 'Selected number' : 'Select or drag this number';
           var nkey = deps.srcKey(b.id, t.tid);
-          if (linkColorMap[nkey]) span.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[nkey];
+          if (linkColorMap[nkey]) span.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[nkey] + ', inset 0 0 0 1px ' + linkColorMap[nkey] + '59';
         } else {
           span.className = 'term linked' + span.className;
           var lv = deps.linkedValue(t, map);
@@ -326,25 +333,17 @@
           var lc = linkColorMap[lkey];
           if (lc) {
             span.style.color = lc;
-            span.style.background = lc + '1f';
-            span.style.boxShadow = 'inset 0 0 0 1px ' + lc + '59';
+            span.style.background = lc + '2e';
+            span.style.boxShadow = 'inset 0 0 0 2px ' + lc + '99, 0 1px 5px ' + lc + '26';
           }
         }
         span.dataset.idx = idx;
         makeSelectable(span, span.title, b.id, idx, t.type==='linked' ? 'linked' : 'number');
         cell.appendChild(span);
         expr.appendChild(cell);
-        if (termSelected) appendSelectionCue(expr);
+        if (termSelected) appendSelectionCue(span);
+        else if (idx === activeTailIdx) appendInputCue(span);
       });
-
-      // Caret at the live input position when free-typing into the active block
-      // (no specific term tapped), so the eye lands on the operand being entered
-      // rather than the bright result chip that follows.
-      if (deps.getActiveBlockId()===b.id && sel().blockId !== b.id && b.terms.length) {
-        var caret = doc.createElement('span');
-        caret.className = 'expr-caret';
-        expr.appendChild(caret);
-      }
 
       var diag = deps.diagnose(b, map);
       if (deps.hasResultSlot(b.terms) || diag.status === 'unresolved') {
@@ -381,7 +380,7 @@
           res.title = selection.blockId===b.id && selection.kind==='result' ? 'Selected result' : 'Select or drag this result';
           makeSelectable(res, res.title, b.id, null, 'result');
           var rkey = deps.srcKey(b.id, null);
-          if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -2px 0 0 ' + linkColorMap[rkey];
+          if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[rkey] + ', inset 0 0 0 1px ' + linkColorMap[rkey] + '59';
         }
         rcell.appendChild(res);
         if (unresolved && diag.message) {
@@ -434,13 +433,13 @@
           path.setAttribute('d','M '+x1+' '+y1+' C '+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);
           path.setAttribute('fill','none');
           path.setAttribute('stroke', col);
-          path.setAttribute('stroke-width','2');
+          path.setAttribute('stroke-width','3');
           path.setAttribute('stroke-linecap','round');
-          path.setAttribute('stroke-dasharray','0.1 6');
-          path.setAttribute('opacity','0.8');
+          path.setAttribute('stroke-dasharray','0.1 5');
+          path.setAttribute('opacity','0.95');
           deps.linkLayer.appendChild(path);
           // Solid endpoint dots anchor the dotted link to its source and target.
-          [[x1,y1,2.5],[x2,y2,3]].forEach(function(p){
+          [[x1,y1,3.4],[x2,y2,3.8]].forEach(function(p){
             var dot = doc.createElementNS(svgNS,'circle');
             dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('r', p[2]);
             dot.setAttribute('fill', col);
