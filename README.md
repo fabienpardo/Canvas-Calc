@@ -121,12 +121,14 @@ browser suite:
 - `test/state.test.js` covers saved-state migration and normalization.
 - `test/editing.test.js` covers expression editing reducers.
 - `test/input.test.js` covers keypad/keyboard input behavior.
+- `test/sidebar.test.js` covers sidebar number parsing and localization.
 - `test/history.test.js` covers per-canvas undo and redo.
 - `test/store.test.js` covers view-state and commit ordering.
 - `test/sw.test.js` covers the service-worker precache manifest and cache
   revision guard.
-- `e2e/*.spec.js` covers the browser wiring: creating blocks, dragging, linking,
-  persistence, multiple canvases, zoom/layout behavior, mobile viewport fit, and
+- `e2e/*.spec.js` covers the browser wiring: creating blocks, dragging,
+  linking, persistence, multiple canvases, zoom/layout behavior, mobile
+  viewport fit, unresolved-expression explanations, offline reloads, and
   undo/redo flows.
 
 More detail lives in [TESTING.md](TESTING.md).
@@ -153,6 +155,7 @@ More detail lives in [TESTING.md](TESTING.md).
 | `test/` | Node unit tests. |
 | `e2e/` | Playwright browser tests. |
 | `.github/workflows/test.yml` | CI for unit and Playwright tests. |
+| `ROADMAP.md` | Planned editor work, sequenced into phases. |
 
 ## Offline Behavior
 
