@@ -22,7 +22,7 @@ test('selecting a result + an operator creates a linked block', async ({ page })
   await expect(page.locator('.term.linked')).toHaveCount(1);
 });
 
-test('dropping a result onto a number inserts a link, never overwrites it', async ({ page }) => {
+test('dropping a result onto a number chip inserts after its right half', async ({ page }) => {
   await fresh(page);
   // block A = 10
   await addBlock(page);
@@ -36,12 +36,28 @@ test('dropping a result onto a number inserts a link, never overwrites it', asyn
   const b = page.locator('.block').nth(1);
   const slot = b.locator('.term.number', { hasText: '2' });
   const sb = await slot.boundingBox();
-  // Drop on the centre of "2" -> insert before it, gluing with "+".
-  await dragResultTo(page, a.locator('.result'), sb.x + sb.width / 2, sb.y + sb.height / 2);
-  // The original "2" survives; B becomes 10 + 2 + 3 = 15.
-  await expect(b.locator('.expr .term')).toHaveText(['10', '+', '2', '+', '3']);
-  await expect(b.locator('.term.linked')).toHaveText('10');
-  await expect(b.locator('.result')).toHaveText('15');
+  await dragResultTo(page, a.locator('.result'), sb.x + sb.width * 0.8, sb.y + sb.height / 2);
+  // B becomes 2 + 10 + 3 = 15; the original "2" stays put.
+  const target = page.locator('.block').nth(1);
+  await expect(target.locator('.expr .term')).toHaveText(['2', '+', '10', '+', '3']);
+  await expect(target.locator('.result')).toHaveText('15');
+});
+
+test('dropping a result onto a number chip inserts before its left half', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const slot = page.locator('.block').nth(1).locator('.term.number', { hasText: '2' });
+  const sb = await slot.boundingBox();
+  await dragResultTo(page, a.locator('.result'), sb.x + sb.width * 0.2, sb.y + sb.height / 2);
+  const target = page.locator('.block').nth(1);
+  await expect(target.locator('.expr .term')).toHaveText(['10', '+', '2', '+', '3']);
+  await expect(target.locator('.result')).toHaveText('15');
 });
 
 test('dropping a result onto a leading operator inserts before it', async ({ page }) => {
@@ -81,6 +97,15 @@ test('an insertion caret previews the drop position while dragging', async ({ pa
   await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2, { steps: 6 });
   await expect(b).toHaveClass(/drop-ok/);
   await expect(b.locator('.drop-caret')).toHaveCount(1);
+  const preview = await b.locator('.expr').evaluate((expr) => {
+    const caret = expr.querySelector('.drop-caret');
+    const nextTerm = caret && caret.nextElementSibling && caret.nextElementSibling.querySelector('.term');
+    return {
+      previous: caret && caret.previousElementSibling ? caret.previousElementSibling.textContent.trim() : '',
+      next: nextTerm ? nextTerm.textContent.trim() : ''
+    };
+  });
+  expect(preview).toEqual({ previous: '+', next: '3' });
   await page.mouse.up();
 });
 

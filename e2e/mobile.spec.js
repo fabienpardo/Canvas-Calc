@@ -74,6 +74,33 @@ test('mobile: keypad and add button fit within the viewport width', async ({ pag
   expect(bottomGap).toBeLessThanOrEqual(Math.max(32, padBottom + 6));
 });
 
+test('mobile: long expression input follows the caret above the keypad', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  const parts = [];
+  for (let i = 0; i < 36; i++) parts.push('1', '+');
+  parts.push('1');
+  await type(page, parts.join(' '));
+  await expect.poll(async () => {
+    const caret = await lastBlock(page).locator('.expr-caret').boundingBox();
+    const pad = await page.locator('#numpad').boundingBox();
+    const viewport = page.viewportSize();
+    const scrolled = await page.locator('#canvasWrap').evaluate((el) => el.scrollLeft + el.scrollTop);
+    return !!caret && !!pad && scrolled > 0 &&
+      caret.x > 12 &&
+      caret.x + caret.width < viewport.width - 12 &&
+      caret.y + caret.height < pad.y - 12;
+  }).toBe(true);
+
+  const caret = await lastBlock(page).locator('.expr-caret').boundingBox();
+  const pad = await page.locator('#numpad').boundingBox();
+  expect(caret).not.toBeNull();
+  expect(pad).not.toBeNull();
+  expect(caret.x).toBeGreaterThan(12);
+  expect(caret.x + caret.width).toBeLessThan(page.viewportSize().width - 12);
+  expect(caret.y + caret.height).toBeLessThan(pad.y - 12);
+});
+
 test('mobile: dropping just before a linked term inserts before it', async ({ page, browserName }) => {
   // touchDragToPoint drives synthetic touches via CDP, which is Chromium-only.
   test.skip(browserName !== 'chromium', 'touch-drag helper uses Chromium-only CDP touch events');

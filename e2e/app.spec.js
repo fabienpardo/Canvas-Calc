@@ -26,6 +26,8 @@ test('+ button creates a block, types a live result, = re-anchors +', async ({ p
   // before =, the add button is hidden (editing); after =, it returns below the block
   await expect(page.locator('#addBtn')).toBeHidden();
   await press(page, '=');
+  const resultDot = await lastBlock(page).locator('.result').evaluate((el) => getComputedStyle(el, '::after').content);
+  expect(resultDot).toBe('none');
   await expect(page.locator('#addBtn')).toBeVisible();
 });
 
@@ -74,7 +76,8 @@ test('dragging a number to empty canvas creates a colored linked block', async (
   await addBlock(page);
   await type(page, '12');
   await press(page, '=');
-  const numChip = lastBlock(page).locator('.term.number');
+  const sourceBlock = page.locator('.block').first();
+  const numChip = sourceBlock.locator('.term.number');
   const box = await numChip.boundingBox();
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
   await page.mouse.move(cx, cy);
@@ -85,10 +88,24 @@ test('dragging a number to empty canvas creates a colored linked block', async (
   await expect(page.locator('.block')).toHaveCount(2);
   const linked = page.locator('.term.linked');
   await expect(linked).toHaveText('12');
-  // linked chip and source underline share a non-empty color
-  const color = await linked.evaluate((el) => el.style.color);
-  expect(color).not.toBe('');
-  await expect(page.locator('#linkLayer path')).toHaveCount(1);
+  // Linked chip, source underline, and connector are intentionally visible.
+  const affordance = await linked.evaluate((el) => ({
+    color: getComputedStyle(el).color,
+    background: getComputedStyle(el).backgroundColor,
+    fontWeight: Number(getComputedStyle(el).fontWeight),
+    shadow: getComputedStyle(el).boxShadow
+  }));
+  const sourceShadow = await numChip.evaluate((el) => getComputedStyle(el).boxShadow);
+  expect(affordance.color).not.toBe('rgba(0, 0, 0, 0)');
+  expect(affordance.background).not.toBe('rgba(0, 0, 0, 0)');
+  expect(affordance.fontWeight).toBeGreaterThanOrEqual(600);
+  expect(affordance.shadow).not.toBe('none');
+  expect(sourceShadow).not.toBe('none');
+  const linkPath = page.locator('#linkLayer path');
+  await expect(linkPath).toHaveCount(1);
+  await expect(linkPath).toHaveAttribute('stroke', /.+/);
+  await expect(linkPath).toHaveAttribute('stroke-width', '3');
+  await expect(linkPath).toHaveAttribute('opacity', '0.95');
 });
 
 test('plus-minus starts negative entry in empty and after-operator slots', async ({ page }) => {
@@ -392,13 +409,18 @@ test('selected terms show editing hints', async ({ page }) => {
   await firstNumber.click();
   await expect(firstNumber).toHaveAttribute('title', 'Selected number');
   await expect(lastBlock(page).locator('.selection-caret')).toHaveCount(1);
+  await expect(firstNumber.locator('.selection-caret')).toHaveCount(1);
   await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('aria-label', 'Name number');
   await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('title', 'Name number');
+  await lastBlock(page).locator('.cap').first().click();
+  await expect(lastBlock(page).locator('.cap').first()).toBeFocused();
+  await expect(firstNumber.locator('.selection-caret')).toHaveCount(1);
 
   const operator = lastBlock(page).locator('.term.operator');
   await operator.click();
   await expect(operator).toHaveAttribute('title', 'Selected operator');
   await expect(lastBlock(page).locator('.selection-caret')).toHaveCount(1);
+  await expect(operator.locator('.selection-caret')).toHaveCount(1);
 });
 
 test('backspace chain clears to 0, deletes, then steps to the previous term', async ({ page }) => {

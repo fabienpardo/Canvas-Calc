@@ -166,8 +166,44 @@
     NUM_GROUP: NUM_GROUP,
     NUM_DECIMAL: NUM_DECIMAL
   });
-  function renderAll(){ renderer.renderAll(); maybeShowLinkTip(); }
+  function renderAll(){
+    renderer.renderAll();
+    maybeShowLinkTip();
+    followActiveInput();
+  }
   function invalidateBlock(id){ renderer.invalidateBlock(id); }
+
+  function followActiveInput() {
+    var activeId = store.getActiveBlockId();
+    if (!activeId) return;
+    var block = blockEl(activeId);
+    if (!block) return;
+    var marker = block.querySelector('.expr-caret') || block.querySelector('.selection-caret') || block.querySelector('.term.has-caret');
+    if (!marker) return;
+    window.requestAnimationFrame(function(){
+      if (!store.getActiveBlockId()) return;
+      var r = marker.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      var wrapR = wrap.getBoundingClientRect();
+      var pad = document.getElementById('numpad');
+      var padH = (pad && !pad.classList.contains('hidden')) ? pad.offsetHeight : 0;
+      var vv = window.visualViewport;
+      var viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      var visible = {
+        left: wrapR.left + 18,
+        right: wrapR.right - 18,
+        top: wrapR.top + 18,
+        bottom: Math.min(wrapR.bottom, viewportBottom - padH) - 18
+      };
+      var dx = 0, dy = 0;
+      if (r.right > visible.right) dx = r.right - visible.right;
+      else if (r.left < visible.left) dx = r.left - visible.left;
+      if (r.bottom > visible.bottom) dy = r.bottom - visible.bottom;
+      else if (r.top < visible.top) dy = r.top - visible.top;
+      if (dx) wrap.scrollLeft += dx;
+      if (dy) wrap.scrollTop += dy;
+    });
+  }
 
   // Fill a missing-operator gap from the inline picker (mirrors the keypad path
   // in input.js so both routes share one model mutation).
