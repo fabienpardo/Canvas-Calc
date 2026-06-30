@@ -92,6 +92,25 @@
     if (document.visibilityState === 'hidden') flushSave();
   });
 
+  // html/body normally disable native pinch-zoom (touch-action: none) so a
+  // two-finger gesture on the canvas drives our own zoom instead of the
+  // browser's. But that also blocks pinch-zoom while the iOS keyboard is up
+  // for a real text field (canvas rename, variable name/value), leaving no
+  // way to zoom out and see the full app. Lift the restriction for the
+  // duration of that focus.
+  function isTextEntry(el) {
+    if (!el) return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName === 'INPUT') return !el.type || el.type === 'text' || el.type === 'decimal' || /^(text|search|email|url|tel|number|decimal)$/.test(el.type);
+    return el.isContentEditable === true;
+  }
+  document.addEventListener('focusin', function (e) {
+    if (isTextEntry(e.target)) document.documentElement.classList.add('text-editing');
+  });
+  document.addEventListener('focusout', function (e) {
+    if (isTextEntry(e.target)) document.documentElement.classList.remove('text-editing');
+  });
+
   // ---------- History (per canvas) — see history.js ----------
   var historyCtl = CanvasHistory.create({
     cur: cur,
