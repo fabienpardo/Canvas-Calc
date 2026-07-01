@@ -267,10 +267,25 @@
     return false;
   }
 
-  function hasUnresolvedLinkedSource(block, map) {
+  // A linked operand whose source is present but cannot currently resolve to a
+  // clean value. `linkedValue` is tolerant (a source of "1 / 0" still yields
+  // Infinity, an unmatched-open source still yields a number), so a null value
+  // alone under-reports the problem. For a result link we also consult the
+  // source's own diagnosis: if the source is itself unresolved, so are we. The
+  // `stack` guards against cycles when diagnose recurses through the sources.
+  function hasUnresolvedLinkedSource(block, map, stack) {
+    stack = stack || {};
     for (var i = 0; i < block.terms.length; i++) {
       var t = block.terms[i];
-      if (t.type === 'linked' && linkedValue(t, map) == null) return true;
+      if (t.type !== 'linked') continue;
+      if (linkedValue(t, map) == null) return true;
+      if (t.sourceTid != null) continue; // number-term links are always a clean value
+      var src = map[t.sourceId];
+      if (!src || stack[src.id]) continue; // missing source / cycle handled elsewhere
+      stack[src.id] = true;
+      var srcUnresolved = diagnose(src, map, stack).status === 'unresolved';
+      delete stack[src.id];
+      if (srcUnresolved) return true;
     }
     return false;
   }
@@ -281,7 +296,7 @@
   //   status 'ok'          -> value is the answer (may be null -> neutral "·")
   // Reason precedence runs structural -> parens -> links -> arithmetic, so a
   // deeper error is never masked by one that only matters once structure is sound.
-  function diagnose(block, map) {
+  function diagnose(block, map, stack) {
     map = map || {};
     var terms = block.terms;
     var emptyP = hasEmptyParens(terms);
@@ -303,7 +318,7 @@
     // A linked operand whose source exists but cannot currently resolve leaves
     // this block unresolved too. The repair belongs to the source, but the
     // dependent should still explain why it is showing "?".
-    if (hasUnresolvedLinkedSource(block, map)) {
+    if (hasUnresolvedLinkedSource(block, map, stack)) {
       return { status: 'unresolved', value: null, reason: 'source-unresolved', message: REASON_MESSAGES['source-unresolved'] };
     }
 
