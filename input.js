@@ -62,9 +62,20 @@
       var lv = deps.linkedValue({ type: 'linked', sourceId: sourceId, sourceTid: sourceTid }, deps.blocksMap());
       return lv == null ? 'value' : String(lv);
     }
+    function resultIsLinkable(block) {
+      if (!block) return false;
+      if (deps.diagnose) return deps.diagnose(block, deps.blocksMap()).status === 'ok';
+      return !deps.isComplete || deps.isComplete(block.terms);
+    }
+    function rejectUnlinkableResult() {
+      status('Fix this result before linking it.');
+    }
     function linkSourceFromSelection(sel) {
       if (sel.blockId == null) return null;
-      if (sel.kind === 'result') return { sourceId: sel.blockId, sourceTid: null };
+      if (sel.kind === 'result') {
+        if (!resultIsLinkable(deps.byId(sel.blockId))) return { blocked: true };
+        return { sourceId: sel.blockId, sourceTid: null };
+      }
       if (sel.termIndex == null) return null;
       var b = deps.byId(sel.blockId), t = b && b.terms[sel.termIndex];
       if (!t) return null;
@@ -87,6 +98,11 @@
       if (sel.kind === 'missing-op') idx = sel.termIndex;     // fill the gap
       else if (sel.termIndex != null) idx = sel.termIndex + 1; // just after the selected term
       else idx = target.terms.length;                         // result selected / no term: append
+      if (target.id === src.sourceId) {
+        pendingLink = null;
+        status('Can\'t link a value back into its own block.');
+        return;
+      }
       if (src.sourceTid == null && deps.createsCycle && deps.createsCycle(target.id, src.sourceId)) {
         pendingLink = null;
         status('Can’t link — it would create a loop where a result depends on itself.');
@@ -103,6 +119,7 @@
       var sel = deps.getSelection();
       if (!pendingLink) {
         var src = linkSourceFromSelection(sel);
+        if (src && src.blocked) { rejectUnlinkableResult(); return; }
         if (!src) { status('Select a result or number, then press L to start a link.'); return; }
         pendingLink = src;
         status('Linking ' + linkValueText(src.sourceId, src.sourceTid) +
@@ -207,6 +224,124 @@
       return rb && rb.terms.length ? expressionText(rb) : null;
     }
 
+    // ---------- Structured export ----------
+    function quoteText(v) {
+      return JSON.stringify(String(v == null ? '' : v));
+    }
+    function labelSuffix(v) {
+      return v ? ' ' + quoteText(v) : '';
+    }
+    function refFor(blockId, tokenId) {
+      return '@' + blockId + '#' + tokenId;
+    }
+    function blockRef(b) {
+      return '@' + (b && b.id ? b.id : 'missing');
+    }
+    function termRef(block, term) {
+      return term && term.tid ? refFor(block.id, term.tid) : blockRef(block) + '#term';
+    }
+    function valueText(v) {
+      if (v == null) return '?';
+      return deps.fmt ? deps.fmt(v) : String(v);
+    }
+    function sourceRef(term) {
+      return refFor(term.sourceId, term.sourceTid == null ? 'result' : term.sourceTid);
+    }
+    function formulaToken(block, term) {
+      if (term.type === 'number') return termRef(block, term);
+      if (term.type === 'linked') return sourceRef(term);
+      return String(term.value);
+    }
+    function formulaText(block) {
+      return block.terms.map(function (term) { return formulaToken(block, term); }).join(' ');
+    }
+    function linkedRefs(block) {
+      var refs = [], seen = {};
+      block.terms.forEach(function (term) {
+        if (term.type !== 'linked') return;
+        var ref = sourceRef(term);
+        if (!seen[ref]) { seen[ref] = true; refs.push(ref); }
+      });
+      return refs;
+    }
+    function usedByRefs(block) {
+      var refs = [], seen = {};
+      deps.cur().blocks.forEach(function (other) {
+        if (!other || other.id === block.id) return;
+        for (var i = 0; i < other.terms.length; i++) {
+          var term = other.terms[i];
+          if (term.type === 'linked' && term.sourceId === block.id) {
+            var ref = blockRef(other);
+            if (!seen[ref]) { seen[ref] = true; refs.push(ref); }
+            return;
+          }
+        }
+      });
+      return refs;
+    }
+    function describeTerm(block, term, map) {
+      if (term.type === 'number') {
+        return '- ' + termRef(block, term) + ' number' + labelSuffix(term.label) +
+          ' = ' + (term.value === '' ? '0' : term.value);
+      }
+      if (term.type === 'operator') return '- ' + term.value + ' operator';
+      if (term.type === 'paren') return '- ' + term.value + ' paren';
+      if (term.type === 'linked') {
+        var src = map[term.sourceId];
+        var kind = term.sourceTid == null ? 'result' : 'number';
+        var label = '';
+        if (src && term.sourceTid == null) label = src.label || '';
+        else if (src) {
+          var sourceTerm = deps.findTermByTid ? deps.findTermByTid(src, term.sourceTid) : null;
+          label = sourceTerm && sourceTerm.label ? sourceTerm.label : '';
+        }
+        var lv = deps.linkedValue(term, map);
+        return '- ' + sourceRef(term) + ' linked ' + kind + labelSuffix(label) + ' = ' + valueText(lv);
+      }
+      return '- unknown token';
+    }
+    function currentBlockForStructuredExport() {
+      var sel = deps.getSelection();
+      if (sel.blockId != null) return deps.byId(sel.blockId);
+      var activeBlockId = deps.getActiveBlockId();
+      return activeBlockId ? deps.byId(activeBlockId) : null;
+    }
+    function structuredBlockText(block) {
+      block = block || currentBlockForStructuredExport();
+      if (!block || !block.terms || !block.terms.length) return null;
+      var map = deps.blocksMap();
+      var diag = deps.diagnose ? deps.diagnose(block, map) : { status: 'ok', value: deps.resolve ? deps.resolve(block, map) : null };
+      var lines = [
+        'Canvas Calc Block v1',
+        'block: ' + blockRef(block) + labelSuffix(block.label),
+        'status: ' + diag.status + (diag.reason ? ' (' + diag.reason + ')' : ''),
+        'result: ' + (diag.status === 'ok' ? valueText(diag.value) : (diag.status === 'unresolved' ? '?' : 'none')),
+        'formula: ' + formulaText(block),
+        'depends-on: ' + (linkedRefs(block).join(', ') || 'none'),
+        'used-by: ' + (usedByRefs(block).join(', ') || 'none'),
+        'tokens:'
+      ];
+      block.terms.forEach(function (term) { lines.push(describeTerm(block, term, map)); });
+      if (diag.message) lines.push('message: ' + diag.message);
+      return lines.join('\n');
+    }
+    function structuredCanvasText() {
+      var canvas = deps.cur();
+      var map = deps.blocksMap();
+      var lines = [
+        'Canvas Calc Summary v1',
+        'canvas: @' + canvas.id + labelSuffix(canvas.title),
+        'blocks: ' + canvas.blocks.length
+      ];
+      canvas.blocks.forEach(function (block) {
+        var diag = deps.diagnose ? deps.diagnose(block, map) : { status: 'ok', value: deps.resolve ? deps.resolve(block, map) : null };
+        lines.push('- ' + blockRef(block) + labelSuffix(block.label) + ' ' + diag.status +
+          ' = ' + (diag.status === 'ok' ? valueText(diag.value) : (diag.status === 'unresolved' ? '?' : 'none')) +
+          ' :: ' + formulaText(block));
+      });
+      return lines.join('\n');
+    }
+
     // Insert parsed terms at the current selection/gap, or append to the active
     // block (or a new one) when nothing is selected. Insertion glues with '+' so
     // it never overwrites a term — the same rule as a drag-drop insert.
@@ -284,6 +419,7 @@
           if (!nt) return;
         } else if (nSel.kind === 'result' && nSel.blockId != null) {
           var nSrcB = deps.byId(nSel.blockId); if (!nSrcB) return;
+          if (!resultIsLinkable(nSrcB)) { rejectUnlinkableResult(); return; }
           // Repeated ± on an existing "-1 * (…)" negation toggles its sign in
           // place rather than stacking yet another negated block.
           if (Editing.isNegationBlock(nSrcB)) {
@@ -418,6 +554,7 @@
       // Result selected + operator => create linked block below
       if (sel.kind === 'result' && sel.blockId && isOp(k)) {
         var srcB = deps.byId(sel.blockId); if (!srcB) return;
+        if (!resultIsLinkable(srcB)) { rejectUnlinkableResult(); return; }
         deps.commit(function () {
           var pt = deps.slotBelow ? deps.slotBelow(srcB) : { x: srcB.x, y: srcB.y + 100 };
           var nb = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
@@ -449,7 +586,7 @@
       // result, so "= 71" then "+" continues as "71 + …" instead of "0 + …".
       if (isOp(k) && !deps.getActiveBlockId()) {
         var lastB = deps.lastBlock && deps.lastBlock();
-        if (lastB && deps.isComplete(lastB.terms)) {
+        if (lastB && resultIsLinkable(lastB)) {
           deps.commit(function () {
             var pt = deps.nextSlot();
             var nb = deps.newBlock(deps.snap(pt.x), deps.snap(pt.y));
@@ -475,7 +612,9 @@
       pasteText: pasteText,
       expressionText: expressionText,
       currentSelectionText: currentSelectionText,
-      copySelection: copySelection
+      copySelection: copySelection,
+      structuredBlockText: structuredBlockText,
+      structuredCanvasText: structuredCanvasText
     };
   }
 

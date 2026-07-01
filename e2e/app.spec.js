@@ -206,6 +206,22 @@ test('sidebar lists variables and editing an input recomputes', async ({ page })
   await expect(page.locator('.block .result').first()).toHaveText('60');
 });
 
+test('sidebar shows selected block health', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '10 * 2');
+  await press(page, '=');
+  await lastBlock(page).locator('.result').click();
+  await page.locator('#varsBtn').click();
+
+  const health = page.locator('#sidebarBody .health-panel');
+  await expect(health.locator('[data-health="title"]')).toHaveText(/Block b1/);
+  await expect(health.locator('[data-health="status"]')).toHaveText('Resolved · 20');
+  await expect(health.locator('[data-health="links"]')).toHaveText('0');
+  await expect(health.locator('[data-health="uses"]')).toHaveText('None');
+  await expect(health.locator('[data-health="used-by"]')).toHaveText('None');
+});
+
 test('sidebar rejects malformed numeric input', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
@@ -331,6 +347,30 @@ test('paste inserts at the selected term instead of appending', async ({ page })
   await expect(lastBlock(page).locator('.result')).toHaveText('17');
 });
 
+test('structured export menu copies selected block and canvas summary', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 3');
+  await press(page, '=');
+  await lastBlock(page).locator('.result').click();
+
+  await page.locator('#menuBtn').click();
+  await page.locator('#copyStructuredBlockItem').click();
+  const blockText = await page.evaluate(() => navigator.clipboard.readText());
+  expect(blockText).toContain('Canvas Calc Block v1');
+  expect(blockText).toContain('block: @b1');
+  expect(blockText).toContain('status: ok');
+  expect(blockText).toContain('result: 5');
+  expect(blockText).toContain('formula: @b1#t1 + @b1#t2');
+
+  await page.locator('#menuBtn').click();
+  await page.locator('#copyCanvasSummaryItem').click();
+  const summaryText = await page.evaluate(() => navigator.clipboard.readText());
+  expect(summaryText).toContain('Canvas Calc Summary v1');
+  expect(summaryText).toContain('canvas: @c1 "Canvas 1"');
+  expect(summaryText).toContain('- @b1 ok = 5 :: @b1#t1 + @b1#t2');
+});
+
 test('invalid clipboard paste shows feedback and leaves the canvas unchanged', async ({ page }) => {
   await fresh(page);
   await page.evaluate(() => navigator.clipboard.writeText('abc 5'));
@@ -353,6 +393,10 @@ test('keyboard users can start, navigate the menu, and select terms', async ({ p
   await page.keyboard.press('Enter');
   await expect(page.locator('#menu')).toBeVisible();
   await expect(page.locator('#copyItem')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#copyStructuredBlockItem')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#copyCanvasSummaryItem')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('#pasteItem')).toBeFocused();
   await page.keyboard.press('Escape');

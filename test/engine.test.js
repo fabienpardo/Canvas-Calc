@@ -130,6 +130,33 @@ test('diagnose: broken link to a missing source', () => {
   assert.equal(d2.reason, 'broken-link');
 });
 
+test('diagnose: linked source exists but is unresolved', () => {
+  var source = block('source', [num(5), op('+'), num(8), num(3)]);
+  var dependent = block('dependent', [linkResult('source'), op('+'), num(2)]);
+  var d = E.diagnose(dependent, mapOf(source, dependent));
+  assert.equal(d.status, 'unresolved');
+  assert.equal(d.reason, 'source-unresolved');
+  assert.equal(d.message, 'Fix the linked source first.');
+});
+
+test('diagnose: dependent of a divide-by-zero source reports source-unresolved', () => {
+  // The source resolves tolerantly to Infinity, so a null-value check misses it;
+  // the dependent must defer to the source rather than claim its own error.
+  var source = block('source', [num(1), op('/'), num(0)]);
+  var dependent = block('dependent', [linkResult('source'), op('+'), num(2)]);
+  var d = E.diagnose(dependent, mapOf(source, dependent));
+  assert.equal(d.status, 'unresolved');
+  assert.equal(d.reason, 'source-unresolved');
+});
+
+test('diagnose: dependent of an unmatched-open source reports source-unresolved', () => {
+  var source = block('source', [num(2), op('*'), par('('), num(3)]);
+  var dependent = block('dependent', [linkResult('source'), op('+'), num(2)]);
+  var d = E.diagnose(dependent, mapOf(source, dependent));
+  assert.equal(d.status, 'unresolved');
+  assert.equal(d.reason, 'source-unresolved');
+});
+
 test('diagnose: division by zero is unresolved, not Infinity', () => {
   var dInf = E.diagnose(block('b', [num(1), op('/'), num(0)]), {});
   assert.equal(dInf.status, 'unresolved');

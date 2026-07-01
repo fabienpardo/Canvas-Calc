@@ -8,7 +8,7 @@ const Input = require('../input.js');
 // Build an in-memory app harness wired to the real Editing + Engine modules,
 // so pressKey/pasteText exercise the same logic the browser runs (just no DOM).
 function harness() {
-  const canvas = { blocks: [], nextId: 1, nextTid: 1 };
+  const canvas = { id: 'c1', title: 'Canvas 1', blocks: [], nextId: 1, nextTid: 1 };
   const state = {
     sel: { blockId: null, termIndex: null, kind: null },
     activeBlockId: null,
@@ -62,7 +62,11 @@ function harness() {
     deleteBlock: (b) => { state.deletedRequests.push(b ? b.id : null); },
     clearCanvas: () => { state.cleared = true; },
     linkedValue: Engine.linkedValue,
+    resolve: Engine.resolve,
+    fmt: Engine.fmt,
+    findTermByTid: Engine.findTermByTid,
     parseExpression: Engine.parseExpression,
+    diagnose: (block) => Engine.diagnose(block, mapOf()),
     createsCycle: (targetId, srcId) => Engine.createsCycle(targetId, srcId, mapOf()),
     freezeTermDependents: (blockId, tid, value) => {
       const v = parseFloat(value); const rv = isNaN(v) ? 0 : Math.round(v * 1e10) / 1e10;
@@ -186,7 +190,7 @@ test('backspace deletes a selected parenthesis and selects the previous term', (
 
 test('result selected + operator spawns a linked block below', () => {
   const h = harness();
-  ['4'].forEach((k) => h.ctl.pressKey(k));
+  ['2', '+', '2'].forEach((k) => h.ctl.pressKey(k));
   const src = h.canvas.blocks[0];
   h.state.sel = { blockId: src.id, termIndex: null, kind: 'result' };
   h.ctl.pressKey('+');
@@ -272,9 +276,46 @@ test('keyboard link: pick up a result and place it into another block', () => {
   assert.equal(h.state.linkStatus, ''); // cleared after placing
 });
 
+test('link rules: unresolved result selections cannot start result links', () => {
+  const h = harness();
+  const src = {
+    id: 'src',
+    x: 0,
+    y: 0,
+    label: '',
+    terms: [
+      { type: 'number', value: '5', tid: 't1' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '8', tid: 't2' },
+      { type: 'number', value: '3', tid: 't3' }
+    ]
+  };
+  const target = { id: 'dst', x: 0, y: 0, label: '', terms: [{ type: 'number', value: '10', tid: 't4' }] };
+  h.canvas.blocks.push(src, target);
+
+  h.state.sel = { blockId: src.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /Fix this result/);
+
+  h.state.sel = { blockId: target.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.equal(termSig(target), 'number:10'); // previous press did not arm a pending result link
+  assert.match(h.state.linkStatus, /Linking 10/);
+  h.ctl.pressKey('link-cancel');
+
+  h.state.sel = { blockId: src.id, termIndex: null, kind: 'result' };
+  h.ctl.pressKey('+');
+  assert.equal(h.canvas.blocks.length, 2);
+  assert.match(h.state.linkStatus, /Fix this result/);
+
+  h.ctl.pressKey('neg');
+  assert.equal(h.canvas.blocks.length, 2);
+  assert.equal(src.terms.filter((t) => t.type === 'linked').length, 0);
+});
+
 test('keyboard link: a source deleted after pickup cancels instead of dangling', () => {
   const h = harness();
-  ['8'].forEach((k) => h.ctl.pressKey(k)); // A = 8
+  ['4', '+', '4'].forEach((k) => h.ctl.pressKey(k)); // A = 8
   const a = h.canvas.blocks[0];
   h.ctl.pressKey('=');
   ['1', '0'].forEach((k) => h.ctl.pressKey(k)); // B = 10
@@ -293,7 +334,7 @@ test('keyboard link: a source deleted after pickup cancels instead of dangling',
 
 test('keyboard link: a link that would create a cycle is refused', () => {
   const h = harness();
-  ['8'].forEach((k) => h.ctl.pressKey(k)); // A = 8
+  ['4', '+', '4'].forEach((k) => h.ctl.pressKey(k)); // A = 8
   const a = h.canvas.blocks[0];
   h.ctl.pressKey('=');
   // B links A's result
@@ -305,7 +346,55 @@ test('keyboard link: a link that would create a cycle is refused', () => {
   h.state.sel = { blockId: a.id, termIndex: 0, kind: 'number' };
   h.ctl.pressKey('link');
   assert.match(h.state.linkStatus, /loop/);
-  assert.equal(termSig(a), 'number:8'); // unchanged
+  assert.equal(termSig(a), 'number:4 operator:+ number:4'); // unchanged
+});
+
+test('link rules: keyboard links cannot be placed back into their own block', () => {
+  const h = harness();
+  const b = {
+    id: 'b1',
+    x: 0,
+    y: 0,
+    label: '',
+    terms: [
+      { type: 'number', value: '7', tid: 't1' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '1', tid: 't2' }
+    ]
+  };
+  h.canvas.blocks.push(b);
+
+  h.state.sel = { blockId: b.id, termIndex: 0, kind: 'number' };
+  h.ctl.pressKey('link');
+  assert.match(h.state.linkStatus, /Linking 7/);
+  h.state.sel = { blockId: b.id, termIndex: 2, kind: 'number' };
+  h.ctl.pressKey('link');
+
+  assert.match(h.state.linkStatus, /own block/);
+  assert.equal(termSig(b), 'number:7 operator:+ number:1');
+  assert.equal(b.terms.filter((t) => t.type === 'linked').length, 0);
+});
+
+test('link rules: no-active operators continue only from resolved last results', () => {
+  const h = harness();
+  h.canvas.blocks.push({
+    id: 'src',
+    x: 0,
+    y: 0,
+    label: '',
+    terms: [
+      { type: 'number', value: '5', tid: 't1' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '8', tid: 't2' },
+      { type: 'number', value: '3', tid: 't3' }
+    ]
+  });
+
+  h.ctl.pressKey('+');
+
+  assert.equal(h.canvas.blocks.length, 2);
+  assert.equal(termSig(h.canvas.blocks[1]), 'number:0 operator:+');
+  assert.equal(h.canvas.blocks[1].terms.filter((t) => t.type === 'linked').length, 0);
 });
 
 test('± on a linked number toggles its source and fires the one-time hint', () => {
@@ -399,6 +488,74 @@ test('currentSelectionText returns the selected number, else the active block ex
   assert.equal(h.ctl.currentSelectionText(), '9');
   h.state.sel = { blockId: null, termIndex: null, kind: null };
   assert.equal(h.ctl.currentSelectionText(), '9 + 1');
+});
+
+test('structuredBlockText exports selected block refs, labels, status, and neighbours', () => {
+  const h = harness();
+  const src = {
+    id: 'b1',
+    x: 0,
+    y: 0,
+    label: 'Revenue',
+    terms: [
+      { type: 'number', value: '12', tid: 't1', label: 'price' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '8', tid: 't2', label: 'fee' }
+    ]
+  };
+  const total = {
+    id: 'b2',
+    x: 0,
+    y: 0,
+    label: 'Total',
+    terms: [
+      { type: 'linked', sourceId: 'b1' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '5', tid: 't3', label: 'tax' }
+    ]
+  };
+  const dependent = { id: 'b3', x: 0, y: 0, label: '', terms: [{ type: 'linked', sourceId: 'b2' }] };
+  h.canvas.blocks.push(src, total, dependent);
+  h.state.sel = { blockId: 'b2', termIndex: null, kind: 'result' };
+
+  assert.equal(h.ctl.structuredBlockText(), [
+    'Canvas Calc Block v1',
+    'block: @b2 "Total"',
+    'status: ok',
+    'result: 25',
+    'formula: @b1#result + @b2#t3',
+    'depends-on: @b1#result',
+    'used-by: @b3',
+    'tokens:',
+    '- @b1#result linked result "Revenue" = 20',
+    '- + operator',
+    '- @b2#t3 number "tax" = 5'
+  ].join('\n'));
+});
+
+test('structuredCanvasText exports a one-way readable canvas summary', () => {
+  const h = harness();
+  h.canvas.title = 'Budget';
+  h.canvas.blocks.push(
+    { id: 'b1', x: 0, y: 0, label: 'Revenue', terms: [
+      { type: 'number', value: '10', tid: 't1', label: '' },
+      { type: 'operator', value: '+' },
+      { type: 'number', value: '5', tid: 't2', label: '' }
+    ] },
+    { id: 'b2', x: 0, y: 0, label: '', terms: [
+      { type: 'linked', sourceId: 'b1' },
+      { type: 'operator', value: '*' },
+      { type: 'number', value: '2', tid: 't3', label: '' }
+    ] }
+  );
+
+  assert.equal(h.ctl.structuredCanvasText(), [
+    'Canvas Calc Summary v1',
+    'canvas: @c1 "Budget"',
+    'blocks: 2',
+    '- @b1 "Revenue" ok = 15 :: @b1#t1 + @b1#t2',
+    '- @b2 ok = 30 :: @b1#result * @b2#t3'
+  ].join('\n'));
 });
 
 test('plus-minus starts a negative number in an empty block', () => {

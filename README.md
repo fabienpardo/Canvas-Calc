@@ -19,17 +19,20 @@ The app is a static, offline-capable PWA:
   and zoom or pan the workspace.
 - **Live math:** expressions support precedence, parentheses, decimals, unary
   sign, division, and in-progress editing states.
-- **Linked values:** use one block's result, or one number inside a block, as an
-  input somewhere else. Changes cascade through every dependent block.
+- **Linked values:** use a resolved block result, or one number inside a block,
+  as an input somewhere else. Changes cascade through every dependent block, and
+  pending `?` results must be fixed before they can start links.
 - **Cycle protection:** links that would make a calculation depend on itself are
   rejected.
-- **Variables sidebar:** label values and results, then inspect or edit them from
-  the `x` sidebar.
+- **Variables sidebar:** label values and results, inspect or edit them, and see
+  selected-block status from the `x` sidebar.
 - **Multi-canvas workspace:** keep separate canvases, each with its own title,
   blocks, zoom, and undo history.
 - **Editing tools:** insert terms in the middle of an expression, replace
   operators, copy and paste expressions, undo and redo changes, resize text, and
   toggle the grid.
+- **Structured export:** copy a selected block or the whole canvas as readable
+  debug text with stable `@block#token` references.
 - **Installable PWA:** serve it over HTTP or HTTPS, then add it to the home
   screen on mobile.
 
@@ -57,8 +60,11 @@ then open the computer's local network address on port `8000`.
 - Type with the on-screen keypad, or use the hardware keyboard on desktop.
 - Press `=` or Enter to finish the current block.
 - Drag blocks to rearrange the canvas.
-- Drag a result or number chip onto another number slot to create a link.
+- Drag a resolved result or number chip onto another number slot to create a
+  link.
 - Use the toolbar canvas menu to add, rename, switch, or delete canvases.
+- Use the overflow menu to copy a normal expression, a structured block export,
+  or a structured canvas summary.
 - Open the `x` sidebar to view named numbers and results.
 
 Desktop shortcuts:

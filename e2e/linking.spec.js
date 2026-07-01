@@ -220,7 +220,7 @@ test('pending missing-operator results cannot start links', async ({ page }) => 
   await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 
-test('malformed linked sources show unknown dependent results', async ({ page }) => {
+test('malformed linked sources explain dependent unknown results', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '5 + 3');
@@ -237,6 +237,7 @@ test('malformed linked sources show unknown dependent results', async ({ page })
   await expect(source.locator('.result.pending')).toHaveText('?');
   await expect(page.locator('.block').nth(1).locator('.term.linked')).toHaveText('?');
   await expect(page.locator('.block').nth(1).locator('.result.pending')).toHaveText('?');
+  await expect(page.locator('.block').nth(1).locator('.result-why')).toHaveText('Fix the linked source first.');
 });
 
 test('a link that would create a cycle is refused with a dialog', async ({ page }) => {
