@@ -393,6 +393,7 @@ test('empty result label editor has room and hides block controls', async ({ pag
   await resultCap.click();
   await expect(resultCap).toBeFocused();
   await expect(block.locator('.block-del')).toBeHidden();
+  await expect(block.locator('.cell:not(.result-cell) .cap').first()).toBeHidden();
 
   const capBox = await resultCap.boundingBox();
   const resultBox = await block.locator('.result').boundingBox();
@@ -410,11 +411,18 @@ test('selected terms show editing hints', async ({ page }) => {
   await expect(firstNumber).toHaveAttribute('title', 'Selected number');
   await expect(lastBlock(page).locator('.selection-caret')).toHaveCount(1);
   await expect(firstNumber.locator('.selection-caret')).toHaveCount(1);
+  const selectedNumberCaret = await firstNumber.locator('.selection-caret').evaluate((el) => ({
+    caret: getComputedStyle(el).backgroundColor,
+    chip: getComputedStyle(el.parentElement).backgroundColor
+  }));
+  expect(selectedNumberCaret.caret).toBe('rgb(255, 255, 255)');
+  expect(selectedNumberCaret.caret).not.toBe(selectedNumberCaret.chip);
   await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('aria-label', 'Name number');
   await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('title', 'Name number');
   await lastBlock(page).locator('.cap').first().click();
   await expect(lastBlock(page).locator('.cap').first()).toBeFocused();
   await expect(firstNumber.locator('.selection-caret')).toHaveCount(1);
+  await expect(firstNumber.locator('.selection-caret')).toBeHidden();
 
   const operator = lastBlock(page).locator('.term.operator');
   await operator.click();
