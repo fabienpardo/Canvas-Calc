@@ -36,7 +36,7 @@ run in the shipped app and under `node --test`:
 - `tokenize(block, map, stack)`, `evalTokens(tokens)`, `resolve(block, map)`
 - `fmt(v)`, `groupDisplay(raw)`, `parseExpression(text)`
 - `createsCycle(...)`, `blockDefinition(block, map)`, `linkedValue/linkedSource`,
-  `findTermByTid`
+  `findTermByTid`, `diagnose(block, map)`
 - editing reducers operate on passed-in blocks/arrays and return selection
   changes instead of touching module globals.
 
@@ -75,6 +75,7 @@ npm run test:e2e
 - Division edge: `1/0` → `"∞"`; `0/0` → `"—"` (NaN, **not** ∞ — regression)
 - Linked result cascade: `A=10`, `B=A*2 ⇒ 20`; set `A=20 ⇒ B=40`
 - Linked **number-term** reference resolves to that number's value
+- Linked result source unresolved: dependent shows `?` with a source-fix reason
 - Cycle detection: direct `A↔B` refused; **number-term links are never cycles**
 - Deep chain resolves; self-reference returns `null`
 
@@ -93,6 +94,27 @@ npm run test:e2e
 - Backspace chain: `55 → 5 → 0(empty) → deleted → prev operator → deleted → prev number`
 - Insert-after-selected: `[5,+,7,+,2]`, select `7`, press `- 4` ⇒ `5+7-4+2=10`
 - `blockDefinition` renders labels: `total = A + B × C`
+
+### Link rules
+- Only resolved results can start result links through drag, keyboard linking,
+  result-key shortcuts, or "continue from last result" shortcuts.
+- Number terms can start term links, but keyboard and pointer flows refuse links
+  back into the source block.
+- Result cycles are refused; result-source deletion freezes dependents after
+  confirmation; number-source deletion freezes dependent term links immediately.
+- Same-session copied links stay live only while the source is still safe for
+  the paste target; otherwise they freeze to the copied value.
+- Dependents of unresolved linked results show the source-fix message instead of
+  a silent `?`.
+
+### Structured export
+- Selected-block export emits a one-way debug format with `Canvas Calc Block v1`,
+  stable `@block#token` references, status/result, dependency neighbourhood, and
+  token details.
+- Canvas summary export emits `Canvas Calc Summary v1` with one formula line per
+  block.
+- Structured export is not accepted by paste/import; normal copy/paste remains
+  value-based and paste-friendly.
 
 ### Integration (jsdom or preview)
 - `renderBlock` emits expected chips + colored linked chips; `drawLinks` endpoints
@@ -116,18 +138,20 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 - **Unit (`node --test`):** `test/engine.test.js` — evaluation
   (precedence, parens, division, negatives, tolerant states, div-by-zero,
   linked cascade, number-term links, cycle detection incl. indirect +
-  number-link exemption, missing-source), formatting, strict clipboard parsing,
-  definitions; `test/state.test.js` — saved-state migration, normalization,
-  id repair, lookups; `test/editing.test.js` — expression editing reducers
+  number-link exemption, missing-source, source-unresolved diagnosis),
+  formatting, strict clipboard parsing, definitions; `test/state.test.js` —
+  saved-state migration, normalization, id repair, lookups; `test/editing.test.js` — expression editing reducers
   (selected insertion, operator replacement, backspace chain, linked unlink,
   active typing, sign toggle including negative entry starters, parenthesis
   deletion/selection); `test/input.test.js` — input controller wired to
   the real editing/engine modules (digit/operator entry, `=` finish, clear/delete
   routing, operator replace, result→linked block, paste, selection text, backspace
   chain, invalid paste no-op, `±` empty/after-operator/result selection,
-  parenthesis deletion);
+  parenthesis deletion, link-rule contracts for unresolved result shortcuts,
+  own-block keyboard links, no-active operator continuation, and structured
+  block/canvas export formatting);
   `test/sidebar.test.js` — sidebar helpers including strict sidebar number
-  parsing; `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
+  parsing and selected-block health summaries; `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
   empty-stack no-ops, per-canvas isolation); `test/store.test.js` — view-state
   round-trips and `commit()` ordering/opt-outs (snapshot→mutate→render→save);
   `test/sw.test.js` — service-worker
@@ -135,19 +159,21 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   `interactions.js`, `canvases.js`, `editing.js`, `input.js`, `history.js`, and
   `store.js`), asset-revision hash guard, `res.ok` guard, non-GET ignored,
   Canvas Calc-only cache cleanup, and current-cache-scoped reads.
-- **E2E (Playwright, 91 specs, shared `e2e/helpers.js`):**
+- **E2E (Playwright, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, plus-minus
     negative entry / result negation, sidebar inline edit and numeric
     validation, snap-aligned canvas grid toggle, zoom + scroll, paste, invalid
-    paste feedback, single-click label, selected-term editing hints,
-    keyboard add/menu/term selection basics, backspace chain.
+    paste feedback, structured export menu copy, single-click label,
+    selected-block sidebar health, selected-term editing hints, keyboard
+    add/menu/term selection basics, backspace chain.
   - `e2e/editing.spec.js` — insert-after-select, operator replacement,
     parenthesis select/delete, linked unlink, empty-block delete, undo/redo
     (typing, delete, clear, paste, redo, redo-stack-cleared).
   - `e2e/linking.spec.js` — result→operator link, before/after insertion
-    when dropping onto a number chip, cycle-rejection dialog,
-    delete-source-with-dependents warning.
+    when dropping onto a number chip, pending-result refusal, same-session
+    copy/paste live-link preservation, source-unresolved dependent explanation,
+    cycle-rejection dialog, delete-source-with-dependents warning and cancel path.
   - `e2e/persistence.spec.js` — old-state load + tid migration, default
     zoom/grid, restored zoom/grid, pagehide save flush, corrupt +
     malformed-but-valid localStorage survive.

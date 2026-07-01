@@ -531,7 +531,11 @@
     deleteBlock: deleteBlock,
     clearCanvas: clearCanvas,
     linkedValue: linkedValue,
+    resolve: resolve,
+    fmt: fmt,
+    findTermByTid: E.findTermByTid,
     parseExpression: parseExpression,
+    diagnose: E.diagnose,
     createsCycle: createsCycle,
     freezeTermDependents: freezeTermDependents,
     setLinkStatus: setLinkStatus,
@@ -541,6 +545,8 @@
   function pasteText(text){ return inputCtl.pasteText(text); }
   function currentSelectionText(){ return inputCtl.currentSelectionText(); }
   function copySelection(){ return inputCtl.copySelection(); }
+  function structuredBlockText(){ return inputCtl.structuredBlockText(); }
+  function structuredCanvasText(){ return inputCtl.structuredCanvasText(); }
 
   CanvasInteractions.create({
     document: document,
@@ -713,6 +719,19 @@
     document.getElementById('copyItem').addEventListener('click', function(){
       var t = copySelection();
       if (t==null || t==='') { showNotice('Select a number, result, or calculation to copy.'); closeMenu(false); return; }
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { showNotice('Clipboard copy is not available.'); closeMenu(false); return; }
+      navigator.clipboard.writeText(t).catch(function(){ showNotice('Could not copy to the clipboard.'); });
+      closeMenu(false);
+    });
+    document.getElementById('copyStructuredBlockItem').addEventListener('click', function(){
+      var t = structuredBlockText();
+      if (t==null || t==='') { showNotice('Select a calculation block to export.'); closeMenu(false); return; }
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { showNotice('Clipboard copy is not available.'); closeMenu(false); return; }
+      navigator.clipboard.writeText(t).catch(function(){ showNotice('Could not copy to the clipboard.'); });
+      closeMenu(false);
+    });
+    document.getElementById('copyCanvasSummaryItem').addEventListener('click', function(){
+      var t = structuredCanvasText();
       if (!navigator.clipboard || !navigator.clipboard.writeText) { showNotice('Clipboard copy is not available.'); closeMenu(false); return; }
       navigator.clipboard.writeText(t).catch(function(){ showNotice('Could not copy to the clipboard.'); });
       closeMenu(false);

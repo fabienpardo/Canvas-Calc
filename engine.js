@@ -226,6 +226,7 @@
     'unmatched-close': 'Remove or match the closing parenthesis.',
     'empty-parens': 'Add a value inside the parentheses.',
     'broken-link': 'Linked value is no longer available.',
+    'source-unresolved': 'Fix the linked source first.',
     'divide-by-zero': 'Cannot divide by zero.'
   };
 
@@ -266,6 +267,14 @@
     return false;
   }
 
+  function hasUnresolvedLinkedSource(block, map) {
+    for (var i = 0; i < block.terms.length; i++) {
+      var t = block.terms[i];
+      if (t.type === 'linked' && linkedValue(t, map) == null) return true;
+    }
+    return false;
+  }
+
   // Classify a block: { status, value, reason, message }.
   //   status 'incomplete'  -> nothing to show yet (still building the expression)
   //   status 'unresolved'  -> a real problem; show "?" + message
@@ -291,13 +300,11 @@
     if (!reason && hasBrokenLink(block, map)) reason = 'broken-link';
     if (reason) return { status: 'unresolved', value: null, reason: reason, message: REASON_MESSAGES[reason] };
 
-    // A linked operand that resolves to nothing (its source is present but
-    // malformed or in a cycle) leaves this block unresolved too, but the repair
-    // belongs to the source — so no message, just an honest "?".
-    for (var j = 0; j < terms.length; j++) {
-      if (terms[j].type === 'linked' && linkedValue(terms[j], map) == null) {
-        return { status: 'unresolved', value: null, reason: null, message: '' };
-      }
+    // A linked operand whose source exists but cannot currently resolve leaves
+    // this block unresolved too. The repair belongs to the source, but the
+    // dependent should still explain why it is showing "?".
+    if (hasUnresolvedLinkedSource(block, map)) {
+      return { status: 'unresolved', value: null, reason: 'source-unresolved', message: REASON_MESSAGES['source-unresolved'] };
     }
 
     var value = resolve(block, map);
@@ -458,6 +465,7 @@
     missingOperatorIndex: missingOperatorIndex,
     createsCycle: createsCycle,
     parenStatus: parenStatus, hasEmptyParens: hasEmptyParens, hasBrokenLink: hasBrokenLink,
+    hasUnresolvedLinkedSource: hasUnresolvedLinkedSource,
     diagnose: diagnose, REASON_MESSAGES: REASON_MESSAGES,
     fmt: fmt, groupDisplay: groupDisplay,
     opSym: opSym, labelOf: labelOf, blockDefinition: blockDefinition,
