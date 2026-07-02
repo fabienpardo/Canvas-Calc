@@ -1,739 +1,749 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Canvas Calc — "Craft" design language
+   Warm paper, rounded tactile surfaces, colour strictly role-coded:
+     · ink        → content and selection (selection is a ring, never a hue)
+     · terracotta → operators
+     · teal       → results and primary actions
+     · slate blue → links
+     · clay red   → destructive
+   The JS renders into a fixed id/class contract (#numpad, .block, .term…);
+   this stylesheet is the entire visual layer on top of that contract.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Tokens ─────────────────────────────────────────────────────────── */
+:root {
+  /* surfaces */
+  --bg: #f5eee3;
+  --canvas: #f0e7d9;
+  --grid: rgba(120, 100, 70, 0.16);
+  --block: #fffcf6;
+  --block-border: #ece2d2;
+  /* ink */
+  --text: #2c2620;
+  --text-dim: #8a7c66;
+  --sel: #2c2620;               /* selection ring = neutral ink */
+  /* roles */
+  --op: #c2603a;
+  --op-soft: #f7e6d8;
+  --result: #0e6b58;
+  --result-bg: #dff1eb;
+  --linked-text: #2f5597;
+  --linked-bg: #e5eefb;
+  --accent: #0e6b58;
+  --accent-strong: #0a5646;
+  --danger: #c0392b;
+  --danger-soft: #f7e0dc;
+  /* keypad */
+  --pad-bg: rgba(240, 231, 217, 0.95);
+  --key: #fffcf6;
+  --key-active: #f0e5d4;
+  /* shape + depth */
+  --r-block: 20px;
+  --r-card: 16px;
+  --r-ctl: 14px;
+  --r-chip: 999px;
+  --shadow-soft: 0 8px 22px rgba(80, 60, 30, 0.10);
+  --shadow-tight: 0 2px 6px rgba(80, 60, 30, 0.10);
+  --shadow-pop: 0 14px 34px rgba(80, 60, 30, 0.16);
+  /* type */
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #f8fafc;
-    --canvas: #f3f6f8;
-    --grid: rgba(94, 116, 139, 0.13);
-    --block: #ffffff;
-    --block-border: #dbe3ea;
-    --block-sel: #2563eb;
-    --text: #172033;
-    --text-dim: #657386;
-    --op: #b65a1e;
-    --result: #0f766e;
-    --result-bg: #e7f7f4;
-    --linked-bg: #edf5ff;
-    --linked-text: #2563eb;
-    --accent: #2563eb;
-    --accent-strong: #1d4ed8;
-    --pad-bg: rgba(248, 250, 252, 0.94);
-    --key: #ffffff;
-    --key-border: #d7e0e8;
-    --key-active: #eaf1f8;
-    --danger: #dc2626;
-    --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.10);
-    --shadow-tight: 0 2px 8px rgba(15, 23, 42, 0.12);
-    --radius: 8px;
-    --mono: ui-monospace, "SF Mono", Menlo, monospace;
-    --sans: -apple-system, system-ui, sans-serif;
+    --bg: #1c1813;
+    --canvas: #171310;
+    --grid: rgba(220, 200, 160, 0.10);
+    --block: #262019;
+    --block-border: #3a3227;
+    --text: #f1e9db;
+    --text-dim: #a99b84;
+    --sel: #ede4d6;
+    --op: #e0895a;
+    --op-soft: #3a2b20;
+    --result: #57c9a6;
+    --result-bg: #123a31;
+    --linked-text: #96b4ee;
+    --linked-bg: #1e2c46;
+    --accent: #2fa98c;
+    --accent-strong: #35bfa0;
+    --danger: #f0857a;
+    --danger-soft: #45231e;
+    --pad-bg: rgba(28, 24, 19, 0.95);
+    --key: #262019;
+    --key-active: #322a20;
+    --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.42);
+    --shadow-tight: 0 3px 8px rgba(0, 0, 0, 0.32);
+    --shadow-pop: 0 16px 38px rgba(0, 0, 0, 0.5);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #101722;
-      --canvas: #0c121c;
-      --grid: rgba(148, 163, 184, 0.12);
-      --block: #172033;
-      --block-border: #2a384b;
-      --block-sel: #60a5fa;
-      --text: #edf5ff;
-      --text-dim: #9aa8ba;
-      --op: #fb923c;
-      --result: #5eead4;
-      --result-bg: #123b39;
-      --linked-bg: #172b49;
-      --linked-text: #93c5fd;
-      --accent: #60a5fa;
-      --accent-strong: #3b82f6;
-      --pad-bg: rgba(16, 23, 34, 0.95);
-      --key: #182235;
-      --key-border: #2d3b4e;
-      --key-active: #243146;
-      --danger: #f87171;
-      --shadow-soft: 0 12px 28px rgba(0,0,0,0.34);
-      --shadow-tight: 0 4px 12px rgba(0,0,0,0.24);
-    }
-  }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    margin: 0; padding: 0; height: 100%; overflow: hidden;
-    font-family: var(--sans); color: var(--text); background: var(--bg);
-    overscroll-behavior: none; touch-action: none;
-    -webkit-user-select: none; user-select: none;
-  }
-  /* While a real text field is focused (e.g. canvas rename), allow native
-     pinch-zoom so the user isn't stuck unable to zoom out from under the
-     iOS keyboard. See the focusin/focusout handler in app.js. */
-  html.text-editing, html.text-editing body {
-    touch-action: auto;
-  }
-  input, textarea, [contenteditable="true"] {
-    -webkit-user-select: text; user-select: text;
-  }
-  button:focus-visible, [contenteditable="true"]:focus-visible, input:focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px;
-  }
-  #app { display: flex; flex-direction: column; height: 100%; position: relative; }
+}
 
-  /* Toolbar */
-  #toolbar {
-    display: flex; align-items: center; gap: 6px;
-    min-height: calc(50px + env(safe-area-inset-top));
-    padding: max(8px, env(safe-area-inset-top)) 10px 8px;
-    background: color-mix(in srgb, var(--bg) 92%, var(--block));
-    border-bottom: 1px solid var(--block-border);
-    flex: 0 0 auto;
-    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
-  }
-  /* Canvas switcher */
-  .cv-switch { position: relative; margin-right: auto; }
-  .cv-btn {
-    display: flex; align-items: center; gap: 5px; max-width: min(230px, 46vw);
-    border: 1px solid transparent; background: transparent; cursor: pointer;
-    color: var(--text); font-family: var(--sans); font-size: 15px; font-weight: 650;
-    padding: 8px 9px; border-radius: var(--radius);
-  }
-  .cv-btn:active { background: var(--key-active); }
-  .cv-btn #canvasName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cv-caret { color: var(--text-dim); font-size: 11px; }
-  #canvasMenu {
-    position: absolute; top: calc(100% + 7px); left: 0; min-width: 230px;
-    background: var(--block); border: 1px solid var(--block-border);
-    border-radius: 12px; box-shadow: var(--shadow-soft);
-    padding: 6px; z-index: 60;
-  }
-  #canvasMenu[hidden] { display: none; }
-  .cv-row {
-    display: flex; align-items: center; gap: 6px; padding: 4px;
-    border-radius: var(--radius); cursor: pointer;
-  }
-  .cv-row.active { background: var(--key-active); }
-  .cv-row:active { background: var(--key-active); }
-  .cv-name {
-    flex: 1 1 auto; min-width: 0; border: 1px solid transparent; background: transparent;
-    color: var(--text); font-family: var(--sans); font-size: 14px; padding: 6px;
-    border-radius: var(--radius); outline: none; text-align: left;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  button.cv-name { cursor: pointer; }
-  input.cv-name { cursor: text; }
-  input.cv-name:focus { border-color: var(--accent); background: var(--bg); }
-  .cv-del {
-    flex: 0 0 auto; width: 40px; height: 40px; border: none; background: transparent;
-    color: var(--danger); font-size: 16px; cursor: pointer; border-radius: var(--radius);
-  }
-  .cv-del:disabled { opacity: 0.25; cursor: default; }
-  .cv-new {
-    width: 100%; text-align: left; border: none; background: transparent; cursor: pointer;
-    color: var(--accent); font-family: var(--sans); font-size: 14px; font-weight: 500;
-    padding: 9px 10px; border-radius: var(--radius); margin-top: 2px;
-  }
-  .cv-new:active { background: var(--key-active); }
-  .tbtn {
-    border: 1px solid var(--key-border); background: var(--key);
-    color: var(--text); border-radius: var(--radius);
-    width: 44px; height: 44px; font-size: 16px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-family: var(--sans);
-    box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
-  }
-  .tbtn:active { background: var(--key-active); }
-  .tbtn[disabled] { opacity: 0.32; }
-  .tbtn.txt { font-size: 13px; font-weight: 500; width: auto; padding: 0 10px; gap: 5px; }
-  /* Variables button: icon always, text label only where there's room (desktop). */
-  #varsBtn .vars-lbl { display: none; }
+/* ── 2. Base ───────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  font-family: var(--sans); color: var(--text); background: var(--bg);
+  overscroll-behavior: none; touch-action: none;
+  -webkit-user-select: none; user-select: none;
+}
+/* While a real text field is focused (e.g. canvas rename) allow native
+   pinch-zoom so iOS users aren't trapped under the keyboard (see app.js). */
+html.text-editing, html.text-editing body { touch-action: auto; }
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text; user-select: text;
+}
+button { font-family: var(--sans); color: inherit; }
+button:focus-visible, [contenteditable="true"]:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+[hidden] { display: none !important; }
 
-  /* Overflow menu */
-  .menu-wrap { position: relative; }
-  #menu {
-    position: fixed;
-    top: calc(57px + env(safe-area-inset-top));
-    right: 10px;
-    min-width: 210px;
-    max-height: min(72vh, calc(100dvh - 74px - env(safe-area-inset-bottom)));
-    overflow-y: auto;
-    background: var(--block); border: 1px solid var(--block-border);
-    border-radius: 12px; box-shadow: var(--shadow-soft);
-    padding: 6px; z-index: 60;
-  }
-  #menu[hidden] { display: none; }
-  .menu-item {
-    display: flex; align-items: center; gap: 8px; width: 100%;
-    border: none; background: transparent; color: var(--text);
-    font-family: var(--sans); font-size: 14px; text-align: left;
-    padding: 10px 11px; border-radius: var(--radius); cursor: pointer;
-  }
-  .menu-item:active { background: var(--key-active); }
-  .menu-check {
-    width: 18px; color: var(--accent); opacity: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700;
-  }
-  .danger-item .menu-check { opacity: 1; }
-  .menu-item[aria-checked="true"] .menu-check { opacity: 1; }
-  .menu-label {
-    padding: 8px 11px 3px; font-family: var(--sans);
-    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
-    text-transform: uppercase; color: var(--text-dim);
-  }
-  .menu-sep { height: 1px; background: var(--block-border); margin: 5px 6px; }
-  .danger-item { color: var(--danger); }
+.ico { width: 20px; height: 20px; pointer-events: none; display: block; }
 
-  /* Canvas */
-  #canvasWrap {
-    flex: 1 1 auto; position: relative; overflow: auto;
-    background: var(--canvas);
-    -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
-  }
-  #canvas.grid-on {
-    background-image:
-      linear-gradient(var(--grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
-  #canvasSizer { position: relative; width: 1600px; height: 2400px; }
-  #canvas {
-    position: absolute; top: 0; left: 0; width: 1600px; height: 2400px;
-    transform-origin: 0 0;
-  }
-  #zoomCtl {
-    position: fixed; left: 12px; bottom: 10px; z-index: 45;
-    display: flex; align-items: center; gap: 2px;
-    background: var(--block); border: 1px solid var(--block-border);
-    border-radius: 10px; box-shadow: var(--shadow-tight);
-    overflow: hidden;
-  }
-  #zoomCtl button {
-    border: none; background: transparent; color: var(--text);
-    font-family: var(--sans); font-size: 16px; cursor: pointer;
-    width: 34px; height: 32px; display: flex; align-items: center; justify-content: center;
-  }
-  #zoomCtl button:active { background: var(--key-active); }
-  #zoomLevel { font-size: 12px !important; width: 48px !important; color: var(--text-dim); }
-  #linkLayer {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    pointer-events: none; z-index: 1;
-  }
+#app { display: flex; flex-direction: column; height: 100%; position: relative; }
 
-  /* Add-calculation button */
-  #addBtn {
-    position: absolute; display: none; align-items: center; justify-content: center;
-    width: 38px; height: 38px; border-radius: 50%; z-index: 3;
-    background: var(--accent); border: 1px solid var(--accent); color: #fff;
-    font-size: 24px; line-height: 1; cursor: pointer; padding: 0;
-    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25); touch-action: none;
-  }
-  #addBtn:active { background: var(--accent-strong); }
+/* ── 3. Toolbar ────────────────────────────────────────────────────────── */
+#toolbar {
+  display: flex; align-items: center; gap: 4px;
+  min-height: calc(52px + env(safe-area-inset-top));
+  padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+  background: var(--bg);
+  flex: 0 0 auto;
+}
+.tool-group { display: flex; align-items: center; gap: 2px; }
 
-  /* Block */
-  .block {
-    position: absolute; z-index: 2;
-    background: var(--block); border: 1px solid var(--block-border);
-    border-radius: 10px; padding: 7px 9px 8px;
-    min-width: 68px; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-    touch-action: none;
-  }
-  .block.selected, .block.active {
-    border-color: var(--block-sel);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--block-sel) 28%, transparent), 0 8px 22px rgba(15, 23, 42, 0.12);
-  }
-  .block.selected:has(.cap:focus), .block.active:has(.cap:focus) {
-    border-color: var(--block-border);
-    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-  }
-  .block.empty-draft {
-    min-width: 96px; min-height: 36px; padding: 0 12px;
-    border-style: dashed; border-color: var(--accent);
-    display: flex; align-items: center;
-    box-shadow: none; background: var(--block);
-  }
-  .block.empty-draft .expr {
-    align-items: center; color: var(--text-dim);
-    font-size: calc(var(--fs, 22px) * 0.62);
-  }
-  .block.empty-draft .expr::before {
-    content: "Type a number…"; white-space: nowrap;
-  }
-  .block.empty-draft .expr::after {
-    content: ""; width: 2px; height: calc(var(--fs, 22px) * 0.85);
-    margin-left: 1px; background: var(--accent); border-radius: 1px;
-    animation: caretBlink 1.05s step-end infinite;
-  }
-  @keyframes caretBlink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) {
-    .block.empty-draft .expr::after { animation: none; }
-  }
+.cv-switch { position: relative; margin-right: auto; min-width: 0; }
+.cv-btn {
+  display: flex; align-items: center; gap: 5px; max-width: min(240px, 48vw);
+  border: none; background: transparent; cursor: pointer;
+  font-size: 16px; font-weight: 650; letter-spacing: -0.01em;
+  padding: 9px 10px; border-radius: var(--r-ctl);
+}
+.cv-btn:active { background: var(--key-active); }
+.cv-btn #canvasName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-caret { width: 15px; height: 15px; color: var(--text-dim); flex: 0 0 auto; }
 
-  /* Delete (×) button */
-  .block-del {
-    position: absolute; top: -10px; right: -10px;
-    width: 30px; height: 30px; border-radius: 50%;
-    border: 1px solid color-mix(in srgb, var(--danger) 55%, #fff); padding: 0;
-    background: var(--block); color: var(--danger);
-    display: none; align-items: center; justify-content: center;
-    font-size: 16px; line-height: 1; cursor: pointer; z-index: 4;
-    box-shadow: var(--shadow-tight);
-  }
-  /* Invisible 44px hit area so the small corner control is comfortably tappable. */
-  .block-del::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
-  .block.selected .block-del, .block.active .block-del { display: flex; }
-  @media (hover: hover) { .block:hover .block-del { display: flex; } }
-  .block.empty-draft .block-del { display: none; }
-  .block:has(.result-cell) .block-del { top: -18px; right: -18px; }
-  .block:has(.cap:focus) .block-del { display: none; }
+.tbtn {
+  border: none; background: transparent; color: var(--text);
+  width: 44px; height: 44px; border-radius: var(--r-ctl);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.tbtn:active { background: var(--key-active); }
+.tbtn[disabled] { opacity: 0.3; cursor: default; }
+.tbtn.txt { width: auto; padding: 0 12px; gap: 7px; font-size: 13.5px; font-weight: 600; }
+.tbtn[aria-pressed="true"] { background: var(--result-bg); color: var(--result); }
+#varsBtn .vars-lbl { display: none; }
 
-  /* Per-value captions */
-  .cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .cap {
-    font-size: 10px; color: var(--text-dim); line-height: 1.2; font-weight: 550;
-    max-width: 150px; text-align: center; outline: none;
-    overflow-wrap: anywhere; word-break: break-word;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
-    border-bottom: 1px dashed transparent;
-  }
-  .cap:empty { display: none; }
-  .block.active .cap:empty, .block.selected .cap:empty {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 16px; min-height: 14px; opacity: 0.7;
-    border: 1px dashed var(--block-border); border-radius: 999px;
-  }
-  .block.active .result-cell .cap:empty, .block.selected .result-cell .cap:empty {
-    min-width: 44px; min-height: 22px;
-  }
-  .block.active .cap:empty::before, .block.selected .cap:empty::before { content: "+"; }
-  @media (hover: hover) {
-    .block.active .cap:hover, .block.selected .cap:hover {
-      color: var(--accent); border-color: var(--accent);
-    }
-  }
-  /* Focused caption: a small labelled-input popover that floats above the
-     expression, so a long name reads as an editor instead of clipped text. */
-  .cap:focus {
-    display: block; min-width: 28px; max-width: 180px; opacity: 1;
-    /* 16px keeps the label comfortably editable on phones and is also the
-       threshold below which iOS would auto-zoom the field on focus. */
-    font-size: 16px; -webkit-line-clamp: none; overflow: visible; line-height: 1.3;
-    color: var(--text); background: var(--block);
-    border: 1px solid var(--accent); border-radius: 5px;
-    padding: 2px 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.14);
-    position: relative; z-index: 6; caret-color: var(--text);
-  }
-  .cap:focus-visible { outline: none; }
-  .block.active .result-cell .cap:focus,
-  .block.selected .result-cell .cap:focus,
-  .result-cell .cap:focus {
-    position: absolute; left: 50%; bottom: calc(100% + 8px);
-    transform: translateX(-50%);
-    min-width: min(120px, 46vw); max-width: min(220px, calc(100vw - 32px));
-    min-height: 28px; text-align: left; white-space: nowrap;
-    overflow: hidden; overflow-wrap: normal; word-break: normal;
-  }
-  .block.active .cap:focus:empty::before, .block.selected .cap:focus:empty::before { content: none; }
+/* ── 4. Menus (canvas switcher + overflow) ─────────────────────────────── */
+#canvasMenu {
+  position: absolute; top: calc(100% + 8px); left: 0; min-width: 240px;
+  background: var(--block); border: 1px solid var(--block-border);
+  border-radius: var(--r-card); box-shadow: var(--shadow-pop);
+  padding: 8px; z-index: 60;
+}
+.cv-row {
+  display: flex; align-items: center; gap: 6px; padding: 4px;
+  border-radius: 12px; cursor: pointer;
+}
+.cv-row.active, .cv-row:active { background: var(--key-active); }
+.cv-name {
+  flex: 1 1 auto; min-width: 0; border: 1px solid transparent; background: transparent;
+  color: var(--text); font-family: var(--sans); font-size: 14.5px; padding: 7px 8px;
+  border-radius: 10px; outline: none; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.cv-name { cursor: pointer; }
+input.cv-name { cursor: text; }
+input.cv-name:focus { border-color: var(--accent); background: var(--bg); }
+.cv-del {
+  flex: 0 0 auto; width: 40px; height: 40px; border: none; background: transparent;
+  color: var(--danger); font-size: 16px; cursor: pointer; border-radius: 10px;
+}
+.cv-del:active { background: var(--danger-soft); }
+.cv-del:disabled { opacity: 0.25; cursor: default; }
+.cv-new {
+  width: 100%; text-align: left; border: none; background: transparent; cursor: pointer;
+  color: var(--accent); font-size: 14.5px; font-weight: 600;
+  padding: 10px; border-radius: 12px; margin-top: 2px;
+}
+.cv-new:active { background: var(--key-active); }
 
-  .expr {
-    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px;
-    font-family: var(--mono); font-size: var(--fs, 22px); line-height: 1.3;
-  }
-  .term {
-    position: relative; padding: 1px 4px; border-radius: 6px; min-width: 10px; text-align: center;
-    display: inline-flex; align-items: flex-end; justify-content: center;
-  }
-  .term.has-caret { padding-right: 10px; }
-  .term.number { color: var(--text); }
-  .term.number.sel { background: var(--accent); color: #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-  .term.operator { color: var(--op); padding: 1px 2px; font-weight: 650; }
-  /* Placeholder where an operator is expected between two adjacent operands. */
-  .op-missing {
-    position: relative; align-self: flex-end; display: inline-flex; align-items: center; justify-content: center;
-    margin: 0 6px; padding: 1px 7px; min-height: calc(var(--fs, 22px) * 1.35);
-    line-height: 1; box-sizing: border-box; transform: translateY(2px);
-    color: var(--op); font-weight: 700;
-    border: 1px dashed var(--op); border-radius: 6px; opacity: 0.85;
-    cursor: pointer;
-  }
-  .op-missing.sel {
-    background: var(--accent); color: #fff; border-style: solid; border-color: var(--accent);
-    opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
-  }
-  /* Inline operator picker shown next to a selected gap. */
-  .op-picker {
-    align-self: flex-end; display: inline-flex; gap: 3px;
-    margin: 0 2px 1px; padding: 2px; transform: translateY(1px);
-    background: color-mix(in srgb, var(--accent) 10%, var(--block));
-    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-    border-radius: 8px;
-  }
-  .op-pick {
-    appearance: none; -webkit-appearance: none; border: none; cursor: pointer;
-    min-width: 26px; height: 26px; padding: 0; border-radius: 6px;
-    background: var(--block); color: var(--op); font-family: var(--sans);
-    font-size: 15px; font-weight: 700; line-height: 1;
-    display: inline-flex; align-items: center; justify-content: center;
-    box-shadow: 0 1px 1px rgba(15, 23, 42, 0.06);
-  }
-  .op-pick:active { background: var(--accent); color: #fff; }
-  .term.operator.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-  .term.operator.sel.has-caret { padding-right: 10px; }
-  .term.paren { color: var(--text-dim); padding: 1px 2px; }
-  .term.paren.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-  .term.paren.sel.has-caret { padding-right: 10px; }
-  .term.linked {
-    background: var(--linked-bg); color: var(--linked-text);
-    border-radius: 7px; padding: 1px 7px; font-weight: 650;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--linked-text) 48%, transparent);
-  }
-  .term.linked.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .eq { color: var(--text-dim); padding: 0 2px; }
-  .result {
-    position: relative;
-    color: var(--result); font-weight: 700; padding: 1px 7px;
-    background: var(--result-bg); border-radius: 7px; cursor: grab;
-  }
-  .result.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .result.empty { background: transparent; color: var(--text-dim); }
-  /* Reserved slot for a calc still being typed: muted "?" placeholder, no grab. */
-  .result.pending { background: transparent; color: var(--text-dim); cursor: default; }
-  /* Soft explanation under an unresolved "?": why it can't resolve and how to
-     fix it. Deliberately muted — never the alarming destructive treatment. */
-  .result-why {
-    margin-top: 2px; max-width: 20ch;
-    color: var(--text-dim); font-family: var(--sans);
-    font-size: 10px; font-weight: 500; line-height: 1.3;
-    text-align: center; white-space: normal; opacity: 0.85;
-  }
-  /* While a block is being typed into, the result is a live preview: drop the
-     filled pill so the input caret reads as the focus, not the answer. */
-  .block.active .result:not(.sel) { background: transparent; }
+.menu-wrap { position: relative; }
+#menu {
+  position: fixed;
+  top: calc(58px + env(safe-area-inset-top));
+  right: 10px;
+  min-width: 236px;
+  max-height: min(72vh, calc(100dvh - 76px - env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  background: var(--block); border: 1px solid var(--block-border);
+  border-radius: var(--r-card); box-shadow: var(--shadow-pop);
+  padding: 8px; z-index: 60;
+}
+.menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: none; background: transparent; color: var(--text);
+  font-size: 14.5px; text-align: left;
+  padding: 10px 11px; border-radius: 12px; cursor: pointer;
+}
+.menu-item:active { background: var(--key-active); }
+.menu-ico, .menu-check {
+  width: 20px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
+}
+.menu-ico .ico { width: 18px; height: 18px; }
+.menu-check { color: var(--accent); }
+.menu-check .ico { width: 16px; height: 16px; opacity: 0; }
+.menu-item[aria-checked="true"] .menu-check .ico { opacity: 1; }
+.menu-label {
+  padding: 9px 12px 3px;
+  font-size: 11px; font-weight: 650; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.menu-sep { height: 1px; background: var(--block-border); margin: 6px 4px; }
+.danger-item { color: var(--danger); }
+.danger-item .menu-ico { color: var(--danger); }
+.danger-item:active { background: var(--danger-soft); }
 
-  /* Blinking caret marking the live input position in the active block. */
-  .expr-caret {
-    position: absolute; right: 3px; bottom: 3px;
-    width: 2px; height: calc(var(--fs, 22px) * 0.94);
-    margin: 0; background: var(--accent); border-radius: 1px;
-    animation: caretBlink 1.05s step-end infinite;
-  }
-  @media (prefers-reduced-motion: reduce) { .expr-caret { animation: none; } }
-  .selection-caret {
-    position: absolute; right: 3px; bottom: 3px;
-    width: 2px; height: calc(var(--fs, 22px) * 0.94);
-    margin: 0; background: var(--accent); border-radius: 1px;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
-  }
-  .term.number.sel .selection-caret,
-  .term.operator.sel .selection-caret,
-  .term.paren.sel .selection-caret {
-    background: #fff;
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 72%, transparent);
-  }
-  /* While a label is being edited, the caret in the caption is the only focus
-     the eye should track — mute every term/operator/number/result selection so
-     a stray selected chip doesn't compete with the text being typed. */
-  .block:has(.cap:focus) .cap:empty:not(:focus) { display: none; }
-  .block:has(.cap:focus) .term.number.sel { background: transparent; color: var(--text); box-shadow: none !important; }
-  .block:has(.cap:focus) .term.operator.sel { background: transparent; color: var(--op); box-shadow: none; padding: 1px 2px; }
-  .block:has(.cap:focus) .term.paren.sel { background: transparent; color: var(--text-dim); box-shadow: none; padding: 1px 2px; }
-  .block:has(.cap:focus) .term.linked.sel { outline: none; box-shadow: none !important; }
-  .block:has(.cap:focus) .op-missing.sel {
-    background: transparent; color: var(--op);
-    border-style: dashed; border-color: var(--op); opacity: 0.85; box-shadow: none;
-  }
-  .block:has(.cap:focus) .op-picker { display: none; }
-  .block:has(.cap:focus) .result.sel { outline: none; box-shadow: none !important; }
-  .block:has(.cap:focus) .selection-caret,
-  .block:has(.cap:focus) .expr-caret { display: none; }
+/* ── 5. Canvas ─────────────────────────────────────────────────────────── */
+#canvasWrap {
+  flex: 1 1 auto; position: relative; overflow: auto;
+  background: var(--canvas);
+  border-top: 1px solid var(--block-border);
+  -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
+}
+#canvasSizer { position: relative; width: 1600px; height: 2400px; }
+#canvas {
+  position: absolute; top: 0; left: 0; width: 1600px; height: 2400px;
+  transform-origin: 0 0;
+}
+/* Craft grid: soft dots, not ruled lines. */
+#canvas.grid-on {
+  background-image: radial-gradient(var(--grid) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+#linkLayer {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1;
+}
 
-  /* Ghost (drag-to-link) */
-  #ghost {
-    position: fixed; z-index: 100; pointer-events: none;
-    font-family: var(--mono); font-size: 22px; font-weight: 500;
-    background: var(--result-bg); color: var(--result);
-    border: 1px solid var(--accent); border-radius: 4px;
-    padding: 2px 8px; transform: translate(-50%, -50%); display: none;
-    opacity: 0.72; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  }
-  /* Valid drop zone while dragging a link into a block. */
-  .drop-ok {
-    outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 12px;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-  }
-  /* Invalid drop zone (own source, or would close a dependency loop): soft, not
-     a hard error — it just signals "not here" instead of an ambiguous drop. */
-  .drop-invalid {
-    outline: 2px dashed color-mix(in srgb, #c0392b 70%, transparent); outline-offset: 2px;
-    background: color-mix(in srgb, #c0392b 8%, transparent); border-radius: 12px;
-    cursor: not-allowed;
-  }
-  /* Insertion caret showing exactly where a dropped link will land. */
-  .drop-caret {
-    align-self: stretch; width: 3px; min-height: 1.1em; margin: 0 1px;
-    border-radius: 2px; background: var(--accent); pointer-events: none;
-    animation: dropCaretPulse 0.8s ease-in-out infinite;
-  }
-  @keyframes dropCaretPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+#addBtn {
+  position: absolute; display: none; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%; z-index: 3;
+  background: var(--accent); border: none; color: #fff;
+  font-size: 26px; line-height: 1; cursor: pointer; padding: 0;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 35%, transparent);
+  touch-action: none;
+}
+#addBtn:active { background: var(--accent-strong); }
 
-  /* Numpad */
+/* Empty-canvas hint: a friendly welcome card zone (band over the visible
+   canvas; JS raises its bottom above the keypad). */
+#hint {
+  position: absolute; inset: 0; z-index: 4;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; color: var(--text-dim); pointer-events: none;
+  padding: 0 30px;
+}
+.hint-mark {
+  appearance: none; -webkit-appearance: none; padding: 0;
+  width: 60px; height: 60px; border-radius: 50%; margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; line-height: 1; color: #fff;
+  background: var(--accent); border: none;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 30%, transparent);
+  pointer-events: auto; cursor: pointer;
+}
+.hint-mark:active { background: var(--accent-strong); }
+.hint-title { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.hint-sub { font-size: 14px; line-height: 1.5; margin-top: 5px; }
+.hint-sub b { color: var(--accent); font-weight: 650; }
+
+/* ── 6. Zoom control ───────────────────────────────────────────────────── */
+#zoomCtl {
+  position: fixed; left: 12px; bottom: 12px; z-index: 45;
+  display: flex; align-items: center;
+  background: var(--block); border: 1px solid var(--block-border);
+  border-radius: var(--r-chip); box-shadow: var(--shadow-tight);
+  overflow: hidden; padding: 2px;
+}
+#zoomCtl button {
+  border: none; background: transparent; color: var(--text);
+  font-size: 16px; cursor: pointer;
+  width: 34px; height: 32px; border-radius: var(--r-chip);
+  display: flex; align-items: center; justify-content: center;
+}
+#zoomCtl button:active { background: var(--key-active); }
+#zoomLevel { font-size: 12px !important; width: 48px !important; color: var(--text-dim); }
+
+/* ── 7. Calculation block ──────────────────────────────────────────────── */
+.block {
+  position: absolute; z-index: 2;
+  background: var(--block); border: 1px solid var(--block-border);
+  border-radius: var(--r-block); padding: 11px 15px 12px;
+  min-width: 76px; box-shadow: var(--shadow-soft);
+  touch-action: none;
+}
+/* Selection is a warm-ink ring — a shape, never a competing colour. */
+.block.selected, .block.active {
+  border-color: var(--sel);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sel) 14%, transparent), var(--shadow-soft);
+}
+.block.selected:has(.cap:focus), .block.active:has(.cap:focus) {
+  border-color: var(--block-border);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Draft block awaiting its first digit. */
+.block.empty-draft {
+  min-width: 104px; min-height: 40px; padding: 0 14px;
+  border: 1.5px dashed var(--accent); background: var(--block);
+  display: flex; align-items: center; box-shadow: none;
+}
+.block.empty-draft .expr {
+  align-items: center; color: var(--text-dim);
+  font-size: calc(var(--fs, 22px) * 0.62);
+}
+.block.empty-draft .expr::before { content: "Type a number…"; white-space: nowrap; }
+.block.empty-draft .expr::after {
+  content: ""; width: 2px; height: calc(var(--fs, 22px) * 0.85);
+  margin-left: 2px; background: var(--accent); border-radius: 1px;
+  animation: caretBlink 1.05s step-end infinite;
+}
+@keyframes caretBlink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+
+/* Delete control: revealed by selection (or hover on desktop). */
+.block-del {
+  position: absolute; top: -12px; right: -12px;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--block)); padding: 0;
+  background: var(--block); color: var(--danger);
+  display: none; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; cursor: pointer; z-index: 4;
+  box-shadow: var(--shadow-tight);
+}
+.block-del::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
+.block.selected .block-del, .block.active .block-del { display: flex; }
+@media (hover: hover) { .block:hover .block-del { display: flex; } }
+.block.empty-draft .block-del { display: none; }
+.block:has(.result-cell) .block-del { top: -16px; right: -16px; }
+.block:has(.cap:focus) .block-del { display: none; }
+
+/* ── 8. Expression, terms, captions ────────────────────────────────────── */
+.expr {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px;
+  font-family: var(--mono); font-size: var(--fs, 22px); line-height: 1.3;
+}
+.cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+/* Captions: tiny labels bonded to a value. */
+.cap {
+  font-size: 10.5px; color: var(--text-dim); line-height: 1.25; font-weight: 600;
+  max-width: 150px; text-align: center; outline: none;
+  overflow-wrap: anywhere; word-break: break-word;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.cap:empty { display: none; }
+/* Naming affordances, deliberately scoped so editing never scatters "+"
+   bubbles: the block title (result cell — or the lone number of a one-value
+   block) offers naming while the block is active; other operands only offer
+   it when that operand is selected. */
+.cell:has(.term.sel) .cap:empty:not(:focus),
+.block.active .result-cell .cap:empty:not(:focus),
+.block.selected .result-cell .cap:empty:not(:focus),
+.block.active .expr > .cell:only-child .cap:empty:not(:focus),
+.block.selected .expr > .cell:only-child .cap:empty:not(:focus) {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; min-height: 15px; opacity: 0.7;
+  border: 1px dashed var(--text-dim); border-radius: var(--r-chip);
+}
+.block.active .result-cell .cap:empty:not(:focus),
+.block.selected .result-cell .cap:empty:not(:focus) { min-width: 44px; min-height: 22px; }
+.cell:has(.term.sel) .cap:empty:not(:focus)::before,
+.block.active .result-cell .cap:empty:not(:focus)::before,
+.block.selected .result-cell .cap:empty:not(:focus)::before,
+.block.active .expr > .cell:only-child .cap:empty:not(:focus)::before,
+.block.selected .expr > .cell:only-child .cap:empty:not(:focus)::before { content: "+"; }
+.cap:focus:empty::before { content: none; }
+@media (hover: hover) {
+  .block.active .cap:hover, .block.selected .cap:hover { color: var(--accent); }
+}
+/* Focused caption becomes a floating name editor. 16px also keeps iOS from
+   auto-zooming the field. */
+.cap:focus {
+  display: block; min-width: 30px; max-width: 180px; opacity: 1;
+  font-size: 16px; -webkit-line-clamp: none; overflow: visible; line-height: 1.3;
+  color: var(--text); background: var(--block);
+  border: 1.5px solid var(--accent); border-radius: 10px;
+  padding: 3px 8px; box-shadow: var(--shadow-tight);
+  position: relative; z-index: 6; caret-color: var(--text);
+}
+.cap:focus-visible { outline: none; }
+.result-cell .cap:focus {
+  position: absolute; left: 50%; bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  min-width: min(120px, 46vw); max-width: min(220px, calc(100vw - 32px));
+  min-height: 28px; text-align: left; white-space: nowrap;
+  overflow: hidden; overflow-wrap: normal; word-break: normal;
+}
+
+/* Terms. */
+.term {
+  position: relative; padding: 1px 4px; border-radius: 8px; min-width: 10px;
+  display: inline-flex; align-items: flex-end; justify-content: center; text-align: center;
+}
+.term.has-caret { padding-right: 11px; }
+.term.number { color: var(--text); }
+.term.operator { color: var(--op); padding: 1px 2px; font-weight: 650; }
+.term.paren { color: var(--text-dim); padding: 1px 2px; }
+.eq { color: var(--text-dim); padding: 0 2px; }
+
+/* Selected term: ink ring around the term's own colour. */
+.term.number.sel,
+.term.operator.sel,
+.term.paren.sel {
+  outline: 2px solid var(--sel); outline-offset: 1px;
+}
+.term.operator.sel.has-caret, .term.paren.sel.has-caret { padding-right: 11px; }
+
+/* Linked value: soft slate-blue pill. */
+.term.linked {
+  background: var(--linked-bg); color: var(--linked-text);
+  border-radius: var(--r-chip); padding: 2px 10px; font-weight: 650;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--linked-text) 38%, transparent);
+}
+.term.linked.sel { outline: 2px solid var(--sel); outline-offset: 2px; }
+
+/* Result: teal pill — the block's payoff. */
+.result {
+  position: relative;
+  color: var(--result); font-weight: 700; padding: 2px 11px;
+  background: var(--result-bg); border-radius: var(--r-chip); cursor: grab;
+}
+.result.sel { outline: 2px solid var(--sel); outline-offset: 2px; }
+.result.empty { background: transparent; color: var(--text-dim); }
+.result.pending { background: transparent; color: var(--text-dim); cursor: default; }
+/* While typing, the result is a live preview: quiet, so the caret leads. */
+.block.active .result:not(.sel) { background: transparent; }
+/* Soft "why" note under an unresolved "?" — informative, never alarming. */
+.result-why {
+  margin-top: 3px; max-width: 20ch;
+  color: var(--text-dim); font-family: var(--sans);
+  font-size: 10.5px; font-weight: 500; line-height: 1.35;
+  text-align: center; white-space: normal; opacity: 0.9;
+}
+
+/* Missing-operator gap + inline picker. */
+.op-missing {
+  position: relative; align-self: flex-end; display: inline-flex;
+  align-items: center; justify-content: center;
+  margin: 0 6px; padding: 1px 8px; min-height: calc(var(--fs, 22px) * 1.35);
+  line-height: 1; transform: translateY(2px);
+  color: var(--op); font-weight: 700;
+  border: 1.5px dashed var(--op); border-radius: 10px; opacity: 0.85;
+  cursor: pointer;
+}
+.op-missing.sel {
+  border-style: solid; border-color: var(--sel); opacity: 1;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sel) 14%, transparent);
+}
+.op-picker {
+  align-self: flex-end; display: inline-flex; gap: 4px;
+  margin: 0 2px 1px; padding: 3px; transform: translateY(1px);
+  background: var(--op-soft);
+  border: 1px solid color-mix(in srgb, var(--op) 30%, transparent);
+  border-radius: 12px;
+}
+.op-pick {
+  appearance: none; -webkit-appearance: none; border: none; cursor: pointer;
+  min-width: 28px; height: 28px; padding: 0; border-radius: 9px;
+  background: var(--block); color: var(--op);
+  font-size: 15px; font-weight: 700; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-tight);
+}
+.op-pick:active { background: var(--op); color: #fff; }
+
+/* Input / selection carets: ink bars. */
+.expr-caret {
+  position: absolute; right: 3px; bottom: 3px;
+  width: 2px; height: calc(var(--fs, 22px) * 0.94);
+  background: var(--sel); border-radius: 1px;
+  animation: caretBlink 1.05s step-end infinite;
+}
+.selection-caret {
+  position: absolute; right: 3px; bottom: 3px;
+  width: 2px; height: calc(var(--fs, 22px) * 0.94);
+  background: var(--sel); border-radius: 1px;
+}
+
+/* While a caption is being edited, its caret is the only focus: mute every
+   competing selection cue inside the block. */
+.block:has(.cap:focus) .cap:empty:not(:focus) { display: none; }
+.block:has(.cap:focus) .term.sel { outline: none; }
+.block:has(.cap:focus) .term.number.sel { background: transparent; box-shadow: none !important; }
+.block:has(.cap:focus) .term.linked.sel { outline: none; box-shadow: none !important; }
+.block:has(.cap:focus) .op-missing.sel {
+  border-style: dashed; border-color: var(--op); opacity: 0.85; box-shadow: none;
+}
+.block:has(.cap:focus) .op-picker { display: none; }
+.block:has(.cap:focus) .result.sel { outline: none; }
+.block:has(.cap:focus) .selection-caret,
+.block:has(.cap:focus) .expr-caret { display: none; }
+
+/* ── 9. Drag-to-link feedback ──────────────────────────────────────────── */
+#ghost {
+  position: fixed; z-index: 100; pointer-events: none;
+  font-family: var(--mono); font-size: 22px; font-weight: 600;
+  background: var(--result-bg); color: var(--result);
+  border: 1px solid var(--accent); border-radius: var(--r-chip);
+  padding: 2px 11px; transform: translate(-50%, -50%); display: none;
+  opacity: 0.8; box-shadow: var(--shadow-soft);
+}
+.drop-ok {
+  outline: 2px dashed var(--accent); outline-offset: 3px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--block));
+}
+.drop-invalid {
+  outline: 2px dashed color-mix(in srgb, var(--danger) 70%, transparent); outline-offset: 3px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--block));
+  cursor: not-allowed;
+}
+.drop-caret {
+  align-self: stretch; width: 3px; min-height: 1.1em; margin: 0 1px;
+  border-radius: 2px; background: var(--accent); pointer-events: none;
+  animation: dropCaretPulse 0.8s ease-in-out infinite;
+}
+@keyframes dropCaretPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ── 10. Keypad ────────────────────────────────────────────────────────── */
+#numpad {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  background: var(--pad-bg);
+  border-top: 1px solid var(--block-border);
+  padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+  transition: transform 0.22s ease; z-index: 50;
+  box-shadow: 0 -10px 28px rgba(80, 60, 30, 0.08);
+  backdrop-filter: blur(18px);
+}
+#numpad.hidden { transform: translateY(100%); }
+#padToggle {
+  position: absolute; top: -32px; left: 50%; transform: translateX(-50%);
+  width: 60px; height: 30px; padding: 0;
+  background: var(--pad-bg); border: 1px solid var(--block-border);
+  border-bottom: none; border-radius: 15px 15px 0 0;
+  color: var(--text-dim);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: 0 -6px 14px rgba(80, 60, 30, 0.07);
+}
+#padToggle .ico { width: 16px; height: 16px; transition: transform 0.22s ease; }
+#numpad.hidden #padToggle .ico { transform: rotate(180deg); }
+
+.padgrid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px; max-width: 480px; margin: 0 auto;
+}
+.key {
+  appearance: none; -webkit-appearance: none; padding: 0;
+  background: var(--key); border: none;
+  border-radius: var(--r-card); height: 44px;
+  font-family: var(--mono); font-size: 21px; color: var(--text);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: var(--shadow-tight);
+}
+.key:active { background: var(--key-active); transform: translateY(1px); box-shadow: none; }
+.key.op { color: var(--op); background: var(--op-soft); font-weight: 550; }
+.key.op:active { background: color-mix(in srgb, var(--op) 22%, var(--key)); }
+.key.act { color: var(--accent); }
+.key.act .ico { width: 22px; height: 22px; }
+.key[data-k="neg"] { grid-column: span 2; }
+.key.del {
+  color: var(--danger); font-family: var(--sans); font-size: 14px; font-weight: 600;
+}
+.key.del:active { background: var(--danger-soft); }
+.key.eq {
+  grid-column: span 3; color: #fff; background: var(--accent);
+  font-weight: 650;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.key.eq:active { background: var(--accent-strong); }
+
+/* ── 11. Overlays ──────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; left: 50%; bottom: 50%; transform: translateX(-50%);
+  background: var(--block); border: 1px solid var(--block-border);
+  border-radius: var(--r-block); padding: 18px 20px; z-index: 200;
+  box-shadow: var(--shadow-pop); max-width: 300px; display: none;
+}
+#toast p { margin: 0 0 15px; font-size: 14.5px; line-height: 1.5; color: var(--text); }
+#toast .row { display: flex; gap: 8px; justify-content: flex-end; }
+#toast button {
+  border-radius: var(--r-ctl); padding: 9px 15px; font-size: 13.5px;
+  font-weight: 600; cursor: pointer;
+  border: none; background: var(--key-active); color: var(--text);
+}
+#toast button.danger { background: var(--danger); color: #fff; }
+#scrim {
+  position: fixed; inset: 0; background: rgba(44, 32, 18, 0.32); z-index: 199; display: none;
+}
+#saveWarning {
+  position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top));
+  transform: translateX(-50%); z-index: 190; display: none;
+  max-width: min(88vw, 360px); padding: 9px 14px; border-radius: var(--r-ctl);
+  background: var(--danger); color: #fff; font-size: 13px; line-height: 1.4;
+  box-shadow: var(--shadow-soft);
+}
+/* One-time link nudge; JS anchors it just above the keypad. */
+#linkTip {
+  position: fixed; left: 50%; bottom: calc(34vh + 14px);
+  transform: translateX(-50%); z-index: 185; pointer-events: none;
+  display: flex; align-items: center; gap: 12px;
+  width: max-content; max-width: min(92vw, 390px);
+  padding: 12px 12px 12px 17px;
+  background: var(--block); color: var(--text);
+  border: 1px solid var(--block-border); border-radius: var(--r-card);
+  font-size: 13.5px; line-height: 1.45; box-shadow: var(--shadow-soft);
+}
+#linkTip > span { flex: 1 1 auto; min-width: 0; text-wrap: pretty; }
+#linkTip button {
+  flex: 0 0 auto; align-self: center; border: none; cursor: pointer; pointer-events: auto;
+  background: var(--accent); color: #fff;
+  font-size: 13.5px; font-weight: 650; padding: 9px 15px; border-radius: var(--r-ctl);
+}
+#linkTip button:active { background: var(--accent-strong); }
+/* Keyboard-link status pill (doubles as the aria-live announcer). */
+#linkStatus {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 58px);
+  transform: translateX(-50%); z-index: 186; pointer-events: none;
+  max-width: min(92vw, 420px); padding: 9px 15px; text-align: center;
+  background: var(--accent); color: #fff; border-radius: var(--r-chip);
+  font-size: 13px; line-height: 1.4;
+  box-shadow: var(--shadow-soft);
+}
+
+/* ── 12. Values sidebar ────────────────────────────────────────────────── */
+#sidebarScrim {
+  position: fixed; inset: 0; background: rgba(44, 32, 18, 0.32); z-index: 39;
+  opacity: 0; visibility: hidden;
+  transition: opacity 0.22s ease, visibility 0.22s ease;
+}
+body.sidebar-open #sidebarScrim { opacity: 1; visibility: visible; }
+#sidebar {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(88vw, 360px);
+  background: var(--bg); border-left: 1px solid var(--block-border);
+  z-index: 40; display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.22s ease;
+  box-shadow: -14px 0 30px rgba(44, 32, 18, 0.14);
+}
+#sidebar.open { transform: none; }
+#sidebarHead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: max(12px, env(safe-area-inset-top)) 10px 10px 16px;
+  border-bottom: 1px solid var(--block-border);
+  font-weight: 700; font-size: 15.5px;
+}
+#sidebarBody {
+  flex: 1 1 auto; overflow: auto;
+  padding: 8px 16px calc(18px + env(safe-area-inset-bottom));
+}
+
+/* Selected-block health panel. */
+.health-panel {
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--block-border);
+  margin-bottom: 8px;
+}
+.health-label {
+  color: var(--text-dim); font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.health-title {
+  margin-top: 4px; font-size: 15.5px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.health-status { margin-top: 6px; font-size: 13px; font-weight: 650; color: var(--text-dim); }
+.health-status.ok { color: var(--result); }
+.health-status.unresolved { color: var(--danger); }
+.health-reason { margin-top: 5px; color: var(--text-dim); font-size: 12.5px; line-height: 1.4; }
+.health-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px; margin-top: 10px;
+}
+.health-metric { min-width: 0; }
+.health-metric span { display: block; color: var(--text-dim); font-size: 11px; }
+.health-metric strong {
+  display: block; margin-top: 3px; font-size: 12.5px; font-weight: 650;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Value groups: one card-like section per block. */
+.var-group { padding: 2px 0; }
+.var-group + .var-group { margin-top: 8px; border-top: 1px solid var(--block-border); }
+.var-head { padding-bottom: 2px; }
+.var-head .var-name { font-weight: 650; }
+.var-pending { color: var(--text-dim); font-weight: 500; }
+.var-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 9px 0; border-bottom: 1px solid var(--grid);
+}
+.var-group .var-row:not(.var-head) {
+  margin-left: 12px; padding-left: 11px; border-left: 2px solid var(--grid);
+}
+.var-group .var-row:last-child { border-bottom: none; }
+.var-name {
+  flex: 1 1 auto; min-width: 0; font-size: 14.5px; font-family: var(--sans);
+  border: none; background: transparent; color: var(--text);
+  outline: none; padding: 2px 0; border-bottom: 1.5px solid transparent;
+}
+.var-name:focus { border-bottom-color: var(--accent); }
+.var-val {
+  flex: 0 0 auto; width: 92px; text-align: right; font-family: var(--mono);
+  font-size: 15px; color: var(--result); border: 1px solid var(--block-border);
+  background: var(--block); border-radius: 10px; padding: 6px 9px; outline: none;
+}
+.var-val:focus { border-color: var(--accent); }
+.var-val.invalid { border-color: var(--danger); color: var(--danger); }
+.var-val.ro { border-color: transparent; background: transparent; font-weight: 600; }
+.var-def {
+  flex-basis: 100%; font-family: var(--mono); font-size: 11.5px;
+  color: var(--text-dim); padding: 1px 0 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.var-empty {
+  color: var(--text-dim); font-size: 13.5px; line-height: 1.6;
+  text-align: center; padding: 30px 8px;
+}
+
+/* ── 13. Wide screens ──────────────────────────────────────────────────── */
+@media (min-width: 760px) {
   #numpad {
-    position: fixed; left: 0; right: 0; bottom: 0;
-    background: var(--pad-bg);
-    border-top: 1px solid var(--block-border);
-    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
-    transition: transform 0.22s ease; z-index: 50;
-    box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.10);
-    backdrop-filter: blur(18px);
+    left: auto; right: 18px; bottom: 18px;
+    width: 368px; max-width: calc(100vw - 36px);
+    border: 1px solid var(--block-border);
+    border-radius: var(--r-block);
+    padding: 12px;
+    box-shadow: var(--shadow-pop);
   }
-  #numpad.hidden { transform: translateY(100%); }
   #padToggle {
-    position: absolute; top: -34px; left: 50%; transform: translateX(-50%);
-    width: 58px; height: 28px; padding: 0;
-    background: var(--pad-bg); border: 1px solid var(--block-border);
-    border-bottom: none; border-radius: 14px 14px 0 0;
-    color: var(--text-dim);
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    font-family: var(--sans);
-    box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
+    left: auto; right: 18px; transform: none;
+    width: 54px; top: -31px; height: 30px;
+    border-radius: 15px 15px 0 0;
   }
-  /* Chevron points down to "lower" the keypad; flips up when it's hidden. */
-  #padToggle::before {
-    content: "";
-    width: 10px; height: 10px;
-    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
-    transform: translateY(-2px) rotate(45deg);
-    opacity: 0.6;
+  .padgrid { max-width: none; }
+  .key { height: 44px; }
+  body.sidebar-open #numpad {
+    right: calc(min(88vw, 360px) + 18px);
+    width: min(368px, calc(100vw - min(88vw, 360px) - 168px));
+    min-width: 248px;
   }
-  #numpad.hidden #padToggle::before { transform: translateY(2px) rotate(225deg); }
-  #padToggle span { display: none; }
-  .padgrid {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px; max-width: 480px; margin: 0 auto;
-  }
-  .key {
-    appearance: none; -webkit-appearance: none; padding: 0;
-    background: var(--key); border: 1px solid var(--key-border);
-    border-radius: 9px; height: 42px;
-    font-family: var(--mono); font-size: 21px; color: var(--text);
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
-  }
-  .key:active { background: var(--key-active); }
-  .key.op { color: var(--op); font-weight: 500; }
-  .key[data-k="neg"] { grid-column: span 2; } /* ± spans two columns */
-  .key.act { color: var(--accent); font-size: 17px; font-family: var(--sans); font-weight: 500; }
-  .key.eq {
-    grid-column: span 3; color: #fff; background: var(--accent);
-    border-color: var(--accent); font-weight: 600;
-  }
-  .key.eq:active { background: var(--accent-strong); }
-  .key.del {
-    color: var(--danger); font-family: var(--sans); font-size: 14px; font-weight: 500;
-  }
+  #varsBtn .vars-lbl { display: inline; }
+}
 
-  @media (min-width: 760px) {
-    #numpad {
-      left: auto; right: 18px; bottom: 18px;
-      width: 360px; max-width: calc(100vw - 36px);
-      border: 1px solid var(--block-border);
-      border-radius: 14px;
-      padding: 10px;
-      box-shadow: var(--shadow-soft);
-    }
-    #padToggle {
-      left: auto; right: 18px; transform: none;
-      width: 52px; top: -29px; height: 28px;
-      border-radius: 13px 13px 0 0;
-    }
-    .padgrid { max-width: none; gap: 7px; }
-    .key { height: 43px; }
-    body.sidebar-open #numpad {
-      right: calc(min(88vw, 360px) + 18px);
-      width: min(360px, calc(100vw - min(88vw, 360px) - 168px));
-      min-width: 240px;
-    }
-    #varsBtn .vars-lbl { display: inline; }
-  }
-
-  /* Toast / confirm */
-  #toast {
-    position: fixed; left: 50%; bottom: 50%; transform: translateX(-50%);
-    background: var(--block); border: 1px solid var(--block-border);
-    border-radius: 10px; padding: 16px 18px; z-index: 200;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.25); max-width: 280px; display: none;
-  }
-  #toast p { margin: 0 0 14px; font-size: 14px; line-height: 1.45; color: var(--text); }
-  #toast .row { display: flex; gap: 8px; justify-content: flex-end; }
-  #toast button {
-    border-radius: var(--radius); padding: 8px 14px; font-size: 13px;
-    font-family: var(--sans); font-weight: 500; cursor: pointer;
-    border: 1px solid var(--key-border); background: var(--key); color: var(--text);
-  }
-  #toast button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-  #scrim {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 199; display: none;
-  }
-  #saveWarning {
-    position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top));
-    transform: translateX(-50%); z-index: 190; display: none;
-    max-width: min(88vw, 360px); padding: 8px 12px; border-radius: var(--radius);
-    background: var(--danger); color: #fff; font-size: 13px; line-height: 1.35;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.22);
-  }
-  /* One-time link-gesture nudge — sits just above the keypad. */
-  #linkTip {
-    position: fixed; left: 50%; bottom: calc(34vh + 14px);
-    transform: translateX(-50%); z-index: 185; pointer-events: none;
-    display: flex; align-items: center; gap: 12px;
-    width: max-content; max-width: min(92vw, 384px);
-    padding: 11px 12px 11px 16px;
-    background: var(--block); color: var(--text);
-    border: 1px solid var(--block-border); border-radius: 14px;
-    font-size: 13px; line-height: 1.4; box-shadow: var(--shadow-soft);
-  }
-  #linkTip > span { flex: 1 1 auto; min-width: 0; text-wrap: pretty; }
-  #linkTip[hidden] { display: none; }
-  #linkTip button {
-    flex: 0 0 auto; align-self: center; border: none; cursor: pointer; pointer-events: auto;
-    background: var(--accent); color: #fff; font-family: var(--sans);
-    font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 9px;
-    box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 35%, transparent);
-  }
-  #linkTip button:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
-  /* #linkTip vertical/horizontal anchoring is owned by layoutOverlays so it
-     always sits just above the keypad (see render.js). */
-  /* Keyboard-linking status pill: visible feedback that doubles as the aria-live
-     region announcing the next step of the link flow. */
-  #linkStatus {
-    position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 56px);
-    transform: translateX(-50%); z-index: 186; pointer-events: none;
-    max-width: min(92vw, 420px); padding: 8px 14px; text-align: center;
-    background: var(--accent); color: #fff; border-radius: 10px;
-    font-family: var(--sans); font-size: 13px; line-height: 1.35;
-    box-shadow: var(--shadow-soft);
-  }
-  #linkStatus[hidden] { display: none; }
-  /* Empty-canvas hint — a band spanning the visible canvas (the surface it sits
-     over is a scrolled 1600×2400 element, so it can't be centred relative to
-     that). It fills #canvasWrap with its bottom raised above the keypad
-     (set by layoutOverlays) and centres its contents in what the user sees. */
-  #hint {
-    position: absolute; inset: 0; z-index: 4;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; color: var(--text-dim); pointer-events: none;
-    padding: 0 28px;
-  }
-  .hint-mark {
-    appearance: none; -webkit-appearance: none; padding: 0;
-    width: 56px; height: 56px; border-radius: 50%; margin-bottom: 14px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 32px; line-height: 1; color: #fff;
-    background: var(--accent); border: 1px solid var(--accent);
-    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
-    pointer-events: auto; cursor: pointer; /* the rest of #hint is non-interactive */
-  }
-  .hint-mark:active { background: var(--accent-strong); }
-  .hint-title { font-size: 17px; font-weight: 700; color: var(--text); }
-  .hint-sub { font-size: 13.5px; line-height: 1.45; margin-top: 5px; }
-  .hint-sub b { color: var(--accent); font-weight: 600; }
-
-  /* Sidebar (variables) */
-  /* Dimmed backdrop behind the variables panel; tapping it closes the panel.
-     Sits just below #sidebar (z-index 40) and fades in with the same timing. */
-  #sidebarScrim {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 39;
-    opacity: 0; visibility: hidden;
-    transition: opacity 0.22s ease, visibility 0.22s ease;
-  }
-  body.sidebar-open #sidebarScrim { opacity: 1; visibility: visible; }
-  #sidebar {
-    position: fixed; top: 0; right: 0; bottom: 0; width: min(88vw, 360px);
-    background: var(--bg); border-left: 1px solid var(--block-border);
-    z-index: 40; display: flex; flex-direction: column;
-    transform: translateX(100%); transition: transform 0.22s ease;
-    box-shadow: -12px 0 28px rgba(15, 23, 42, 0.16);
-  }
-  #sidebar.open { transform: none; }
-  #sidebarHead {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: max(12px, env(safe-area-inset-top)) 14px 12px;
-    border-bottom: 1px solid var(--block-border);
-    font-weight: 700; font-size: 15px;
-  }
-  #sidebarBody {
-    flex: 1 1 auto; overflow: auto;
-    padding: 6px 14px calc(18px + env(safe-area-inset-bottom));
-  }
-  .health-panel {
-    padding: 10px 0 13px;
-    border-bottom: 1px solid var(--block-border);
-    margin-bottom: 6px;
-  }
-  .health-label {
-    color: var(--text-dim); font-size: 11px; font-weight: 650;
-    text-transform: uppercase; letter-spacing: 0.04em;
-  }
-  .health-title {
-    margin-top: 4px; font-size: 15px; font-weight: 700;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .health-status {
-    margin-top: 6px; font-size: 13px; font-weight: 650;
-    color: var(--text-dim);
-  }
-  .health-status.ok { color: var(--result); }
-  .health-status.unresolved { color: var(--danger); }
-  .health-reason {
-    margin-top: 5px; color: var(--text-dim); font-size: 12.5px;
-    line-height: 1.35;
-  }
-  .health-reason[hidden] { display: none; }
-  .health-grid {
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px; margin-top: 10px;
-  }
-  .health-metric {
-    min-width: 0;
-  }
-  .health-metric span {
-    display: block; color: var(--text-dim); font-size: 11px;
-  }
-  .health-metric strong {
-    display: block; margin-top: 3px; font-size: 12px; font-weight: 650;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  /* Each block is a group: a heading row (its result/name) with the block's
-     number operands nested beneath. */
-  .var-group { padding: 2px 0; }
-  .var-group + .var-group {
-    margin-top: 8px; border-top: 1px solid var(--block-border);
-  }
-  .var-head { border-bottom: none; padding-bottom: 2px; }
-  .var-head .var-name { font-weight: 600; }
-  .var-pending { color: var(--text-dim); font-weight: 500; }
-  .var-row {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-    padding: 9px 0; border-bottom: 1px solid var(--grid);
-  }
-  .var-group .var-row:not(.var-head) {
-    margin-left: 12px; padding-left: 10px; border-left: 2px solid var(--grid);
-  }
-  .var-group .var-row:last-child { border-bottom: none; }
-  .var-name {
-    flex: 1 1 auto; min-width: 0; font-size: 14px; font-family: var(--sans);
-    border: none; background: transparent; color: var(--text);
-    outline: none; padding: 2px 0; border-bottom: 1px solid transparent;
-  }
-  .var-name:focus { border-bottom-color: var(--accent); }
-  .var-val {
-    flex: 0 0 auto; width: 88px; text-align: right; font-family: var(--mono);
-    font-size: 15px; color: var(--result); border: 1px solid var(--key-border);
-    background: var(--key); border-radius: 8px; padding: 6px 8px; outline: none;
-  }
-  .var-val:focus { border-color: var(--accent); }
-  .var-val.invalid { border-color: var(--danger); color: var(--danger); }
-  .var-val.ro {
-    border-color: transparent; background: transparent; font-weight: 500;
-  }
-  .var-def {
-    flex-basis: 100%; font-family: var(--mono); font-size: 11.5px;
-    color: var(--text-dim); padding: 1px 0 0;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .var-empty {
-    color: var(--text-dim); font-size: 13px; line-height: 1.6;
-    text-align: center; padding: 28px 8px;
-  }
+/* ── 14. Reduced motion ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .block.empty-draft .expr::after, .expr-caret { animation: none; }
+  .drop-caret { animation: none; }
+  #numpad, #sidebar, #sidebarScrim, #padToggle .ico { transition: none; }
+}

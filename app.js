@@ -200,29 +200,31 @@
     if (!block) return;
     var marker = block.querySelector('.expr-caret') || block.querySelector('.selection-caret') || block.querySelector('.term.has-caret');
     if (!marker) return;
-    window.requestAnimationFrame(function(){
-      if (!store.getActiveBlockId()) return;
-      var r = marker.getBoundingClientRect();
-      if (!r.width && !r.height) return;
-      var wrapR = wrap.getBoundingClientRect();
-      var pad = document.getElementById('numpad');
-      var padH = (pad && !pad.classList.contains('hidden')) ? pad.offsetHeight : 0;
-      var vv = window.visualViewport;
-      var viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      var visible = {
-        left: wrapR.left + 18,
-        right: wrapR.right - 18,
-        top: wrapR.top + 18,
-        bottom: Math.min(wrapR.bottom, viewportBottom - padH) - 18
-      };
-      var dx = 0, dy = 0;
-      if (r.right > visible.right) dx = r.right - visible.right;
-      else if (r.left < visible.left) dx = r.left - visible.left;
-      if (r.bottom > visible.bottom) dy = r.bottom - visible.bottom;
-      else if (r.top < visible.top) dy = r.top - visible.top;
-      if (dx) wrap.scrollLeft += dx;
-      if (dy) wrap.scrollTop += dy;
-    });
+    // Adjust the scroll synchronously with the render (getBoundingClientRect
+    // forces layout, so the numbers are final). Deferring this to a
+    // requestAnimationFrame made the canvas visibly nudge one frame after a
+    // drop created a block, and left a window where freshly-read coordinates
+    // went stale (a real drag-flakiness source in e2e).
+    var r = marker.getBoundingClientRect();
+    if (!r.width && !r.height) return;
+    var wrapR = wrap.getBoundingClientRect();
+    var pad = document.getElementById('numpad');
+    var padH = (pad && !pad.classList.contains('hidden')) ? pad.offsetHeight : 0;
+    var vv = window.visualViewport;
+    var viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    var visible = {
+      left: wrapR.left + 18,
+      right: wrapR.right - 18,
+      top: wrapR.top + 18,
+      bottom: Math.min(wrapR.bottom, viewportBottom - padH) - 18
+    };
+    var dx = 0, dy = 0;
+    if (r.right > visible.right) dx = r.right - visible.right;
+    else if (r.left < visible.left) dx = r.left - visible.left;
+    if (r.bottom > visible.bottom) dy = r.bottom - visible.bottom;
+    else if (r.top < visible.top) dy = r.top - visible.top;
+    if (dx) wrap.scrollLeft += dx;
+    if (dy) wrap.scrollTop += dy;
   }
 
   // Fill a missing-operator gap from the inline picker (mirrors the keypad path

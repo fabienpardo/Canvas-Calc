@@ -307,7 +307,8 @@ test('grid is off by default and toggles via the menu', async ({ page }) => {
   await page.locator('#menuBtn').click();
   await page.locator('#gridToggle').click();
   await expect(canvas).toHaveClass(/grid-on/);
-  await expect(canvas).toHaveCSS('background-size', '20px 20px, 20px 20px');
+  // Craft grid is a single dot-grid layer.
+  await expect(canvas).toHaveCSS('background-size', '22px 22px');
 });
 
 // ---- zoom + scroll ------------------------------------------------------
@@ -459,7 +460,9 @@ test('selected terms show editing hints', async ({ page }) => {
     caret: getComputedStyle(el).backgroundColor,
     chip: getComputedStyle(el.parentElement).backgroundColor
   }));
-  expect(selectedNumberCaret.caret).toBe('rgb(255, 255, 255)');
+  // Craft selection is an ink ring on a transparent chip: the caret is a solid
+  // ink bar, clearly visible against (and distinct from) the chip behind it.
+  expect(selectedNumberCaret.caret).not.toBe('rgba(0, 0, 0, 0)');
   expect(selectedNumberCaret.caret).not.toBe(selectedNumberCaret.chip);
   await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('aria-label', 'Name number');
   await expect(lastBlock(page).locator('.cap').first()).toHaveAttribute('title', 'Name number');
