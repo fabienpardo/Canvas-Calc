@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, addBlock, settlePointer } = require('./helpers');
 
 // ---- editing model flows -------------------------------------------------
 test('insert in the middle: 5 + 7 + 2, select 7, type - 4 => 5 + 7 - 4 + 2 = 10', async ({ page }) => {
@@ -158,6 +158,7 @@ test('backspace on a selected linked term unlinks it', async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(b.x + 60, b.y + 60, { steps: 4 });
   await page.mouse.move(b.x + 240, b.y + 220, { steps: 8 });
+  await settlePointer(page);
   await page.mouse.up();
   await expect(page.locator('.term.linked')).toHaveCount(1);
   await page.locator('.term.linked').click();

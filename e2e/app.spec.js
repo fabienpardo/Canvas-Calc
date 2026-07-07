@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, seed, addBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, seed, addBlock, settlePointer } = require('./helpers');
 
 // ---- link discoverability nudge -----------------------------------------
 test('link tip shows after the first result, then stays dismissed', async ({ page }) => {
@@ -125,6 +125,7 @@ test('dragging a block moves it; undo restores the original position', async ({ 
   await page.mouse.move(box.x + 6, box.y + 6);
   await page.mouse.down();
   await page.mouse.move(box.x + 6 + 120, box.y + 6, { steps: 8 });
+  await settlePointer(page);
   await page.mouse.up();
   const after = await lastBlock(page).evaluate((el) => el.style.left);
   expect(after).not.toBe(before);
@@ -147,6 +148,7 @@ test('dragging a number to empty canvas creates a colored linked block', async (
   await page.mouse.down();
   await page.mouse.move(cx + 40, cy + 40, { steps: 5 });
   await page.mouse.move(cx + 240, cy + 220, { steps: 8 }); // empty canvas
+  await settlePointer(page);
   await page.mouse.up();
   await expect(page.locator('.block')).toHaveCount(2);
   const linked = page.locator('.term.linked');
@@ -285,6 +287,7 @@ test('plus-minus on a linked number toggles its source, not the active block tai
   await page.mouse.down();
   await page.mouse.move(cx + 40, cy + 40, { steps: 5 });
   await page.mouse.move(cx + 240, cy + 220, { steps: 8 });
+  await settlePointer(page);
   await page.mouse.up();
 
   await press(page, '+');
