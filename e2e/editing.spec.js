@@ -30,8 +30,8 @@ test('selected number + opening parenthesis inserts before the selected number',
   await press(page, '(');
   await expect(lastBlock(page).locator('.expr .term')).toHaveText(['(', '2', '+', '4']);
   // The '(' now has no match, so the block is unresolved until it's closed.
-  await expect(lastBlock(page).locator('.result')).toHaveText('?');
-  await expect(lastBlock(page).locator('.result-why')).toHaveText('Close the parenthesis to calculate.');
+  await expect(lastBlock(page).locator('.result.unresolved')).toHaveText('Close the parenthesis to calculate.');
+  await expect(lastBlock(page).locator('.result-why')).toHaveCount(0);
 });
 
 test('pressing = auto-closes an open parenthesis into the expression', async ({ page }) => {
@@ -216,7 +216,6 @@ test('clear canvas then undo restores all blocks', async ({ page }) => {
   await addBlock(page); await type(page, '1'); await press(page, '=');
   await addBlock(page); await type(page, '2'); await press(page, '=');
   await expect(page.locator('.block')).toHaveCount(2);
-  await page.locator('#menuBtn').click();
   await page.locator('#clearBtn').click();
   await expect(page.locator('#toast')).toBeVisible(); // clearing the canvas now confirms first
   await page.locator('#toastRow button.danger').click();

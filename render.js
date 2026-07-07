@@ -81,6 +81,7 @@
       var diag = deps.diagnose(b, map);
       if (deps.hasResultSlot(b.terms) || diag.status === 'unresolved') {
         parts.push('=', diag.status, diag.reason || '',
+          diag.message || '',
           diag.status === 'ok' ? (diag.value == null ? '·' : diag.value) : '?',
           linkColorMap[deps.srcKey(b.id, null)] || '');
       }
@@ -367,14 +368,13 @@
         var res = doc.createElement('span');
         selection = sel();
         if (unresolved) {
-          // An unresolved block shows "?" (not a draggable/linkable result) so a
-          // half-finished or broken expression never reads as a real answer. When
-          // the engine knows why, a soft caption explains how to fix it.
-          res.className = 'result pending';
-          res.textContent = '?';
+          // The result slot becomes the explanation. It is not selectable or
+          // linkable, so a broken expression never masquerades as an answer.
+          res.className = 'result unresolved';
+          res.textContent = diag.message || 'Unresolved';
           if (diag.message) {
             res.title = diag.message;
-            res.setAttribute('aria-describedby', 'why-' + b.id);
+            res.setAttribute('aria-label', 'Unresolved: ' + diag.message);
           }
         } else {
           res.className = 'result' + (val===null?' empty':'');
@@ -388,13 +388,6 @@
           if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[rkey] + ', inset 0 0 0 1px ' + linkColorMap[rkey] + '59';
         }
         rcell.appendChild(res);
-        if (unresolved && diag.message) {
-          var why = doc.createElement('span');
-          why.className = 'result-why';
-          why.id = 'why-' + b.id;
-          why.textContent = diag.message;
-          rcell.appendChild(why);
-        }
         expr.appendChild(rcell);
       }
 
@@ -406,6 +399,21 @@
       var x=0, y=0;
       while (el && el!==ancestor) { x+=el.offsetLeft; y+=el.offsetTop; el=el.offsetParent; }
       return { x:x, y:y };
+    }
+
+    function linkPortRoute(srcRect, dstRect) {
+      var sx = srcRect.left + srcRect.width / 2;
+      var tx = dstRect.left + dstRect.width / 2;
+      var sy = srcRect.top + srcRect.height / 2;
+      var ty = dstRect.top + dstRect.height / 2;
+      var down = ty >= sy;
+      return {
+        x1: sx,
+        y1: srcRect.top + (down ? srcRect.height : 0),
+        x2: tx,
+        y2: dstRect.top + (down ? 0 : dstRect.height),
+        dir: down ? 1 : -1
+      };
     }
 
     function drawLinks(map) {
@@ -422,29 +430,30 @@
             var si=-1; for (var ii=0; ii<src.terms.length; ii++){ if (src.terms[ii].type==='number' && src.terms[ii].tid===t.sourceTid){ si=ii; break; } }
             srcRes = si>=0 ? srcEl.querySelectorAll('.term')[si] : null;
           } else {
-            srcRes = srcEl.querySelector('.result:not(.pending)');
+            srcRes = srcEl.querySelector('.result:not(.pending):not(.unresolved)');
           }
           var dstTerm = dstEl.querySelectorAll('.term')[idx];
           if (!srcRes||!dstTerm) return;
           var so = offsetIn(srcRes, srcEl), to = offsetIn(dstTerm, dstEl);
-          var x1 = src.x + so.x + srcRes.offsetWidth/2;
-          var y1 = src.y + so.y + srcRes.offsetHeight/2;
-          var x2 = b.x + to.x + dstTerm.offsetWidth/2;
-          var y2 = b.y + to.y + dstTerm.offsetHeight/2;
+          var route = linkPortRoute(
+            { left: src.x + so.x, top: src.y + so.y, width: srcRes.offsetWidth, height: srcRes.offsetHeight },
+            { left: b.x + to.x, top: b.y + to.y, width: dstTerm.offsetWidth, height: dstTerm.offsetHeight }
+          );
+          var x1 = route.x1, y1 = route.y1, x2 = route.x2, y2 = route.y2;
           var svgNS = 'http://www.w3.org/2000/svg';
           var col = linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || 'var(--accent)';
           var path = doc.createElementNS(svgNS,'path');
-          var dx = Math.abs(x2-x1)*0.4;
-          path.setAttribute('d','M '+x1+' '+y1+' C '+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);
+          var bend = Math.min(220, Math.max(36, Math.hypot(x2-x1, y2-y1) * 0.22)) * route.dir;
+          path.setAttribute('d','M '+x1+' '+y1+' C '+x1+' '+(y1+bend)+' '+x2+' '+(y2-bend)+' '+x2+' '+y2);
           path.setAttribute('fill','none');
           path.setAttribute('stroke', col);
-          path.setAttribute('stroke-width','3');
+          path.setAttribute('stroke-width','2.5');
           path.setAttribute('stroke-linecap','round');
           path.setAttribute('stroke-dasharray','0.1 5');
-          path.setAttribute('opacity','0.95');
+          path.setAttribute('opacity','0.78');
           deps.linkLayer.appendChild(path);
           // Solid endpoint dots anchor the dotted link to its source and target.
-          [[x1,y1,3.4],[x2,y2,3.8]].forEach(function(p){
+          [[x1,y1,3.2],[x2,y2,4.2]].forEach(function(p){
             var dot = doc.createElementNS(svgNS,'circle');
             dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('r', p[2]);
             dot.setAttribute('fill', col);

@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, seed, addBlock } = require('./helpers');
 
 // ---- link discoverability nudge -----------------------------------------
 test('link tip shows after the first result, then stays dismissed', async ({ page }) => {
@@ -18,17 +18,80 @@ test('link tip shows after the first result, then stays dismissed', async ({ pag
 });
 
 // ---- block creation + evaluation ----------------------------------------
-test('+ button creates a block, types a live result, = re-anchors +', async ({ page }) => {
+test('typing builds a live result; an idle canvas tap starts a block where you tap', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '8 * 5');
   await expect(lastBlock(page).locator('.result')).toHaveText('40');
-  // before =, the add button is hidden (editing); after =, it returns below the block
-  await expect(page.locator('#addBtn')).toBeHidden();
   await press(page, '=');
   const resultDot = await lastBlock(page).locator('.result').evaluate((el) => getComputedStyle(el, '::after').content);
   expect(resultDot).toBe('none');
-  await expect(page.locator('#addBtn')).toBeVisible();
+
+  const wrapBox = await page.locator('#canvasWrap').boundingBox();
+  const tapX = wrapBox.x + 280, tapY = wrapBox.y + 260;
+  await page.mouse.click(tapX, tapY);
+  await expect(page.locator('.block')).toHaveCount(2);
+  const draft = page.locator('.block.empty-draft');
+  await expect(draft).toBeVisible();
+  const draftBox = await draft.boundingBox();
+  expect(Math.abs(draftBox.x - tapX)).toBeLessThanOrEqual(90);
+  expect(Math.abs(draftBox.y - tapY)).toBeLessThanOrEqual(90);
+
+  // With a draft active, another empty tap only dismisses and evaporates it.
+  await page.mouse.click(wrapBox.x + 80, wrapBox.y + 300);
+  await expect(page.locator('.block')).toHaveCount(1);
+});
+
+test('a tap that dismisses a menu or canvas rename never creates a block', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 2');
+  await press(page, '=');
+  const wrapBox = await page.locator('#canvasWrap').boundingBox();
+  const tapX = wrapBox.x + 280, tapY = wrapBox.y + 260;
+
+  // Overflow menu open: the outside tap only closes it.
+  await page.locator('#menuBtn').click();
+  await expect(page.locator('#menu')).toBeVisible();
+  await page.mouse.click(tapX, tapY);
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('.block')).toHaveCount(1);
+
+  // Canvas rename in progress: the outside tap commits the rename and closes
+  // the switcher, nothing more.
+  await page.locator('#canvasBtn').click();
+  const rename = page.locator('#canvasMenu .cv-row.active .cv-name');
+  await rename.fill('Budget');
+  await page.mouse.click(tapX, tapY);
+  await expect(page.locator('#canvasMenu')).toBeHidden();
+  await expect(page.locator('#canvasName')).toHaveText('Budget');
+  await expect(page.locator('.block')).toHaveCount(1);
+
+  // Back to a truly idle canvas: the same tap creates a draft again.
+  await page.mouse.click(tapX, tapY);
+  await expect(page.locator('.block')).toHaveCount(2);
+});
+
+test('typing after selecting another block leaves only the draft focused', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 4');
+  await press(page, '=');
+  await addBlock(page);
+  await type(page, '6 + 5');
+  await press(page, '=');
+
+  const selectedBlock = page.locator('.block').nth(1);
+  await selectedBlock.click({ position: { x: 6, y: 6 } });
+  await expect(selectedBlock).toHaveClass(/selected/);
+
+  await press(page, '7');
+
+  await expect(page.locator('.block')).toHaveCount(3);
+  await expect(page.locator('.block.selected')).toHaveCount(0);
+  await expect(page.locator('.block.active')).toHaveCount(1);
+  await expect(lastBlock(page)).toHaveClass(/active/);
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('7');
 });
 
 test('precedence and parentheses compute correctly', async ({ page }) => {
@@ -104,8 +167,95 @@ test('dragging a number to empty canvas creates a colored linked block', async (
   const linkPath = page.locator('#linkLayer path');
   await expect(linkPath).toHaveCount(1);
   await expect(linkPath).toHaveAttribute('stroke', /.+/);
-  await expect(linkPath).toHaveAttribute('stroke-width', '3');
-  await expect(linkPath).toHaveAttribute('opacity', '0.95');
+  await expect(linkPath).toHaveAttribute('stroke-width', '2.5');
+  await expect(linkPath).toHaveAttribute('opacity', '0.78');
+  const route = await page.evaluate(() => {
+    const path = document.querySelector('#linkLayer path');
+    const nums = path.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+    function canvasRect(el) {
+      const block = el.closest('.block');
+      let x = 0, y = 0, node = el;
+      while (node && node !== block) { x += node.offsetLeft; y += node.offsetTop; node = node.offsetParent; }
+      return {
+        left: parseFloat(block.style.left) + x,
+        top: parseFloat(block.style.top) + y,
+        width: el.offsetWidth,
+        height: el.offsetHeight
+      };
+    }
+    const source = canvasRect(document.querySelector('.block .term.number'));
+    const target = canvasRect(document.querySelector('.term.linked'));
+    return {
+      startX: nums[0], startY: nums[1], endX: nums[6], endY: nums[7],
+      sourceCenterX: source.left + source.width / 2,
+      sourceBottom: source.top + source.height,
+      targetCenterX: target.left + target.width / 2,
+      targetTop: target.top
+    };
+  });
+  expect(route.startX).toBeCloseTo(route.sourceCenterX, 0);
+  expect(route.startY).toBeCloseTo(route.sourceBottom, 0);
+  expect(route.endX).toBeCloseTo(route.targetCenterX, 0);
+  expect(route.endY).toBeCloseTo(route.targetTop, 0);
+});
+
+test('side-by-side links still use vertical chip ports', async ({ page }) => {
+  await seed(page, {
+    canvases: [{
+      id: 'c1',
+      title: 'Canvas',
+      nextId: 3,
+      nextTid: 4,
+      blocks: [
+        { id: 'src', x: 60, y: 80, label: '', terms: [
+          { type: 'number', value: '12', tid: 't1' },
+          { type: 'operator', value: '+' },
+          { type: 'number', value: '6', tid: 't2' }
+        ] },
+        { id: 'dst', x: 520, y: 84, label: '', terms: [
+          { type: 'number', value: '7', tid: 't3' },
+          { type: 'operator', value: '+' },
+          { type: 'linked', sourceId: 'src', sourceTid: 't2' }
+        ] }
+      ]
+    }],
+    activeCanvasId: 'c1'
+  });
+
+  const linkPath = page.locator('#linkLayer path');
+  await expect(linkPath).toHaveCount(1);
+  const route = await page.evaluate(() => {
+    const path = document.querySelector('#linkLayer path');
+    const nums = path.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+    function canvasRect(el) {
+      const block = el.closest('.block');
+      let x = 0, y = 0, node = el;
+      while (node && node !== block) { x += node.offsetLeft; y += node.offsetTop; node = node.offsetParent; }
+      return {
+        left: parseFloat(block.style.left) + x,
+        top: parseFloat(block.style.top) + y,
+        width: el.offsetWidth,
+        height: el.offsetHeight
+      };
+    }
+    const blocks = document.querySelectorAll('.block');
+    const source = canvasRect(blocks[0].querySelectorAll('.term.number')[1]);
+    const target = canvasRect(blocks[1].querySelector('.term.linked'));
+    return {
+      startX: nums[0], startY: nums[1], endX: nums[6], endY: nums[7],
+      sourceCenterX: source.left + source.width / 2,
+      sourceCenterY: source.top + source.height / 2,
+      sourceBottom: source.top + source.height,
+      targetCenterX: target.left + target.width / 2,
+      targetCenterY: target.top + target.height / 2,
+      targetTop: target.top
+    };
+  });
+  expect(Math.abs(route.targetCenterY - route.sourceCenterY)).toBeLessThan(16);
+  expect(route.startX).toBeCloseTo(route.sourceCenterX, 0);
+  expect(route.startY).toBeCloseTo(route.sourceBottom, 0);
+  expect(route.endX).toBeCloseTo(route.targetCenterX, 0);
+  expect(route.endY).toBeCloseTo(route.targetTop, 0);
 });
 
 test('plus-minus starts negative entry in empty and after-operator slots', async ({ page }) => {

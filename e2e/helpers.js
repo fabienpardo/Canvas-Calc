@@ -12,13 +12,17 @@ async function type(page, seq) {
 }
 const lastBlock = (page) => page.locator('.block').last();
 
-// Add a calculation block via whichever add control is showing: on an empty
-// canvas that's the hint card's "+" mark; once blocks exist it's the floating
-// #addBtn below the lowest block.
+// Add a calculation block through the public creation path. On an empty canvas
+// the hint mark is explicit and keyboardable; after that, an idle canvas tap
+// creates directly where the user points.
 async function addBlock(page) {
   const hintMark = page.locator('.hint-mark');
-  if (await hintMark.isVisible().catch(() => false)) await hintMark.click();
-  else await page.locator('#addBtn').click();
+  if (await hintMark.isVisible().catch(() => false)) {
+    await hintMark.click();
+  } else {
+    const wrap = await page.locator('#canvasWrap').boundingBox();
+    await page.mouse.click(wrap.x + Math.min(320, wrap.width - 36), wrap.y + Math.min(240, wrap.height - 72));
+  }
 }
 
 // Seed a saved state, then load the app with it in localStorage.

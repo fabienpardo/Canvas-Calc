@@ -24,7 +24,10 @@
     }
     function clearSelection() { sel = emptySelection(); }
     function getActiveBlockId() { return activeBlockId; }
-    function setActiveBlockId(id) { activeBlockId = id; }
+    function setActiveBlockId(id) {
+      activeBlockId = id;
+      if (id != null && sel.blockId != null && sel.blockId !== id) clearSelection();
+    }
 
     // Apply a model mutation, then the standard render/save policy.
     //   opts.snapshot (default true): push an undo step before mutating.

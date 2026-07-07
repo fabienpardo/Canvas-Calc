@@ -193,6 +193,10 @@
   }
   function invalidateBlock(id){ renderer.invalidateBlock(id); }
 
+  // Runs synchronously within renderAll (getBoundingClientRect forces the
+  // layout it needs): a deferred scroll would leave a window where on-screen
+  // positions differ from the just-rendered DOM, which is both a tap-target
+  // hazard and a source of nondeterminism.
   function followActiveInput() {
     var activeId = store.getActiveBlockId();
     if (!activeId) return;
@@ -200,29 +204,26 @@
     if (!block) return;
     var marker = block.querySelector('.expr-caret') || block.querySelector('.selection-caret') || block.querySelector('.term.has-caret');
     if (!marker) return;
-    window.requestAnimationFrame(function(){
-      if (!store.getActiveBlockId()) return;
-      var r = marker.getBoundingClientRect();
-      if (!r.width && !r.height) return;
-      var wrapR = wrap.getBoundingClientRect();
-      var pad = document.getElementById('numpad');
-      var padH = (pad && !pad.classList.contains('hidden')) ? pad.offsetHeight : 0;
-      var vv = window.visualViewport;
-      var viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      var visible = {
-        left: wrapR.left + 18,
-        right: wrapR.right - 18,
-        top: wrapR.top + 18,
-        bottom: Math.min(wrapR.bottom, viewportBottom - padH) - 18
-      };
-      var dx = 0, dy = 0;
-      if (r.right > visible.right) dx = r.right - visible.right;
-      else if (r.left < visible.left) dx = r.left - visible.left;
-      if (r.bottom > visible.bottom) dy = r.bottom - visible.bottom;
-      else if (r.top < visible.top) dy = r.top - visible.top;
-      if (dx) wrap.scrollLeft += dx;
-      if (dy) wrap.scrollTop += dy;
-    });
+    var r = marker.getBoundingClientRect();
+    if (!r.width && !r.height) return;
+    var wrapR = wrap.getBoundingClientRect();
+    var pad = document.getElementById('numpad');
+    var padH = (pad && !pad.classList.contains('hidden')) ? pad.offsetHeight : 0;
+    var vv = window.visualViewport;
+    var viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    var visible = {
+      left: wrapR.left + 18,
+      right: wrapR.right - 18,
+      top: wrapR.top + 18,
+      bottom: Math.min(wrapR.bottom, viewportBottom - padH) - 18
+    };
+    var dx = 0, dy = 0;
+    if (r.right > visible.right) dx = r.right - visible.right;
+    else if (r.left < visible.left) dx = r.left - visible.left;
+    if (r.bottom > visible.bottom) dy = r.bottom - visible.bottom;
+    else if (r.top < visible.top) dy = r.top - visible.top;
+    if (dx) wrap.scrollLeft += dx;
+    if (dy) wrap.scrollTop += dy;
   }
 
   // Fill a missing-operator gap from the inline picker (mirrors the keypad path
@@ -563,6 +564,7 @@
     renderAll: renderAll,
     clearSelection: store.clearSelection,
     setSelection: store.setSelection,
+    getSelection: store.getSelection,
     getActiveBlockId: store.getActiveBlockId,
     setActiveBlockId: store.setActiveBlockId,
     getZoom: function(){ return zoom; },
@@ -576,7 +578,7 @@
     Editing: Editing
   });
 
-  // ---------- Add-calculation button ----------
+  // ---------- Adding calculations ----------
   function addBlockAt(x, y) {
     store.commit(function(){
       var nb = newBlock(snap(x), snap(y));
@@ -592,8 +594,8 @@
       var y = parseInt(btn.style.top,10);  if (isNaN(y)) y = 30;
       addBlockAt(x, y);
     });
-    // On an empty canvas the toolbar add-button is hidden and the hint card's
-    // "+" mark is the add control instead (see positionAddBtn).
+    // Empty-canvas taps create in place; the hint mark remains a keyboardable
+    // first-run control for users who want an explicit target.
     var hintMark = document.querySelector('.hint-mark');
     if (hintMark) {
       hintMark.addEventListener('pointerdown', function(e){ e.stopPropagation(); });

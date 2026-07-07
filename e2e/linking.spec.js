@@ -213,8 +213,8 @@ test('pending missing-operator results cannot start links', async ({ page }) => 
 
   const block = page.locator('.block').first();
   const box = await block.boundingBox();
-  await expect(block.locator('.result.pending')).toHaveText('?');
-  await dragResultTo(page, block.locator('.result.pending'), box.x + 260, box.y + 180);
+  await expect(block.locator('.result.unresolved')).toHaveText('Add an operator between these values.');
+  await dragResultTo(page, block.locator('.result.unresolved'), box.x + 260, box.y + 180);
 
   await expect(page.locator('.block')).toHaveCount(1);
   await expect(page.locator('.term.linked')).toHaveCount(0);
@@ -234,10 +234,10 @@ test('malformed linked sources explain dependent unknown results', async ({ page
   await source.locator('.term.operator').click();
   await press(page, '8');
 
-  await expect(source.locator('.result.pending')).toHaveText('?');
+  await expect(source.locator('.result.unresolved')).toHaveText('Add an operator between these values.');
   await expect(page.locator('.block').nth(1).locator('.term.linked')).toHaveText('?');
-  await expect(page.locator('.block').nth(1).locator('.result.pending')).toHaveText('?');
-  await expect(page.locator('.block').nth(1).locator('.result-why')).toHaveText('Fix the linked source first.');
+  await expect(page.locator('.block').nth(1).locator('.result.unresolved')).toHaveText('Fix the linked source first.');
+  await expect(page.locator('.block').nth(1).locator('.result-why')).toHaveCount(0);
 });
 
 test('a link that would create a cycle is refused with a dialog', async ({ page }) => {
@@ -252,7 +252,8 @@ test('a link that would create a cycle is refused with a dialog', async ({ page 
   await expect(page.locator('.block')).toHaveCount(2);
   // now drag B's result back onto A -> A would depend on B which depends on A -> cycle
   const b = page.locator('.block').nth(1);
-  await dragResultTo(page, b.locator('.result'), ab.x + 30, ab.y + 20);
+  const target = await a.locator('.term.number', { hasText: '8' }).boundingBox();
+  await dragResultTo(page, b.locator('.result'), target.x + target.width / 2, target.y + target.height / 2);
   await expect(page.locator('#toast')).toBeVisible();
   await expect(page.locator('#toastMsg')).toContainText('loop');
 });

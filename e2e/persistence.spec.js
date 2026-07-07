@@ -81,7 +81,7 @@ test('selector-breaking saved block ids do not crash rendering', async ({ page }
     activeCanvasId: 'c1'
   });
   await expect(page.locator('.block .term.number')).toHaveText('8');
-  await expect(page.locator('#addBtn')).toBeVisible();
+  await expect(page.locator('.block')).toHaveCount(1);
 });
 
 test('stale saved counters are advanced past existing ids', async ({ page }) => {

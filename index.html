@@ -15,51 +15,77 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M8.5 13.5L4 9l4.5-4.5M4 9h10.2a5.4 5.4 0 0 1 0 10.8H11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15.5 13.5L20 9l-4.5-4.5M20 9H9.8a5.4 5.4 0 0 0 0 10.8H13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></g></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-fx" viewBox="0 0 24 24"><path d="M11.8 5.2c-1.6 0-2.4 1-2.6 2.6L8 15.6c-.2 1.6-1 2.6-2.6 2.6M6.2 9.6h5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M13.6 11.6l4.8 6.2M18.4 11.6l-4.8 6.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M5 14.5V6a2 2 0 0 1 2-2h8.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8.5 4C6.8 4 6 5 6 6.7v2.6C6 10.6 5.3 11.6 4 12c1.3.4 2 1.4 2 2.7v2.6C6 19 6.8 20 8.5 20M15.5 4c1.7 0 2.5 1 2.5 2.7v2.6c0 1.3.7 2.3 2 2.7-1.3.4-2 1.4-2 2.7v2.6c0 1.7-.8 2.7-2.5 2.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9.5 6.5H20M9.5 12H20M9.5 17.5H20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><g fill="currentColor"><circle cx="5" cy="6.5" r="1.4"/><circle cx="5" cy="12" r="1.4"/><circle cx="5" cy="17.5" r="1.4"/></g></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5.5" y="5" width="13" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M9 5a3 3 0 0 1 6 0M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 11v6M14.5 11v6M6.5 7l.8 11.5a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9L17.5 7M9.5 7V5.4A1.4 1.4 0 0 1 10.9 4h2.2a1.4 1.4 0 0 1 1.4 1.4V7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
 <div id="app">
   <div id="toolbar">
     <div class="cv-switch">
       <button class="cv-btn" id="canvasBtn" aria-haspopup="true" aria-expanded="false">
-        <span id="canvasName">Canvas 1</span><span class="cv-caret">▾</span>
+        <span id="canvasName">Canvas 1</span>
+        <svg class="ico cv-caret" aria-hidden="true" focusable="false"><use href="#i-chevron"/></svg>
       </button>
       <div id="canvasMenu" hidden></div>
     </div>
-    <button class="tbtn txt" id="varsBtn" aria-label="Variables" aria-pressed="false"><span class="vars-ico">ƒx</span><span class="vars-lbl">Values</span></button>
-    <button class="tbtn" id="undoBtn" aria-label="Undo">↶</button>
-    <button class="tbtn" id="redoBtn" aria-label="Redo">↷</button>
+    <button class="tbtn txt" id="varsBtn" aria-label="Values" aria-pressed="false">
+      <svg class="ico" aria-hidden="true" focusable="false"><use href="#i-fx"/></svg>
+      <span class="vars-lbl">Values</span>
+    </button>
+    <button class="tbtn" id="undoBtn" aria-label="Undo">
+      <svg class="ico" aria-hidden="true" focusable="false"><use href="#i-undo"/></svg>
+    </button>
+    <button class="tbtn" id="redoBtn" aria-label="Redo">
+      <svg class="ico" aria-hidden="true" focusable="false"><use href="#i-redo"/></svg>
+    </button>
+    <button class="tbtn danger-btn" id="clearBtn" aria-label="Clear canvas">
+      <svg class="ico" aria-hidden="true" focusable="false"><use href="#i-trash"/></svg>
+    </button>
     <div class="menu-wrap">
-      <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋯</button>
+      <button class="tbtn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">
+        <svg class="ico" aria-hidden="true" focusable="false"><use href="#i-dots"/></svg>
+      </button>
       <div id="menu" role="menu" aria-orientation="vertical" hidden>
         <button class="menu-item" id="copyItem" role="menuitem">
-          <span class="menu-check"></span><span>Copy selection</span>
+          <span class="menu-ico"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-copy"/></svg></span><span>Copy selection</span>
         </button>
         <button class="menu-item" id="copyStructuredBlockItem" role="menuitem">
-          <span class="menu-check"></span><span>Copy structured block</span>
+          <span class="menu-ico"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-braces"/></svg></span><span>Copy structured block</span>
         </button>
         <button class="menu-item" id="copyCanvasSummaryItem" role="menuitem">
-          <span class="menu-check"></span><span>Copy canvas summary</span>
+          <span class="menu-ico"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-list"/></svg></span><span>Copy canvas summary</span>
         </button>
         <button class="menu-item" id="pasteItem" role="menuitem">
-          <span class="menu-check"></span><span>Paste</span>
+          <span class="menu-ico"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-clipboard"/></svg></span><span>Paste</span>
         </button>
         <div class="menu-sep"></div>
         <div class="menu-label" id="sizeLabel">Text size</div>
         <div role="group" aria-labelledby="sizeLabel">
           <button class="menu-item size-item" data-size="18" role="menuitemradio" aria-checked="false">
-            <span class="menu-check">✓</span><span>Small</span>
+            <span class="menu-check"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-check"/></svg></span><span>Small</span>
           </button>
           <button class="menu-item size-item" data-size="22" role="menuitemradio" aria-checked="false">
-            <span class="menu-check">✓</span><span>Medium</span>
+            <span class="menu-check"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-check"/></svg></span><span>Medium</span>
           </button>
           <button class="menu-item size-item" data-size="28" role="menuitemradio" aria-checked="false">
-            <span class="menu-check">✓</span><span>Large</span>
+            <span class="menu-check"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-check"/></svg></span><span>Large</span>
           </button>
         </div>
         <div class="menu-sep"></div>
         <button class="menu-item" id="gridToggle" role="menuitemcheckbox" aria-checked="false">
-          <span class="menu-check">✓</span><span>Show grid</span>
-        </button>
-        <button class="menu-item danger-item" id="clearBtn" role="menuitem">
-          <span class="menu-check">⌫</span><span>Clear canvas</span>
+          <span class="menu-check"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-check"/></svg></span><span>Show grid</span>
         </button>
       </div>
     </div>
@@ -75,7 +101,7 @@
     <div id="hint">
       <button type="button" class="hint-mark" aria-label="Start a calculation">+</button>
       <div class="hint-title">Start a calculation</div>
-      <div class="hint-sub">Tap <b>+</b> or type on the keypad.</div>
+      <div class="hint-sub">Tap the canvas, or type on the keypad.</div>
     </div>
   </div>
 
@@ -88,6 +114,10 @@
   <div id="numpad">
     <button id="padToggle" type="button" aria-label="Hide keypad" aria-expanded="true"><span></span></button>
     <div class="padgrid" role="group" aria-label="Calculator keypad">
+      <button type="button" class="key act" data-k="back" aria-label="Backspace">⌫</button>
+      <button type="button" class="key op" data-k="(" aria-label="Open parenthesis">(</button>
+      <button type="button" class="key op" data-k=")" aria-label="Close parenthesis">)</button>
+      <button type="button" class="key op" data-k="neg" aria-label="Plus / minus sign">±</button>
       <button type="button" class="key" data-k="7" aria-label="7">7</button>
       <button type="button" class="key" data-k="8" aria-label="8">8</button>
       <button type="button" class="key" data-k="9" aria-label="9">9</button>
@@ -100,15 +130,10 @@
       <button type="button" class="key" data-k="2" aria-label="2">2</button>
       <button type="button" class="key" data-k="3" aria-label="3">3</button>
       <button type="button" class="key op" data-k="-" aria-label="Subtract">−</button>
+      <button type="button" class="key zero" data-k="0" aria-label="0">0</button>
       <button type="button" class="key" data-k="." aria-label="Decimal point">.</button>
-      <button type="button" class="key" data-k="0" aria-label="0">0</button>
-      <button type="button" class="key act" data-k="back" aria-label="Backspace">⌫</button>
       <button type="button" class="key op" data-k="+" aria-label="Add">+</button>
-      <button type="button" class="key op" data-k="(" aria-label="Open parenthesis">(</button>
-      <button type="button" class="key op" data-k=")" aria-label="Close parenthesis">)</button>
-      <button type="button" class="key op" data-k="neg" aria-label="Plus / minus sign">±</button>
-      <button type="button" class="key del" data-k="clear" aria-label="Clear canvas">Clear</button>
-      <button type="button" class="key eq" data-k="=" aria-label="Equals — finish this block">=</button>
+      <button type="button" class="key eq" data-k="=" aria-label="Done — finish this block">Done</button>
     </div>
   </div>
 </div>
@@ -117,7 +142,9 @@
 <div id="sidebar" aria-hidden="true">
   <div id="sidebarHead">
     <span>Variables</span>
-    <button id="sidebarClose" class="tbtn" aria-label="Close variables">×</button>
+    <button id="sidebarClose" class="tbtn" aria-label="Close variables">
+      <svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg>
+    </button>
   </div>
   <div id="sidebarBody"></div>
 </div>

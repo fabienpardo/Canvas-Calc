@@ -1,12 +1,16 @@
 const { test, expect } = require('@playwright/test');
 const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
 
-// Phase 1/2: a block that can't resolve shows "?" plus a soft explanation of
-// why, driven entirely by the engine's diagnose(). One case per reason code
-// that's reachable from the keypad (broken-link is covered in linking.spec).
+// A block that can't resolve replaces the result chip with the engine's reason
+// in the normal result slot. One case per reason code reachable from the keypad
+// (broken-link is covered in linking.spec).
 
-const result = (page) => lastBlock(page).locator('.result');
-const why = (page) => lastBlock(page).locator('.result-why');
+const unresolved = (page) => lastBlock(page).locator('.result.unresolved');
+
+async function expectUnresolved(page, message) {
+  await expect(unresolved(page)).toHaveText(message);
+  await expect(lastBlock(page).locator('.result-why')).toHaveCount(0);
+}
 
 test('unmatched opening parenthesis explains how to close it', async ({ page }) => {
   await fresh(page);
@@ -15,8 +19,7 @@ test('unmatched opening parenthesis explains how to close it', async ({ page }) 
   await press(page, '*');
   await press(page, '(');
   await type(page, '2 + 3');
-  await expect(result(page)).toHaveText('?');
-  await expect(why(page)).toHaveText('Close the parenthesis to calculate.');
+  await expectUnresolved(page, 'Close the parenthesis to calculate.');
 });
 
 test('stray closing parenthesis explains how to fix it', async ({ page }) => {
@@ -25,8 +28,7 @@ test('stray closing parenthesis explains how to fix it', async ({ page }) => {
   await type(page, '5 + 2');
   await press(page, ')');
   await press(page, '=');
-  await expect(result(page)).toHaveText('?');
-  await expect(why(page)).toHaveText('Remove or match the closing parenthesis.');
+  await expectUnresolved(page, 'Remove or match the closing parenthesis.');
 });
 
 test('empty parentheses are unresolved, not zero', async ({ page }) => {
@@ -37,8 +39,7 @@ test('empty parentheses are unresolved, not zero', async ({ page }) => {
   await press(page, '(');
   await press(page, ')');
   await press(page, '=');
-  await expect(result(page)).toHaveText('?');
-  await expect(why(page)).toHaveText('Add a value inside the parentheses.');
+  await expectUnresolved(page, 'Add a value inside the parentheses.');
 });
 
 test('division by zero is unresolved with an explanation', async ({ page }) => {
@@ -48,6 +49,5 @@ test('division by zero is unresolved with an explanation', async ({ page }) => {
   await press(page, '/');
   await type(page, '0');
   await press(page, '=');
-  await expect(result(page)).toHaveText('?');
-  await expect(why(page)).toHaveText('Cannot divide by zero.');
+  await expectUnresolved(page, 'Cannot divide by zero.');
 });
