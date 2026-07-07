@@ -26,6 +26,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Run Playwright e2e tests
         run: npx playwright test
+      # test-results/ is only populated for failed or retried tests, so on a
+      # flake that passes on retry (green job) this still captures the trace.
+      - name: Upload traces of failed or retried tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   e2e-ios:
     # iOS/WebKit lane for the mobile spec. Non-blocking while the lane is young.

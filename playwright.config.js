@@ -22,6 +22,9 @@ module.exports = defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   workers: 1,
+  // One CI retry absorbs rare pointer-event timing flakes on loaded runners
+  // and arms the on-first-retry trace below so a recurrence is diagnosable.
+  retries: process.env.CI ? 1 : 0,
   reporter: 'list',
   use: {
     baseURL: baseURL,
