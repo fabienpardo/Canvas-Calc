@@ -25,18 +25,6 @@ async function addBlock(page) {
   }
 }
 
-// Chromium delivers interpolated pointermove events aligned to animation
-// frames; on a loaded CI runner they can all still be queued when pointerup
-// arrives, so the app sees a stationary tap instead of a drag. Waiting out two
-// frames after the last move guarantees the app processed the motion before
-// the button is released. (Diagnosed from the cycle-refusal e2e flake: the
-// failure snapshot showed the drag collapsing into a select-tap on the source.)
-async function settlePointer(page) {
-  await page.evaluate(() => new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-  }));
-}
-
 // Seed a saved state, then load the app with it in localStorage.
 async function seed(page, stateOrRaw) {
   await page.goto('/');
@@ -46,4 +34,4 @@ async function seed(page, stateOrRaw) {
   await page.reload();
 }
 
-module.exports = { fresh, press, type, lastBlock, seed, addBlock, settlePointer };
+module.exports = { fresh, press, type, lastBlock, seed, addBlock };

@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, addBlock, settlePointer } = require('./helpers');
+const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
 
 async function dragResultTo(page, resultLocator, toX, toY) {
   const b = await resultLocator.boundingBox();
@@ -8,7 +8,6 @@ async function dragResultTo(page, resultLocator, toX, toY) {
   await page.mouse.down();
   await page.mouse.move(cx + 30, cy + 30, { steps: 4 });
   await page.mouse.move(toX, toY, { steps: 8 });
-  await settlePointer(page);
   await page.mouse.up();
 }
 

@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, seed, type, lastBlock, addBlock, settlePointer } = require('./helpers');
+const { fresh, seed, type, lastBlock, addBlock } = require('./helpers');
 
 // An "old" saved state: number terms with no tid, and no zoom/showGrid/nextTid/fontSize.
 const OLD_STATE = {
@@ -23,7 +23,6 @@ test('migration assigns tids so old numbers can still be linked', async ({ page 
   await page.mouse.down();
   await page.mouse.move(b.x + 60, b.y + 60, { steps: 4 });
   await page.mouse.move(b.x + 260, b.y + 240, { steps: 8 });
-  await settlePointer(page);
   await page.mouse.up();
   await expect(page.locator('.term.linked')).toHaveText('6');
 });
