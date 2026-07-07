@@ -42,6 +42,36 @@ test('typing builds a live result; an idle canvas tap starts a block where you t
   await expect(page.locator('.block')).toHaveCount(1);
 });
 
+test('a tap that dismisses a menu or canvas rename never creates a block', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '2 + 2');
+  await press(page, '=');
+  const wrapBox = await page.locator('#canvasWrap').boundingBox();
+  const tapX = wrapBox.x + 280, tapY = wrapBox.y + 260;
+
+  // Overflow menu open: the outside tap only closes it.
+  await page.locator('#menuBtn').click();
+  await expect(page.locator('#menu')).toBeVisible();
+  await page.mouse.click(tapX, tapY);
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('.block')).toHaveCount(1);
+
+  // Canvas rename in progress: the outside tap commits the rename and closes
+  // the switcher, nothing more.
+  await page.locator('#canvasBtn').click();
+  const rename = page.locator('#canvasMenu .cv-row.active .cv-name');
+  await rename.fill('Budget');
+  await page.mouse.click(tapX, tapY);
+  await expect(page.locator('#canvasMenu')).toBeHidden();
+  await expect(page.locator('#canvasName')).toHaveText('Budget');
+  await expect(page.locator('.block')).toHaveCount(1);
+
+  // Back to a truly idle canvas: the same tap creates a draft again.
+  await page.mouse.click(tapX, tapY);
+  await expect(page.locator('.block')).toHaveCount(2);
+});
+
 test('typing after selecting another block leaves only the draft focused', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

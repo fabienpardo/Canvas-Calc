@@ -209,13 +209,18 @@
 
       pointer.mode='maybe-tap';
       pointer.startX=e.clientX; pointer.startY=e.clientY; pointer.moved=false;
-      // Capture the starting focus/selection before pointerdown blurs an
-      // editor. That lets an outside tap dismiss editing without also creating
-      // a new draft block underneath the user's finger.
+      // Capture the starting state before other pointerdown handlers blur an
+      // editor or close a menu. A tap from any non-idle state — active block,
+      // selection, focused text entry (block caption, canvas rename), or an
+      // open overlay menu — only dismisses; it must never also create a draft
+      // block underneath the user's finger.
       var ae0 = doc.activeElement;
+      var typing0 = !!(ae0 && (ae0.isContentEditable ||
+        ae0.tagName === 'INPUT' || ae0.tagName === 'TEXTAREA'));
       pointer.hadFocus = !!(deps.getActiveBlockId() ||
         (deps.getSelection && deps.getSelection().blockId != null) ||
-        (ae0 && ae0.classList && ae0.classList.contains('cap')));
+        typing0 ||
+        doc.querySelector('#menu:not([hidden]), #canvasMenu:not([hidden])'));
     });
 
     deps.wrap.addEventListener('pointermove', function(e){
