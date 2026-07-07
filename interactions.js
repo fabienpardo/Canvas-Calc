@@ -199,6 +199,7 @@
         pointer.origX=pointer.block.x; pointer.origY=pointer.block.y;
         pointer.moved=false; pointer.snapshotted=false;
         deps.setSelection({ blockId:pointer.block.id, termIndex:null, kind:'result' });
+        if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
         deps.canvas.querySelectorAll('.selected, .sel').forEach(function(x){ x.classList.remove('selected','sel'); });
         bEl.classList.add('selected');
         var rc = bEl.querySelector('.result'); if (rc) rc.classList.add('sel');
@@ -208,6 +209,13 @@
 
       pointer.mode='maybe-tap';
       pointer.startX=e.clientX; pointer.startY=e.clientY; pointer.moved=false;
+      // Capture the starting focus/selection before pointerdown blurs an
+      // editor. That lets an outside tap dismiss editing without also creating
+      // a new draft block underneath the user's finger.
+      var ae0 = doc.activeElement;
+      pointer.hadFocus = !!(deps.getActiveBlockId() ||
+        (deps.getSelection && deps.getSelection().blockId != null) ||
+        (ae0 && ae0.classList && ae0.classList.contains('cap')));
     });
 
     deps.wrap.addEventListener('pointermove', function(e){
@@ -305,8 +313,16 @@
         // text) before we tear the block DOM down with renderAll. Outside taps
         // don't reliably blur a contenteditable on touch, so force it here.
         var ae = doc.activeElement;
-        if (ae && ae.classList && ae.classList.contains('cap')) ae.blur();
+        var wasNaming = ae && ae.classList && ae.classList.contains('cap');
+        if (wasNaming) ae.blur();
         var activeBlockId = deps.getActiveBlockId();
+        if (!pointer.hadFocus && !activeBlockId && !wasNaming) {
+          var tapPt = toCanvas(e.clientX, e.clientY);
+          deps.snapshot();
+          var tapBlock = deps.newBlock(deps.snap(tapPt.x - 40), deps.snap(tapPt.y - 20));
+          deps.setActiveBlockId(tapBlock.id); deps.clearSelection(); deps.renderAll(); deps.save();
+          resetPointer(); return;
+        }
         if (activeBlockId) {
           var fb = deps.byId(activeBlockId);
           if (fb && fb.terms.length===0) { deps.snapshot(); deps.removeBlock(fb.id); deps.save(); }

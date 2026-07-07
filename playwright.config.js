@@ -14,18 +14,22 @@ const projects = [{
 }];
 if (process.env.PW_IOS) projects.push({ name: 'ios-safari', use: { ...devices['iPhone 13'] } });
 
+const port = process.env.PW_PORT || '8765';
+const host = process.env.PW_HOST || '127.0.0.1';
+const baseURL = `http://${host}:${port}`;
+
 module.exports = defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:8765',
+    baseURL: baseURL,
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'python3 -m http.server 8765',
-    url: 'http://localhost:8765',
+    command: `python3 -m http.server ${port} --bind ${host}`,
+    url: baseURL,
     reuseExistingServer: true,
     timeout: 30000,
   },

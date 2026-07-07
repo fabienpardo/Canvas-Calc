@@ -34,6 +34,21 @@ test('active block id round-trips', () => {
   assert.equal(store.getActiveBlockId(), 'b7');
 });
 
+test('activating another block clears stale cross-block selection', () => {
+  const { store } = make();
+  store.setSelection({ blockId: 'b1', termIndex: null, kind: 'result' });
+  store.setActiveBlockId('b2');
+  assert.equal(store.getActiveBlockId(), 'b2');
+  assert.deepEqual(store.getSelection(), { blockId: null, termIndex: null, kind: null });
+});
+
+test('activating the selected block keeps its term selection', () => {
+  const { store } = make();
+  store.setSelection({ blockId: 'b1', termIndex: 0, kind: 'number' });
+  store.setActiveBlockId('b1');
+  assert.deepEqual(store.getSelection(), { blockId: 'b1', termIndex: 0, kind: 'number' });
+});
+
 test('commit runs snapshot -> mutate -> render -> save in order by default', () => {
   const { store, log } = make();
   const order = [];

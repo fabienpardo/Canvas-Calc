@@ -1,10 +1,10 @@
   :root {
-    --bg: #f8fafc;
-    --canvas: #f3f6f8;
+    --bg: #f7f9fb;
+    --canvas: #eef3f7;
     --grid: rgba(94, 116, 139, 0.13);
     --block: #ffffff;
     --block-border: #dbe3ea;
-    --block-sel: #2563eb;
+    --block-sel: #1f6feb;
     --text: #172033;
     --text-dim: #657386;
     --op: #b65a1e;
@@ -12,8 +12,10 @@
     --result-bg: #e7f7f4;
     --linked-bg: #edf5ff;
     --linked-text: #2563eb;
-    --accent: #2563eb;
-    --accent-strong: #1d4ed8;
+    --accent: #1f6feb;
+    --accent-strong: #1857c7;
+    --warn: #b7791f;
+    --warn-bg: #fff7dc;
     --pad-bg: rgba(248, 250, 252, 0.94);
     --key: #ffffff;
     --key-border: #d7e0e8;
@@ -42,6 +44,8 @@
       --linked-text: #93c5fd;
       --accent: #60a5fa;
       --accent-strong: #3b82f6;
+      --warn: #fbbf24;
+      --warn-bg: #3a2f16;
       --pad-bg: rgba(16, 23, 34, 0.95);
       --key: #182235;
       --key-border: #2d3b4e;
@@ -70,6 +74,7 @@
   button:focus-visible, [contenteditable="true"]:focus-visible, input:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 2px;
   }
+  .ico { width: 20px; height: 20px; pointer-events: none; display: block; }
   #app { display: flex; flex-direction: column; height: 100%; position: relative; }
 
   /* Toolbar */
@@ -77,13 +82,13 @@
     display: flex; align-items: center; gap: 6px;
     min-height: calc(50px + env(safe-area-inset-top));
     padding: max(8px, env(safe-area-inset-top)) 10px 8px;
-    background: color-mix(in srgb, var(--bg) 92%, var(--block));
+    background: color-mix(in srgb, var(--bg) 88%, var(--block));
     border-bottom: 1px solid var(--block-border);
     flex: 0 0 auto;
     box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
   }
   /* Canvas switcher */
-  .cv-switch { position: relative; margin-right: auto; }
+  .cv-switch { position: relative; margin-right: auto; min-width: 0; }
   .cv-btn {
     display: flex; align-items: center; gap: 5px; max-width: min(230px, 46vw);
     border: 1px solid transparent; background: transparent; cursor: pointer;
@@ -92,7 +97,7 @@
   }
   .cv-btn:active { background: var(--key-active); }
   .cv-btn #canvasName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cv-caret { color: var(--text-dim); font-size: 11px; }
+  .cv-caret { width: 15px; height: 15px; color: var(--text-dim); flex: 0 0 auto; }
   #canvasMenu {
     position: absolute; top: calc(100% + 7px); left: 0; min-width: 230px;
     background: var(--block); border: 1px solid var(--block-border);
@@ -137,6 +142,8 @@
   .tbtn:active { background: var(--key-active); }
   .tbtn[disabled] { opacity: 0.32; }
   .tbtn.txt { font-size: 13px; font-weight: 500; width: auto; padding: 0 10px; gap: 5px; }
+  .danger-btn { color: var(--danger); }
+  .danger-btn:active { background: color-mix(in srgb, var(--danger) 10%, var(--key)); }
   /* Variables button: icon always, text label only where there's room (desktop). */
   #varsBtn .vars-lbl { display: none; }
 
@@ -161,13 +168,14 @@
     padding: 10px 11px; border-radius: var(--radius); cursor: pointer;
   }
   .menu-item:active { background: var(--key-active); }
-  .menu-check {
-    width: 18px; color: var(--accent); opacity: 0;
+  .menu-ico, .menu-check {
+    width: 20px; flex: 0 0 auto; color: var(--text-dim);
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700;
   }
-  .danger-item .menu-check { opacity: 1; }
-  .menu-item[aria-checked="true"] .menu-check { opacity: 1; }
+  .menu-ico .ico { width: 18px; height: 18px; }
+  .menu-check { color: var(--accent); }
+  .menu-check .ico { width: 16px; height: 16px; opacity: 0; }
+  .menu-item[aria-checked="true"] .menu-check .ico { opacity: 1; }
   .menu-label {
     padding: 8px 11px 3px; font-family: var(--sans);
     font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
@@ -209,13 +217,13 @@
   #zoomLevel { font-size: 12px !important; width: 48px !important; color: var(--text-dim); }
   #linkLayer {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    pointer-events: none; z-index: 1;
+    pointer-events: none; z-index: 3;
   }
 
   /* Add-calculation button */
   #addBtn {
     position: absolute; display: none; align-items: center; justify-content: center;
-    width: 38px; height: 38px; border-radius: 50%; z-index: 3;
+    width: 38px; height: 38px; border-radius: 50%; z-index: 5;
     background: var(--accent); border: 1px solid var(--accent); color: #fff;
     font-size: 24px; line-height: 1; cursor: pointer; padding: 0;
     box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25); touch-action: none;
@@ -224,9 +232,9 @@
 
   /* Block */
   .block {
-    position: absolute; z-index: 2;
+    position: absolute;
     background: var(--block); border: 1px solid var(--block-border);
-    border-radius: 10px; padding: 7px 9px 8px;
+    border-radius: 12px; padding: 8px 10px 9px;
     min-width: 68px; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
     touch-action: none;
   }
@@ -328,6 +336,7 @@
   .block.active .cap:focus:empty::before, .block.selected .cap:focus:empty::before { content: none; }
 
   .expr {
+    position: relative; z-index: 4;
     display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px;
     font-family: var(--mono); font-size: var(--fs, 22px); line-height: 1.3;
   }
@@ -390,13 +399,19 @@
   .result.empty { background: transparent; color: var(--text-dim); }
   /* Reserved slot for a calc still being typed: muted "?" placeholder, no grab. */
   .result.pending { background: transparent; color: var(--text-dim); cursor: default; }
-  /* Soft explanation under an unresolved "?": why it can't resolve and how to
-     fix it. Deliberately muted — never the alarming destructive treatment. */
-  .result-why {
-    margin-top: 2px; max-width: 20ch;
-    color: var(--text-dim); font-family: var(--sans);
-    font-size: 10px; font-weight: 500; line-height: 1.3;
-    text-align: center; white-space: normal; opacity: 0.85;
+  .result.unresolved {
+    max-width: min(26ch, 56vw);
+    color: var(--warn);
+    background: var(--warn-bg);
+    border: 1px solid color-mix(in srgb, var(--warn) 36%, transparent);
+    cursor: default;
+    font-family: var(--sans);
+    font-size: max(11px, calc(var(--fs, 22px) * 0.52));
+    font-weight: 650;
+    line-height: 1.25;
+    white-space: normal;
+    text-align: left;
+    padding: 4px 8px;
   }
   /* While a block is being typed into, the result is a live preview: drop the
      filled pill so the input caret reads as the focus, not the answer. */
@@ -473,7 +488,7 @@
     position: fixed; left: 0; right: 0; bottom: 0;
     background: var(--pad-bg);
     border-top: 1px solid var(--block-border);
-    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+    padding: 10px 9px max(9px, env(safe-area-inset-bottom));
     transition: transform 0.22s ease; z-index: 50;
     box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.10);
     backdrop-filter: blur(18px);
@@ -501,36 +516,37 @@
   #padToggle span { display: none; }
   .padgrid {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px; max-width: 480px; margin: 0 auto;
+    gap: 7px; max-width: 480px; margin: 0 auto;
   }
   .key {
     appearance: none; -webkit-appearance: none; padding: 0;
     background: var(--key); border: 1px solid var(--key-border);
-    border-radius: 9px; height: 42px;
+    border-radius: 11px; height: 42px;
     font-family: var(--mono); font-size: 21px; color: var(--text);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
   }
-  .key:active { background: var(--key-active); }
-  .key.op { color: var(--op); font-weight: 500; }
-  .key[data-k="neg"] { grid-column: span 2; } /* ± spans two columns */
+  .key:active { background: var(--key-active); transform: translateY(1px); }
+  .key.op {
+    color: var(--op);
+    font-weight: 600;
+    background: color-mix(in srgb, var(--op) 8%, var(--key));
+  }
+  .key.zero { grid-column: span 2; }
   .key.act { color: var(--accent); font-size: 17px; font-family: var(--sans); font-weight: 500; }
   .key.eq {
-    grid-column: span 3; color: #fff; background: var(--accent);
-    border-color: var(--accent); font-weight: 600;
+    grid-column: span 4; color: #fff; background: var(--accent);
+    border-color: var(--accent); font-family: var(--sans); font-size: 15px; font-weight: 650;
   }
   .key.eq:active { background: var(--accent-strong); }
-  .key.del {
-    color: var(--danger); font-family: var(--sans); font-size: 14px; font-weight: 500;
-  }
 
   @media (min-width: 760px) {
     #numpad {
       left: auto; right: 18px; bottom: 18px;
       width: 360px; max-width: calc(100vw - 36px);
       border: 1px solid var(--block-border);
-      border-radius: 14px;
-      padding: 10px;
+    border-radius: 16px;
+    padding: 12px;
       box-shadow: var(--shadow-soft);
     }
     #padToggle {
@@ -539,13 +555,20 @@
       border-radius: 13px 13px 0 0;
     }
     .padgrid { max-width: none; gap: 7px; }
-    .key { height: 43px; }
+    .key { height: 44px; }
     body.sidebar-open #numpad {
       right: calc(min(88vw, 360px) + 18px);
       width: min(360px, calc(100vw - min(88vw, 360px) - 168px));
       min-width: 240px;
     }
     #varsBtn .vars-lbl { display: inline; }
+  }
+
+  @media (max-width: 520px) {
+    #toolbar { gap: 3px; padding-left: 8px; padding-right: 8px; }
+    .cv-btn { max-width: min(170px, calc(100vw - 238px)); padding-left: 7px; padding-right: 7px; }
+    .tbtn { width: 40px; height: 40px; }
+    .tbtn.txt { padding-left: 9px; padding-right: 9px; }
   }
 
   /* Toast / confirm */

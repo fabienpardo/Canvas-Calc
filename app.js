@@ -563,6 +563,7 @@
     renderAll: renderAll,
     clearSelection: store.clearSelection,
     setSelection: store.setSelection,
+    getSelection: store.getSelection,
     getActiveBlockId: store.getActiveBlockId,
     setActiveBlockId: store.setActiveBlockId,
     getZoom: function(){ return zoom; },
@@ -576,7 +577,7 @@
     Editing: Editing
   });
 
-  // ---------- Add-calculation button ----------
+  // ---------- Adding calculations ----------
   function addBlockAt(x, y) {
     store.commit(function(){
       var nb = newBlock(snap(x), snap(y));
@@ -592,8 +593,8 @@
       var y = parseInt(btn.style.top,10);  if (isNaN(y)) y = 30;
       addBlockAt(x, y);
     });
-    // On an empty canvas the toolbar add-button is hidden and the hint card's
-    // "+" mark is the add control instead (see positionAddBtn).
+    // Empty-canvas taps create in place; the hint mark remains a keyboardable
+    // first-run control for users who want an explicit target.
     var hintMark = document.querySelector('.hint-mark');
     if (hintMark) {
       hintMark.addEventListener('pointerdown', function(e){ e.stopPropagation(); });

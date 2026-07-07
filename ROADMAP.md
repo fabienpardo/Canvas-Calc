@@ -60,18 +60,26 @@ covered by tests:
 - App data stays local. The shipped app has no runtime dependencies, build step,
   backend, account system, or app-data network calls.
 
-## Next Slice: Named Values Polish
+## Next Slice: Direct Canvas + UI Clarity
 
-Make the existing variables sidebar more useful before adding larger product
-surface:
+Borrow the strongest ideas from the `redesign/craft` experiment without merging
+its full DOM and visual language:
 
-- clearer names for result versus number rows
-- stable ordering for named values and unnamed results
-- quick rename paths that stay keyboard-accessible
-- empty-state and unresolved-state checks for the sidebar
+- direct canvas creation: an idle tap on empty canvas space starts a draft block
+  at that point, while taps during editing only commit/dismiss
+- unresolved result slot: broken expressions keep the `=` position, but replace
+  the answer chip with the engine's reason instead of sending the explanation to
+  a footer
+- safer keypad: keep a familiar calculator rhythm, remove destructive canvas
+  clear from the keypad, and make finishing explicit with a primary Done key
+- test philosophy: keep e2e assertions focused on user-visible contracts and
+  stable behavior, not incidental selectors from a previous layout
+- restrained UI polish: clearer focus, calmer surfaces, and more deliberate
+  result/error/link roles without taking on the whole Craft theme
 
-Keep this focused on the current sidebar. Do not add spreadsheet-style formula
-management or cross-canvas references yet.
+Keep this focused on the current dependency-free app. Do not add a framework,
+account system, spreadsheet-style formula management, or cross-canvas references
+as part of this slice.
 
 ## Later Product Bets
 

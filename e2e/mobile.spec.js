@@ -62,7 +62,7 @@ test('mobile: long-press on a block reveals its delete control, never deletes', 
   await page.mouse.up();
 });
 
-test('mobile: keypad and add button fit within the viewport width', async ({ page }) => {
+test('mobile: keypad fits within the viewport width', async ({ page }) => {
   await fresh(page);
   const vw = page.viewportSize().width;
   const pad = await page.locator('#numpad').boundingBox();
