@@ -12,6 +12,7 @@
     var wrap = deps.wrap;
     var canvasMenuEl = document.getElementById('canvasMenu');
     var canvasBtnEl = document.getElementById('canvasBtn');
+    var editingCanvasId = null;
 
     function state() { return deps.getState(); }
     function cur() { return deps.cur(); }
@@ -39,6 +40,7 @@
 
     function closeCanvasMenu() {
       blurMenuTextEntry();
+      editingCanvasId = null;
       canvasMenuEl.hidden = true;
       canvasBtnEl.setAttribute('aria-expanded', 'false');
     }
@@ -92,6 +94,16 @@
       }, 'Delete', true);
     }
 
+    function startRenamingCanvas(id) {
+      editingCanvasId = id;
+      renderCanvasMenu();
+      var name = canvasMenuEl.querySelector('.cv-row.active input.cv-name');
+      if (!name) return;
+      try { name.focus({ preventScroll: true }); }
+      catch (err) { name.focus(); }
+      name.select();
+    }
+
     function renderCanvasMenu() {
       var s = state();
       canvasMenuEl.innerHTML = '';
@@ -100,7 +112,7 @@
         var active = c.id === s.activeCanvasId;
         row.className = 'cv-row' + (active ? ' active' : '');
         var name;
-        if (active) {
+        if (active && editingCanvasId === c.id) {
           name = document.createElement('input');
           name.className = 'cv-name';
           name.value = c.title;
@@ -108,6 +120,9 @@
           // rename is a single undo step (not one per keystroke).
           var renaming = false;
           name.addEventListener('focus', function () { renaming = false; });
+          name.addEventListener('blur', function () {
+            if (editingCanvasId === c.id) editingCanvasId = null;
+          });
           name.addEventListener('input', function () {
             if (!renaming) { renaming = true; if (deps.snapshot) deps.snapshot(); }
             renameCanvas(c.id, name.value);
@@ -120,9 +135,15 @@
           });
         } else {
           name = document.createElement('button');
+          name.type = 'button';
           name.className = 'cv-name';
-          name.textContent = c.title;
+          name.textContent = c.title || 'Canvas';
+          if (active) name.setAttribute('aria-label', 'Rename ' + (c.title || 'Canvas'));
           name.addEventListener('click', function () {
+            if (active) {
+              startRenamingCanvas(c.id);
+              return;
+            }
             setActiveCanvas(c.id);
             closeCanvasMenu();
           });
@@ -152,6 +173,7 @@
 
     function openCanvasMenu() {
       if (deps.blurActiveTextEntry) deps.blurActiveTextEntry();
+      editingCanvasId = null;
       renderCanvasMenu();
       canvasMenuEl.hidden = false;
       canvasBtnEl.setAttribute('aria-expanded', 'true');

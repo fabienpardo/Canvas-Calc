@@ -60,7 +60,8 @@ test('a tap that dismisses a menu or canvas rename never creates a block', async
   // Canvas rename in progress: the outside tap commits the rename and closes
   // the switcher, nothing more.
   await page.locator('#canvasBtn').click();
-  const rename = page.locator('#canvasMenu .cv-row.active .cv-name');
+  await page.locator('#canvasMenu .cv-row.active button.cv-name').click();
+  const rename = page.locator('#canvasMenu .cv-row.active input.cv-name');
   await rename.fill('Budget');
   await page.mouse.click(tapX, tapY);
   await expect(page.locator('#canvasMenu')).toBeHidden();
