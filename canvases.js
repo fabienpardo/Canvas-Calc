@@ -15,12 +15,30 @@
 
     function state() { return deps.getState(); }
     function cur() { return deps.cur(); }
+    function isTextEntry(el) {
+      if (!el) return false;
+      if (el.tagName === 'TEXTAREA') return true;
+      if (el.tagName === 'INPUT') return true;
+      return el.isContentEditable === true;
+    }
+
+    function blurMenuTextEntry() {
+      var ae = document.activeElement;
+      if (!isTextEntry(ae) || !canvasMenuEl.contains(ae)) return false;
+      ae.blur();
+      if (deps.syncTextEditingState) {
+        deps.syncTextEditingState();
+        setTimeout(deps.syncTextEditingState, 0);
+      }
+      return true;
+    }
 
     function applyCanvasName() {
       document.getElementById('canvasName').textContent = cur().title || 'Canvas';
     }
 
     function closeCanvasMenu() {
+      blurMenuTextEntry();
       canvasMenuEl.hidden = true;
       canvasBtnEl.setAttribute('aria-expanded', 'false');
     }
@@ -133,10 +151,19 @@
     }
 
     function openCanvasMenu() {
+      if (deps.blurActiveTextEntry) deps.blurActiveTextEntry();
       renderCanvasMenu();
       canvasMenuEl.hidden = false;
       canvasBtnEl.setAttribute('aria-expanded', 'true');
     }
+
+    canvasBtnEl.addEventListener('pointerdown', function () {
+      if (canvasMenuEl.hidden) {
+        if (deps.blurActiveTextEntry) deps.blurActiveTextEntry();
+      } else {
+        blurMenuTextEntry();
+      }
+    }, { passive: true });
 
     canvasBtnEl.addEventListener('click', function (e) {
       e.stopPropagation();

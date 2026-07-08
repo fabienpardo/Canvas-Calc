@@ -572,7 +572,7 @@ test('a single click on a label enters edit mode', async ({ page }) => {
   expect(focused).toBe(true);
 });
 
-test('empty result label editor has room and hides block controls', async ({ page }) => {
+test('empty result label editor stays anchored and hides block controls', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '2 + 2');
@@ -588,8 +588,54 @@ test('empty result label editor has room and hides block controls', async ({ pag
 
   const capBox = await resultCap.boundingBox();
   const resultBox = await block.locator('.result').boundingBox();
-  expect(capBox.width).toBeGreaterThanOrEqual(120);
+  const blockBox = await block.boundingBox();
+  expect(capBox.width).toBeGreaterThanOrEqual(56);
+  expect(capBox.width).toBeLessThanOrEqual(170);
   expect(capBox.y + capBox.height).toBeLessThanOrEqual(resultBox.y - 2);
+  expect(capBox.x).toBeGreaterThanOrEqual(blockBox.x - 1);
+  expect(capBox.x + capBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width + 1);
+});
+
+test('number label editor stays anchored to its chip', async ({ page }) => {
+  await seed(page, {
+    canvases: [{
+      id: 'c1',
+      title: 'Canvas 1',
+      blocks: [{
+        id: 'b1',
+        x: 60,
+        y: 60,
+        label: '',
+        terms: [
+          { type: 'number', value: '23', tid: 't1' },
+          { type: 'operator', value: '+' },
+          { type: 'number', value: '54', tid: 't2', label: 'test' }
+        ]
+      }],
+      nextId: 2,
+      nextTid: 3,
+      zoom: 1
+    }],
+    activeCanvasId: 'c1',
+    nextCanvasId: 2,
+    fontSize: 22,
+    showGrid: false
+  });
+
+  const block = page.locator('.block').first();
+  const secondCell = block.locator('.cell').nth(1);
+  const cap = secondCell.locator('.cap');
+  const chip = secondCell.locator('.term.number');
+  await cap.click();
+  await expect(cap).toBeFocused();
+
+  const capBox = await cap.boundingBox();
+  const chipBox = await chip.boundingBox();
+  const blockBox = await block.boundingBox();
+  expect(capBox.width).toBeLessThanOrEqual(160);
+  expect(capBox.x).toBeGreaterThanOrEqual(blockBox.x - 1);
+  expect(capBox.x + capBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width + 1);
+  expect(capBox.y + capBox.height).toBeLessThanOrEqual(chipBox.y - 1);
 });
 
 test('selected terms show editing hints', async ({ page }) => {
