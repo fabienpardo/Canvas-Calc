@@ -104,25 +104,49 @@
     if (el.tagName === 'INPUT') return !el.type || el.type === 'text' || el.type === 'decimal' || /^(text|search|email|url|tel|number|decimal)$/.test(el.type);
     return el.isContentEditable === true;
   }
+  function isVisibleTextEntry(el) {
+    if (!isTextEntry(el) || !el.isConnected) return false;
+    if (el.closest && el.closest('[hidden], [aria-hidden="true"]')) return false;
+    return !el.getClientRects || el.getClientRects().length > 0;
+  }
   function syncTextEditingState() {
-    document.documentElement.classList.toggle('text-editing', isTextEntry(document.activeElement));
+    document.documentElement.classList.toggle('text-editing', isVisibleTextEntry(document.activeElement));
+  }
+  function scheduleTextEditingSync() {
+    syncTextEditingState();
+    setTimeout(syncTextEditingState, 0);
+  }
+  function canRestoreFocus(el) {
+    if (!el || !el.focus || !el.isConnected || isTextEntry(el)) return false;
+    if (el.closest && el.closest('[hidden], [aria-hidden="true"]')) return false;
+    return !el.getClientRects || el.getClientRects().length > 0;
+  }
+  function restoreFocusAfterDialog(prevFocus, row) {
+    if (canRestoreFocus(prevFocus)) {
+      try { prevFocus.focus({ preventScroll: true }); }
+      catch (err) { prevFocus.focus(); }
+    } else {
+      var ae = document.activeElement;
+      if (ae && row && row.contains(ae) && ae.blur) ae.blur();
+    }
+    scheduleTextEditingSync();
   }
   function blurActiveTextEntry(scope) {
     var ae = document.activeElement;
     if (!isTextEntry(ae)) return false;
     if (scope && !scope.contains(ae)) return false;
     ae.blur();
-    syncTextEditingState();
-    setTimeout(syncTextEditingState, 0);
+    scheduleTextEditingSync();
     return true;
   }
   document.addEventListener('focusin', function (e) {
-    if (!isTextEntry(e.target)) return;
-    document.documentElement.classList.add('text-editing');
-    setNumpadHidden(true);
+    if (!isTextEntry(e.target)) { scheduleTextEditingSync(); return; }
+    syncTextEditingState();
+    if (isVisibleTextEntry(e.target)) setNumpadHidden(true);
+    setTimeout(syncTextEditingState, 0);
   });
   document.addEventListener('focusout', function (e) {
-    if (isTextEntry(e.target)) setTimeout(syncTextEditingState, 0);
+    if (isTextEntry(e.target)) scheduleTextEditingSync();
   });
 
   // ---------- History (per canvas) — see history.js ----------
@@ -482,7 +506,7 @@
     var ok=document.createElement('button'); ok.textContent=yesLabel||'OK'; if(danger) ok.className='danger';
     function close(){
       t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true);
-      if (prevFocus && prevFocus.focus) prevFocus.focus();
+      restoreFocusAfterDialog(prevFocus, row);
     }
     function onKey(e){
       if(e.key==='Escape'){ e.preventDefault(); close(); return; }
@@ -509,7 +533,7 @@
     var ok=document.createElement('button'); ok.textContent='OK';
     function close(){
       t.style.display='none'; sc.style.display='none'; document.removeEventListener('keydown', onKey, true);
-      if (prevFocus && prevFocus.focus) prevFocus.focus();
+      restoreFocusAfterDialog(prevFocus, row);
     }
     function onKey(e){
       if(e.key==='Escape'){ e.preventDefault(); close(); return; }

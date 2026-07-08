@@ -156,12 +156,52 @@ test('mobile: closing sidebar blurs focused sidebar inputs', async ({ page }) =>
   })).toBe(false);
 });
 
+test('mobile: closing a dialog does not restore text-entry focus', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 0');
+  await press(page, '=');
+
+  await page.locator('#varsBtn').click();
+  const name = page.locator('#sidebarBody .var-head .var-name').first();
+  await name.focus();
+  await page.keyboard.type('Budget');
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
+
+  await page.locator('#clearBtn').evaluate((el) => el.click());
+  await expect(page.locator('#toast')).toBeVisible();
+  await page.locator('#toastRow button', { hasText: 'Cancel' }).click();
+
+  await expect(page.locator('#toast')).toBeHidden();
+  await expect(page.locator('#sidebar')).toHaveClass(/open/);
+  await expect(name).toHaveValue('Budget');
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(false);
+  await expect.poll(async () => page.evaluate(() => {
+    const ae = document.activeElement;
+    return !!ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+  })).toBe(false);
+});
+
+test('mobile: opening canvas menu does not autofocus rename', async ({ page }) => {
+  await fresh(page);
+
+  await page.locator('#canvasBtn').click();
+
+  await expect(page.locator('#canvasMenu')).toBeVisible();
+  await expect(page.locator('#canvasMenu input.cv-name')).toHaveCount(0);
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(false);
+  await expect.poll(async () => page.evaluate(() => {
+    const ae = document.activeElement;
+    return !!ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+  })).toBe(false);
+});
+
 test('mobile: closing canvas menu blurs the rename input', async ({ page }) => {
   await fresh(page);
 
   await page.locator('#canvasBtn').click();
+  await page.locator('#canvasMenu .cv-row.active button.cv-name').click();
   const name = page.locator('#canvasMenu input.cv-name');
-  await name.focus();
   await page.keyboard.type(' Plan');
   await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
 

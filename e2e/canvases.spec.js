@@ -4,6 +4,10 @@ const { fresh, press, type, lastBlock, seed, addBlock } = require('./helpers');
 const openMenu = (page) => page.locator('#canvasBtn').click();
 const switchTo = (page, title) => page.locator('#canvasMenu button.cv-name', { hasText: title }).click();
 const savedStateMatches = (page, predicate) => page.waitForFunction(predicate);
+async function renameCurrentCanvas(page, title) {
+  await page.locator('#canvasMenu .cv-row.active button.cv-name').click();
+  await page.locator('#canvasMenu .cv-row.active input.cv-name').fill(title);
+}
 
 test('a new canvas is isolated; switching back preserves content', async ({ page }) => {
   await fresh(page);
@@ -45,7 +49,7 @@ test('each canvas keeps its own zoom', async ({ page }) => {
 test('renaming the current canvas persists across reload', async ({ page }) => {
   await fresh(page);
   await openMenu(page);
-  await page.locator('#canvasMenu input.cv-name').fill('Taxes');
+  await renameCurrentCanvas(page, 'Taxes');
   await expect(page.locator('#canvasName')).toHaveText('Taxes');
   await savedStateMatches(page, () => {
     try {
@@ -61,7 +65,7 @@ test('renaming the current canvas persists across reload', async ({ page }) => {
 test('renaming a canvas can be undone and redone in one step', async ({ page }) => {
   await fresh(page);
   await openMenu(page);
-  await page.locator('#canvasMenu input.cv-name').fill('Taxes');
+  await renameCurrentCanvas(page, 'Taxes');
   await expect(page.locator('#canvasName')).toHaveText('Taxes');
   await page.locator('#canvasBtn').click(); // close the menu
   await page.locator('#undoBtn').click();
