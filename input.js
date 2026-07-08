@@ -393,11 +393,13 @@
       if (k === '=') {
         var eActive = deps.getActiveBlockId();
         var ab = eActive ? deps.byId(eActive) : null;
+        var doneBlockId = ab ? ab.id : null;
         if (ab && ab.terms.length === 0) { deps.snapshot(); deps.removeBlock(ab.id); deps.save(); }
         // Commit any still-open groups by writing the matching ')' into the
         // block, so what's on screen matches the (already tolerant) result.
         else if (ab && Editing.unmatchedOpenParens(ab)) { deps.snapshot(); Editing.balanceParens(ab); deps.save(); }
         deps.setActiveBlockId(null); deps.clearSelection(); deps.renderAll();
+        if (doneBlockId && deps.revealBlockResult) deps.revealBlockResult(doneBlockId);
         return;
       }
 

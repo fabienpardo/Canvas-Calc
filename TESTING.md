@@ -118,7 +118,7 @@ npm run test:e2e
 
 ### Integration (jsdom or preview)
 - `renderBlock` emits expected chips + colored linked chips; `drawLinks` endpoints
-- Sidebar lists all variables (named + unnamed), inline value edit recomputes
+- Sidebar lists all variables/results (named + unnamed), inline value edit recomputes
 - Grid toggle, single-click caption edit, copy/paste events
 
 ### E2E smoke (Playwright)
@@ -151,7 +151,7 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   own-block keyboard links, no-active operator continuation, and structured
   block/canvas export formatting);
   `test/sidebar.test.js` — sidebar helpers including strict sidebar number
-  parsing and selected-block health summaries; `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
+  parsing and block-health summary helpers; `test/history.test.js` — undo/redo stacks (snapshot, undo, redo,
   empty-stack no-ops, per-canvas isolation); `test/store.test.js` — view-state
   round-trips and `commit()` ordering/opt-outs (snapshot→mutate→render→save);
   `test/sw.test.js` — service-worker
@@ -163,9 +163,10 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, plus-minus
     negative entry / result negation, sidebar inline edit and numeric
-    validation, snap-aligned canvas grid toggle, zoom + scroll, paste, invalid
+    validation, selected-block-free sidebar behavior, snap-aligned canvas grid
+    toggle, zoom + scroll, paste, invalid
     paste feedback, structured export menu copy, single-click label,
-    selected-block sidebar health, selected-term editing hints, keyboard
+    selected-term editing hints, keyboard
     add/menu/term selection basics, backspace chain.
   - `e2e/editing.spec.js` — insert-after-select, operator replacement,
     parenthesis select/delete, linked unlink, empty-block delete, undo/redo
@@ -173,15 +174,19 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   - `e2e/linking.spec.js` — result→operator link, before/after insertion
     when dropping onto a number chip, pending-result refusal, same-session
     copy/paste live-link preservation, source-unresolved dependent explanation,
-    cycle-rejection dialog, delete-source-with-dependents warning and cancel path.
+    cycle-rejection dialog, neutral own-source drag cancel, Escape pointer-drag
+    cancel, delete-source-with-dependents warning and cancel path.
   - `e2e/persistence.spec.js` — old-state load + tid migration, default
     zoom/grid, restored zoom/grid, pagehide save flush, corrupt +
     malformed-but-valid localStorage survive.
   - `e2e/canvases.spec.js` — multi-canvas isolation/switch, per-canvas zoom,
     rename persistence, delete + fallback, multi-canvas persistence, migration.
-  - `e2e/layout.spec.js` — zoom control pinned on scroll; canvas behind keypad.
+  - `e2e/layout.spec.js` — zoom control pinned on scroll; canvas behind keypad,
+    sidebar closes the keypad, bounded canvas scroll space.
   - `e2e/mobile.spec.js` — mobile (iPhone 16 Pro Max-size viewport) smoke,
-    viewport fit, long-expression caret follow, and touch link-drop insertion.
+    viewport fit, long-expression caret follow, Done result reveal, sidebar
+    blur/keypad close, linked-chip selection visuals, and touch link-drop
+    insertion.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
 ### Backlog (nice to have)

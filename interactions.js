@@ -89,14 +89,28 @@
       };
     }
 
-    // A drop is invalid if it targets the link's own source block, or would
-    // close a dependency loop. Such zones are flagged softly; release is a no-op
-    // (self) or shows the loop explanation (cycle).
+    // A drop is invalid if it would close a dependency loop. Dropping back over
+    // the source block is a neutral cancel gesture, so it stays visually quiet.
     function dropInvalid(tb) {
       var ls = pointer.linkSrc;
-      if (tb.id === ls.sourceId) return true;
       if (ls.sourceTid == null && deps.createsCycle(tb.id, ls.sourceId)) return true;
       return false;
+    }
+
+    function cancelPointerGesture() {
+      if (pointer.mode === 'drag-block' && pointer.block && pointer.moved) {
+        pointer.block.x = pointer.origX;
+        pointer.block.y = pointer.origY;
+        if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
+        deps.renderAll();
+        deps.save();
+      }
+      if (pointer.blockEl && pointer.pointerId != null && pointer.blockEl.releasePointerCapture) {
+        try { pointer.blockEl.releasePointerCapture(pointer.pointerId); } catch (err) {}
+      }
+      clearTargets(); clearCaret();
+      deps.ghost.style.display = 'none';
+      resetPointer();
     }
 
     // Insert a dragged value just before the term at `idx`, gluing it to its
@@ -166,7 +180,7 @@
       if (termEl && termEl.classList.contains('linked')) {
         var lblk = termEl.closest('.block');
         deps.setSelection({ blockId: lblk.dataset.id, termIndex: parseInt(termEl.dataset.idx,10), kind: 'linked' });
-        deps.setActiveBlockId(lblk.dataset.id);
+        deps.setActiveBlockId(null);
         deps.renderAll();
         e.preventDefault();
         return;
@@ -197,6 +211,7 @@
         pointer.mode='drag-block'; pointer.block=deps.byId(bEl.dataset.id);
         pointer.startX=e.clientX; pointer.startY=e.clientY;
         pointer.origX=pointer.block.x; pointer.origY=pointer.block.y;
+        pointer.pointerId = e.pointerId; pointer.blockEl = bEl;
         pointer.moved=false; pointer.snapshotted=false;
         deps.setSelection({ blockId:pointer.block.id, termIndex:null, kind:'result' });
         if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
@@ -241,7 +256,9 @@
         var intent = linkIntentPoint(e);
         var drop = resolveDrop(intent.x, intent.y);
         if (drop.block) {
-          if (dropInvalid(drop.block)) {
+          if (drop.block.id === pointer.linkSrc.sourceId) {
+            // Neutral cancel target: no warning styling and no insertion caret.
+          } else if (dropInvalid(drop.block)) {
             drop.blockEl.classList.add('drop-invalid');
           } else {
             drop.blockEl.classList.add('drop-ok');
@@ -339,6 +356,14 @@
         resetPointer(); return;
       }
       resetPointer();
+    });
+
+    doc.addEventListener('keydown', function(e){
+      if (e.key !== 'Escape') return;
+      if (pointer.mode === 'linking' || pointer.mode === 'maybe-link' || pointer.mode === 'drag-block') {
+        e.preventDefault();
+        cancelPointerGesture();
+      }
     });
 
     deps.canvas.addEventListener('pointerdown', function(e){

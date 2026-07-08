@@ -34,8 +34,8 @@ covered by tests:
 - Structured text export is available from the overflow menu for a selected
   block or the whole canvas, using stable `@block#token` references for support
   and debugging.
-- The variables sidebar includes selected-block health: status, unresolved
-  reason, link count, direct sources, and direct dependents.
+- The variables sidebar lists editable values and results without duplicating
+  canvas selection state.
 - Multi-canvas state, per-canvas undo/redo, local autosave, PWA precache, and
   offline reload coverage.
 - Mobile/touch regression coverage for phone-sized drag/link placement.
@@ -55,8 +55,8 @@ covered by tests:
 - Structured exports are one-way clipboard/debug artifacts. Paste still accepts
   normal arithmetic text only; importing structured exports is not part of the
   current contract.
-- Selecting a block and opening the sidebar shows its local health and immediate
-  dependency neighbourhood.
+- Opening the sidebar commits text editing, closes the keypad, and shows the
+  editable value/result list.
 - App data stays local. The shipped app has no runtime dependencies, build step,
   backend, account system, or app-data network calls.
 

@@ -356,7 +356,7 @@ test('sidebar lists variables and editing an input recomputes', async ({ page })
   await expect(page.locator('.block .result').first()).toHaveText('60');
 });
 
-test('sidebar shows selected block health', async ({ page }) => {
+test('sidebar stays focused on variables when a block is selected', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '10 * 2');
@@ -364,12 +364,9 @@ test('sidebar shows selected block health', async ({ page }) => {
   await lastBlock(page).locator('.result').click();
   await page.locator('#varsBtn').click();
 
-  const health = page.locator('#sidebarBody .health-panel');
-  await expect(health.locator('[data-health="title"]')).toHaveText(/Block b1/);
-  await expect(health.locator('[data-health="status"]')).toHaveText('Resolved · 20');
-  await expect(health.locator('[data-health="links"]')).toHaveText('0');
-  await expect(health.locator('[data-health="uses"]')).toHaveText('None');
-  await expect(health.locator('[data-health="used-by"]')).toHaveText('None');
+  await expect(page.locator('#sidebarBody .health-panel')).toHaveCount(0);
+  await expect(page.locator('#sidebarBody .var-group')).toHaveCount(1);
+  await expect(page.locator('#sidebarBody .var-val[data-kind="input"]')).toHaveCount(2);
 });
 
 test('sidebar rejects malformed numeric input', async ({ page }) => {

@@ -24,8 +24,8 @@ The app is a static, offline-capable PWA:
   pending `?` results must be fixed before they can start links.
 - **Cycle protection:** links that would make a calculation depend on itself are
   rejected.
-- **Variables sidebar:** label values and results, inspect or edit them, and see
-  selected-block status from the `x` sidebar.
+- **Variables sidebar:** label values and results, inspect them, and edit source
+  numbers inline from the `x` sidebar.
 - **Multi-canvas workspace:** keep separate canvases, each with its own title,
   blocks, zoom, and undo history.
 - **Editing tools:** insert terms in the middle of an expression, replace
