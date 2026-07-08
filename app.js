@@ -104,11 +104,25 @@
     if (el.tagName === 'INPUT') return !el.type || el.type === 'text' || el.type === 'decimal' || /^(text|search|email|url|tel|number|decimal)$/.test(el.type);
     return el.isContentEditable === true;
   }
+  function syncTextEditingState() {
+    document.documentElement.classList.toggle('text-editing', isTextEntry(document.activeElement));
+  }
+  function blurActiveTextEntry(scope) {
+    var ae = document.activeElement;
+    if (!isTextEntry(ae)) return false;
+    if (scope && !scope.contains(ae)) return false;
+    ae.blur();
+    syncTextEditingState();
+    setTimeout(syncTextEditingState, 0);
+    return true;
+  }
   document.addEventListener('focusin', function (e) {
-    if (isTextEntry(e.target)) document.documentElement.classList.add('text-editing');
+    if (!isTextEntry(e.target)) return;
+    document.documentElement.classList.add('text-editing');
+    setNumpadHidden(true);
   });
   document.addEventListener('focusout', function (e) {
-    if (isTextEntry(e.target)) document.documentElement.classList.remove('text-editing');
+    if (isTextEntry(e.target)) setTimeout(syncTextEditingState, 0);
   });
 
   // ---------- History (per canvas) — see history.js ----------
@@ -389,6 +403,8 @@
     layoutOverlays: layoutOverlays,
     save: save,
     snapshot: snapshot,
+    blurActiveTextEntry: blurActiveTextEntry,
+    syncTextEditingState: syncTextEditingState,
     deleteUndoStack: function(id){ historyCtl.deleteStack(id); },
     confirmDialog: confirmDialog
   });
@@ -678,10 +694,10 @@
     var sb = document.getElementById('sidebar');
     var varsBtn = document.getElementById('varsBtn');
     if (open) {
-      var ae = document.activeElement;
-      if (isTextEntry(ae) && ae.blur) ae.blur();
-      document.documentElement.classList.remove('text-editing');
+      blurActiveTextEntry();
       setNumpadHidden(true);
+    } else {
+      blurActiveTextEntry(sb);
     }
     sb.classList.toggle('open', open);
     sb.setAttribute('aria-hidden', open ? 'false' : 'true');
@@ -689,17 +705,31 @@
     if (varsBtn) varsBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
     layoutOverlays();
     if (open) renderSidebar();
+    syncTextEditingState();
+    setTimeout(syncTextEditingState, 0);
   }
-  document.getElementById('varsBtn').onclick = function(){
+  var varsButton = document.getElementById('varsBtn');
+  varsButton.addEventListener('pointerdown', function () {
+    blurActiveTextEntry();
+  }, { passive: true });
+  varsButton.onclick = function(){
     var sb = document.getElementById('sidebar');
     setSidebarOpen(!sb.classList.contains('open'));
     closeOverflowMenu();
   };
-  document.getElementById('sidebarClose').onclick = function(){
+  var sidebarCloseButton = document.getElementById('sidebarClose');
+  sidebarCloseButton.addEventListener('pointerdown', function () {
+    blurActiveTextEntry(document.getElementById('sidebar'));
+  }, { passive: true });
+  sidebarCloseButton.onclick = function(){
     setSidebarOpen(false);
   };
   (function(){ var c = document.getElementById('linkTipClose'); if (c) c.onclick = retireLinkTip; })();
-  document.getElementById('sidebarScrim').onclick = function(){
+  var sidebarScrim = document.getElementById('sidebarScrim');
+  sidebarScrim.addEventListener('pointerdown', function () {
+    blurActiveTextEntry(document.getElementById('sidebar'));
+  }, { passive: true });
+  sidebarScrim.onclick = function(){
     setSidebarOpen(false);
   };
 

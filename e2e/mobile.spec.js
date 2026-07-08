@@ -112,6 +112,13 @@ test('mobile: opening sidebar blurs text editing and hides the keypad', async ({
   await titleCap.click();
   await page.keyboard.type('Total');
   await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
+  const capBox = await titleCap.boundingBox();
+  const blockBox = await lastBlock(page).boundingBox();
+  const resultBox = await lastBlock(page).locator('.result').boundingBox();
+  expect(capBox.width).toBeLessThanOrEqual(170);
+  expect(capBox.x).toBeGreaterThanOrEqual(blockBox.x - 1);
+  expect(capBox.x + capBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width + 1);
+  expect(capBox.y + capBox.height).toBeLessThanOrEqual(resultBox.y - 1);
 
   await page.locator('#varsBtn').click();
 
@@ -123,6 +130,51 @@ test('mobile: opening sidebar blurs text editing and hides the keypad', async ({
     return !!ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
   })).toBe(false);
   await expect(lastBlock(page).locator('.result-cell .cap')).toHaveText('Total');
+});
+
+test('mobile: closing sidebar blurs focused sidebar inputs', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 0');
+  await press(page, '=');
+
+  await page.locator('#varsBtn').click();
+  const name = page.locator('#sidebarBody .var-head .var-name').first();
+  await name.focus();
+  await page.keyboard.type('Budget');
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
+
+  await page.locator('#sidebarClose').evaluate((el) => {
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+
+  await expect(page.locator('#sidebar')).not.toHaveClass(/open/);
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(false);
+  await expect.poll(async () => page.evaluate(() => {
+    const ae = document.activeElement;
+    return !!ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+  })).toBe(false);
+});
+
+test('mobile: closing canvas menu blurs the rename input', async ({ page }) => {
+  await fresh(page);
+
+  await page.locator('#canvasBtn').click();
+  const name = page.locator('#canvasMenu input.cv-name');
+  await name.focus();
+  await page.keyboard.type(' Plan');
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
+
+  await page.evaluate(() => {
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  });
+
+  await expect(page.locator('#canvasMenu')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(false);
+  await expect.poll(async () => page.evaluate(() => {
+    const ae = document.activeElement;
+    return !!ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+  })).toBe(false);
 });
 
 test('mobile: Done minimally reveals a clipped result', async ({ page }) => {

@@ -185,8 +185,8 @@ chase coverage on rendering — assert behavior and computed values, not markup.
     sidebar closes the keypad, bounded canvas scroll space.
   - `e2e/mobile.spec.js` — mobile (iPhone 16 Pro Max-size viewport) smoke,
     viewport fit, long-expression caret follow, Done result reveal, sidebar
-    blur/keypad close, linked-chip selection visuals, and touch link-drop
-    insertion.
+    blur/keypad close, hidden-panel input blur, linked-chip selection visuals,
+    and touch link-drop insertion.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
 ### Backlog (nice to have)

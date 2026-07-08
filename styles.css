@@ -316,27 +316,28 @@
       color: var(--accent); border-color: var(--accent);
     }
   }
-  /* Focused caption: a small labelled-input popover that floats above the
-     expression, so a long name reads as an editor instead of clipped text. */
+  /* Focused caption: keep label editing anchored to the chip it names. The
+     16px text size avoids iOS input zoom, while tight width bounds keep the
+     editor from turning into a detached popover. */
   .cap:focus {
-    display: block; min-width: 28px; max-width: 180px; opacity: 1;
-    /* 16px keeps the label comfortably editable on phones and is also the
-       threshold below which iOS would auto-zoom the field on focus. */
-    font-size: 16px; -webkit-line-clamp: none; overflow: visible; line-height: 1.3;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-sizing: border-box;
+    min-width: 40px; max-width: min(150px, 38vw); min-height: 22px; opacity: 1;
+    font-size: 16px; -webkit-line-clamp: unset; overflow: hidden; line-height: 1.2;
     color: var(--text); background: var(--block);
     border: 1px solid var(--accent); border-radius: 5px;
     padding: 2px 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.14);
     position: relative; z-index: 6; caret-color: var(--text);
+    text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: normal;
   }
   .cap:focus-visible { outline: none; }
   .block.active .result-cell .cap:focus,
   .block.selected .result-cell .cap:focus,
   .result-cell .cap:focus {
-    position: absolute; left: 50%; bottom: calc(100% + 8px);
-    transform: translateX(-50%);
-    min-width: min(120px, 46vw); max-width: min(220px, calc(100vw - 32px));
-    min-height: 28px; text-align: left; white-space: nowrap;
-    overflow: hidden; overflow-wrap: normal; word-break: normal;
+    position: relative; left: auto; bottom: auto;
+    transform: none;
+    min-width: 56px; max-width: min(160px, 42vw);
+    min-height: 24px;
   }
   .block.active .cap:focus:empty::before, .block.selected .cap:focus:empty::before { content: none; }
 
