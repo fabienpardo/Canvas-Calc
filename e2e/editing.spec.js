@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, seed, addBlock } = require('./helpers');
 
 // ---- editing model flows -------------------------------------------------
 test('insert in the middle: 5 + 7 + 2, select 7, type - 4 => 5 + 7 - 4 + 2 = 10', async ({ page }) => {
@@ -83,6 +83,59 @@ test('editing a label then tapping empty canvas saves it', async ({ page }) => {
   // And it survives a reload (was actually persisted).
   await page.reload();
   await expect(page.locator('.block .cap').last()).toHaveText('Total');
+});
+
+test('editing a label mutes selection visuals in other blocks', async ({ page }) => {
+  await seed(page, {
+    canvases: [{
+      id: 'c1',
+      title: 'Canvas 1',
+      blocks: [
+        { id: 'b1', x: 40, y: 30, label: 'Source', terms: [
+          { type: 'number', value: '2', tid: 't1' },
+          { type: 'operator', value: '+' },
+          { type: 'number', value: '3', tid: 't2' }
+        ] },
+        { id: 'b2', x: 40, y: 130, label: '', terms: [
+          { type: 'number', value: '7', tid: 't3' },
+          { type: 'operator', value: '+' },
+          { type: 'number', value: '1', tid: 't4' }
+        ] }
+      ],
+      nextId: 3,
+      nextTid: 5,
+      zoom: 1
+    }],
+    activeCanvasId: 'c1',
+    nextCanvasId: 2,
+    fontSize: 22,
+    showGrid: false
+  });
+
+  const first = page.locator('.block').first();
+  const second = page.locator('.block').nth(1);
+  await second.locator('.result').click();
+  await expect(second.locator('.result')).toHaveClass(/sel/);
+  await expect(second.locator('.result')).toHaveCSS('outline-style', 'solid');
+
+  await first.locator('.result-cell .cap').click();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
+  await expect(second.locator('.result')).toHaveCSS('outline-style', 'none');
+  await expect(second.locator('.block-del')).toBeHidden();
+});
+
+test('variables sidebar does not render a selected-block panel', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 0');
+  await press(page, '=');
+  await lastBlock(page).locator('.result').click();
+
+  await page.locator('#varsBtn').click();
+
+  await expect(page.locator('#sidebar')).toHaveClass(/open/);
+  await expect(page.locator('.health-panel')).toHaveCount(0);
+  await expect(page.locator('.var-group')).toHaveCount(1);
 });
 
 test('opening "(" after a number inserts an implicit multiplication', async ({ page }) => {

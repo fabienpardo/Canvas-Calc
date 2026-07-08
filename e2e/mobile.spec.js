@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, seed, addBlock } = require('./helpers');
 
 // Primary mobile target: iPhone 16 Pro Max in portrait (about 440 CSS px wide).
 test.use({
@@ -49,7 +49,7 @@ test('mobile: create a block and evaluate', async ({ page }) => {
 test('mobile: long-press on a block reveals its delete control, never deletes', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
-  await type(page, '5');
+  await type(page, '5 + 0');
   await press(page, '=');
   const b = lastBlock(page);
   const bb = await b.boundingBox();
@@ -100,6 +100,79 @@ test('mobile: long expression input follows the caret above the keypad', async (
   expect(caret.x).toBeGreaterThan(12);
   expect(caret.x + caret.width).toBeLessThan(page.viewportSize().width - 12);
   expect(caret.y + caret.height).toBeLessThan(pad.y - 12);
+});
+
+test('mobile: opening sidebar blurs text editing and hides the keypad', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 0');
+  await press(page, '=');
+  await lastBlock(page).click({ position: { x: 6, y: 6 } });
+  const titleCap = lastBlock(page).locator('.result-cell .cap');
+  await titleCap.click();
+  await page.keyboard.type('Total');
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
+
+  await page.locator('#varsBtn').click();
+
+  await expect(page.locator('#sidebar')).toHaveClass(/open/);
+  await expect(page.locator('#numpad')).toHaveClass(/hidden/);
+  await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(false);
+  await expect.poll(async () => page.evaluate(() => {
+    const ae = document.activeElement;
+    return !!ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+  })).toBe(false);
+  await expect(lastBlock(page).locator('.result-cell .cap')).toHaveText('Total');
+});
+
+test('mobile: Done minimally reveals a clipped result', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  const parts = [];
+  for (let i = 0; i < 30; i++) parts.push('1', '+');
+  parts.push('1');
+  await type(page, parts.join(' '));
+  await page.locator('#canvasWrap').evaluate((el) => { el.scrollLeft = 0; });
+
+  await press(page, '=');
+
+  await expect.poll(async () => {
+    const result = await lastBlock(page).locator('.result').boundingBox();
+    const wrap = await page.locator('#canvasWrap').boundingBox();
+    const pad = await page.locator('#numpad').boundingBox();
+    return !!result && !!wrap && !!pad &&
+      result.x >= wrap.x + 12 &&
+      result.x + result.width <= wrap.x + wrap.width - 12 &&
+      result.y + result.height <= pad.y - 12;
+  }).toBe(true);
+});
+
+test('mobile: selecting a linked chip has no caret and no active block outline', async ({ page }) => {
+  await seed(page, {
+    canvases: [{
+      id: 'c1',
+      title: 'Canvas 1',
+      blocks: [
+        { id: 'b1', x: 40, y: 30, label: '', terms: [{ type: 'number', value: '5', tid: 't1' }] },
+        { id: 'b2', x: 40, y: 130, label: '', terms: [{ type: 'linked', sourceId: 'b1' }] }
+      ],
+      nextId: 3,
+      nextTid: 2,
+      zoom: 1
+    }],
+    activeCanvasId: 'c1',
+    nextCanvasId: 2,
+    fontSize: 22,
+    showGrid: false
+  });
+
+  const linkedBlock = page.locator('.block').nth(1);
+  await linkedBlock.locator('.term.linked').click();
+
+  await expect(linkedBlock).not.toHaveClass(/active/);
+  await expect(linkedBlock).not.toHaveClass(/selected/);
+  await expect(linkedBlock.locator('.term.linked')).toHaveClass(/sel/);
+  await expect(linkedBlock.locator('.selection-caret')).toHaveCount(0);
 });
 
 test('mobile: dropping with the finger below the preview inserts at the visible target', async ({ page, browserName }) => {

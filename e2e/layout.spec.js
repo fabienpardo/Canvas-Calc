@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { fresh } = require('./helpers');
+const { fresh, press, type, addBlock } = require('./helpers');
 
 test('the zoom control is pinned (does not scroll with the canvas)', async ({ page }) => {
   await fresh(page);
@@ -29,25 +29,35 @@ test('desktop keypad is compact and does not cover the left zoom control', async
   expect(zc.x + zc.width).toBeLessThan(pad.x);
 });
 
-test('desktop keypad shifts left when variables sidebar is open', async ({ page }) => {
+test('desktop opening variables sidebar hides the keypad', async ({ page }) => {
   await fresh(page);
   await page.locator('#varsBtn').click();
-  const pad = await page.locator('#numpad').boundingBox();
-  const sidebar = await page.locator('#sidebar').boundingBox();
-  const zc = await page.locator('#zoomCtl').boundingBox();
-  expect(zc.x + zc.width).toBeLessThanOrEqual(pad.x - 8);
-  expect(pad.x + pad.width).toBeLessThanOrEqual(sidebar.x - 8);
+  await expect(page.locator('#numpad')).toHaveClass(/hidden/);
+  await expect(page.locator('#sidebar')).toHaveClass(/open/);
   await expect(page.locator('#varsBtn')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('desktop sidebar-open keypad adapts on narrow viewports', async ({ page }) => {
+test('desktop sidebar hides the keypad on narrow viewports too', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 700 });
   await fresh(page);
   await page.locator('#varsBtn').click();
-  const pad = await page.locator('#numpad').boundingBox();
-  const sidebar = await page.locator('#sidebar').boundingBox();
-  const zc = await page.locator('#zoomCtl').boundingBox();
-  expect(pad.width).toBeGreaterThanOrEqual(240);
-  expect(zc.x + zc.width).toBeLessThanOrEqual(pad.x - 8);
-  expect(pad.x + pad.width).toBeLessThanOrEqual(sidebar.x - 8);
+  await expect(page.locator('#numpad')).toHaveClass(/hidden/);
+  await expect(page.locator('#sidebar')).toHaveClass(/open/);
+});
+
+test('canvas scroll bounds stay close to content', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  await fresh(page);
+  for (const value of ['1', '2', '3']) {
+    await addBlock(page);
+    await type(page, value);
+    await press(page, '=');
+  }
+
+  const metrics = await page.locator('#canvasWrap').evaluate((el) => ({
+    maxX: el.scrollWidth - el.clientWidth,
+    maxY: el.scrollHeight - el.clientHeight
+  }));
+  expect(metrics.maxX).toBeLessThanOrEqual(280);
+  expect(metrics.maxY).toBeLessThanOrEqual(320);
 });

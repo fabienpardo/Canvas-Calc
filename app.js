@@ -197,26 +197,24 @@
   // layout it needs): a deferred scroll would leave a window where on-screen
   // positions differ from the just-rendered DOM, which is both a tap-target
   // hazard and a source of nondeterminism.
-  function followActiveInput() {
-    var activeId = store.getActiveBlockId();
-    if (!activeId) return;
-    var block = blockEl(activeId);
-    if (!block) return;
-    var marker = block.querySelector('.expr-caret') || block.querySelector('.selection-caret') || block.querySelector('.term.has-caret');
-    if (!marker) return;
-    var r = marker.getBoundingClientRect();
-    if (!r.width && !r.height) return;
+  function visibleCanvasRect(margin) {
     var wrapR = wrap.getBoundingClientRect();
     var pad = document.getElementById('numpad');
     var padH = (pad && !pad.classList.contains('hidden')) ? pad.offsetHeight : 0;
     var vv = window.visualViewport;
     var viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-    var visible = {
-      left: wrapR.left + 18,
-      right: wrapR.right - 18,
-      top: wrapR.top + 18,
-      bottom: Math.min(wrapR.bottom, viewportBottom - padH) - 18
+    margin = margin == null ? 18 : margin;
+    return {
+      left: wrapR.left + margin,
+      right: wrapR.right - margin,
+      top: wrapR.top + margin,
+      bottom: Math.min(wrapR.bottom, viewportBottom - padH) - margin
     };
+  }
+
+  function scrollRectIntoView(r, margin) {
+    if (!r || (!r.width && !r.height)) return;
+    var visible = visibleCanvasRect(margin);
     var dx = 0, dy = 0;
     if (r.right > visible.right) dx = r.right - visible.right;
     else if (r.left < visible.left) dx = r.left - visible.left;
@@ -224,6 +222,24 @@
     else if (r.top < visible.top) dy = r.top - visible.top;
     if (dx) wrap.scrollLeft += dx;
     if (dy) wrap.scrollTop += dy;
+  }
+
+  function followActiveInput() {
+    var activeId = store.getActiveBlockId();
+    if (!activeId) return;
+    var block = blockEl(activeId);
+    if (!block) return;
+    var marker = block.querySelector('.expr-caret') || block.querySelector('.selection-caret') || block.querySelector('.term.has-caret');
+    if (!marker) return;
+    scrollRectIntoView(marker.getBoundingClientRect(), 18);
+  }
+
+  function revealBlockResult(blockId) {
+    var block = blockEl(blockId);
+    if (!block) return;
+    var result = block.querySelector('.result');
+    if (!result) return;
+    scrollRectIntoView(result.getBoundingClientRect(), 18);
   }
 
   // Fill a missing-operator gap from the inline picker (mirrors the keypad path
@@ -265,7 +281,7 @@
 
   // ---------- Viewport: dynamic size + zoom ----------
   function updateViewport() {
-    var pad = 600, maxR = 0, maxB = 0;
+    var maxR = 0, maxB = 0;
     cur().blocks.forEach(function(b){
       var el = blockEl(b.id);
       maxR = Math.max(maxR, b.x + (el ? el.offsetWidth : 120));
@@ -276,9 +292,8 @@
       maxR = Math.max(maxR, (parseInt(ab.style.left,10)||0) + 60);
       maxB = Math.max(maxB, (parseInt(ab.style.top,10)||0) + 60);
     }
-    // Always keep the canvas larger than the viewport so there's room to pan/scroll
-    // in both directions, and grow it to fit content.
     var viewW = wrap.clientWidth / zoom, viewH = wrap.clientHeight / zoom;
+    var pad = Math.round(Math.max(140, Math.min(320, Math.max(viewW, viewH) * 0.24)));
     var W = Math.max(maxR + pad, viewW + pad), H = Math.max(maxB + pad, viewH + pad);
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
@@ -286,6 +301,8 @@
     var sizer = document.getElementById('canvasSizer');
     sizer.style.width = (W * zoom) + 'px';
     sizer.style.height = (H * zoom) + 'px';
+    wrap.scrollLeft = Math.max(0, Math.min(wrap.scrollLeft, Math.max(0, W * zoom - wrap.clientWidth)));
+    wrap.scrollTop = Math.max(0, Math.min(wrap.scrollTop, Math.max(0, H * zoom - wrap.clientHeight)));
   }
 
   function updateZoomLabel() {
@@ -528,6 +545,7 @@
     clearSelection: store.clearSelection,
     getActiveBlockId: store.getActiveBlockId,
     setActiveBlockId: store.setActiveBlockId,
+    revealBlockResult: revealBlockResult,
     removeBlock: removeBlock,
     deleteBlock: deleteBlock,
     clearCanvas: clearCanvas,
@@ -618,12 +636,19 @@
     e.preventDefault();
     pressKey(key.dataset.k);
   });
+  function setNumpadHidden(hidden) {
+    var np = document.getElementById('numpad');
+    var toggle = document.getElementById('padToggle');
+    np.classList.toggle('hidden', hidden);
+    if (toggle) {
+      toggle.setAttribute('aria-label', hidden ? 'Show keypad' : 'Hide keypad');
+      toggle.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+    }
+    layoutOverlays();
+  }
   document.getElementById('padToggle').addEventListener('click', function(){
     var np=document.getElementById('numpad');
-    var hidden = np.classList.toggle('hidden');
-    this.setAttribute('aria-label', hidden ? 'Show keypad' : 'Hide keypad');
-    this.setAttribute('aria-expanded', hidden ? 'false' : 'true');
-    layoutOverlays();
+    setNumpadHidden(!np.classList.contains('hidden'));
   });
   window.addEventListener('resize', function(){ updateViewport(); layoutOverlays(); });
 
@@ -652,6 +677,12 @@
   function setSidebarOpen(open) {
     var sb = document.getElementById('sidebar');
     var varsBtn = document.getElementById('varsBtn');
+    if (open) {
+      var ae = document.activeElement;
+      if (isTextEntry(ae) && ae.blur) ae.blur();
+      document.documentElement.classList.remove('text-editing');
+      setNumpadHidden(true);
+    }
     sb.classList.toggle('open', open);
     sb.setAttribute('aria-hidden', open ? 'false' : 'true');
     document.body.classList.toggle('sidebar-open', open);

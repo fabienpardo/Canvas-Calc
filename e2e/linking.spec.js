@@ -109,7 +109,7 @@ test('an insertion caret previews the drop position while dragging', async ({ pa
   await page.mouse.up();
 });
 
-test('dragging a result onto its own block is refused as an invalid zone', async ({ page }) => {
+test('dragging a result back onto its own block cancels without warning styling', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
   await type(page, '8 + 2');
@@ -121,11 +121,33 @@ test('dragging a result onto its own block is refused as an invalid zone', async
   await page.mouse.down();
   await page.mouse.move(rb.x + 20, rb.y + 20, { steps: 3 });
   await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height / 2, { steps: 5 });
-  await expect(a).toHaveClass(/drop-invalid/);
+  await expect(a).not.toHaveClass(/drop-invalid/);
+  await expect(a).not.toHaveClass(/drop-ok/);
   await expect(a.locator('.drop-caret')).toHaveCount(0);
   await page.mouse.up();
   // No-op: the block is unchanged and no link was created.
   await expect(a.locator('.expr .term')).toHaveText(['8', '+', '2']);
+  await expect(page.locator('.term.linked')).toHaveCount(0);
+});
+
+test('Escape cancels an in-progress pointer link drag', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const rb = await a.locator('.result').boundingBox();
+
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rb.x + 40, rb.y + 40, { steps: 4 });
+  await expect(page.locator('#ghost')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#ghost')).toBeHidden();
+  await page.mouse.move(rb.x + 260, rb.y + 220, { steps: 6 });
+  await page.mouse.up();
+
+  await expect(page.locator('.block')).toHaveCount(1);
   await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 

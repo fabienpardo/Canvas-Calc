@@ -194,7 +194,7 @@
       e.preventDefault();
       e.stopPropagation();
       deps.setSelection({ blockId: blockId, termIndex: termIndex, kind: kind });
-      deps.setActiveBlockId(blockId);
+      deps.setActiveBlockId(kind === 'linked' ? null : blockId);
       renderAll();
     }
 
@@ -347,7 +347,7 @@
         makeSelectable(span, span.title, b.id, idx, t.type==='linked' ? 'linked' : 'number');
         cell.appendChild(span);
         expr.appendChild(cell);
-        if (termSelected) appendSelectionCue(span);
+        if (termSelected && t.type !== 'linked') appendSelectionCue(span);
         else if (idx === activeTailIdx) appendInputCue(span);
       });
 

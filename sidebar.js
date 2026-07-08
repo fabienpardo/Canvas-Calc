@@ -148,9 +148,6 @@
 
     function refreshSidebarValues() {
       var map = deps.blocksMap();
-      deps.sidebarBody.querySelectorAll('.health-panel[data-bid]').forEach(function (el) {
-        var b = deps.byId(el.dataset.bid); if (b) applyHealthPanel(el, b, map);
-      });
       deps.sidebarBody.querySelectorAll('.var-val[data-kind="result"]').forEach(function (el) {
         var b = deps.byId(el.dataset.bid); if (b) el.textContent = deps.fmt(deps.resolve(b, map));
       });
@@ -168,13 +165,9 @@
       var body = deps.sidebarBody;
       var map = deps.blocksMap();
       var groups = collectGroups();
-      var selected = selectedBlock();
       body.innerHTML = '';
 
-      if (selected) body.appendChild(healthPanel(selected, map));
-
       if (!groups.length) {
-        if (selected) return;
         var e = doc.createElement('div'); e.className = 'var-empty';
         e.textContent = 'No variables yet. Numbers and results show up here once you start a calculation - tap a name to label them.';
         body.appendChild(e);
@@ -189,76 +182,6 @@
         g.inputs.forEach(function (it) { sec.appendChild(inputRow(it)); });
         body.appendChild(sec);
       });
-    }
-
-    function selectedBlock() {
-      var sel = deps.getSelection ? deps.getSelection() : {};
-      var id = sel && sel.blockId;
-      if (id == null && deps.getActiveBlockId) id = deps.getActiveBlockId();
-      return id == null ? null : deps.byId(id);
-    }
-
-    function healthMetric(label, key) {
-      var item = doc.createElement('div');
-      item.className = 'health-metric';
-      var l = doc.createElement('span');
-      l.textContent = label;
-      var v = doc.createElement('strong');
-      v.dataset.health = key;
-      item.appendChild(l);
-      item.appendChild(v);
-      return item;
-    }
-
-    function healthPanel(b, map) {
-      var panel = doc.createElement('div');
-      panel.className = 'health-panel';
-      panel.dataset.bid = b.id;
-
-      var label = doc.createElement('div');
-      label.className = 'health-label';
-      label.textContent = 'Selected block';
-
-      var title = doc.createElement('div');
-      title.className = 'health-title';
-      title.dataset.health = 'title';
-
-      var status = doc.createElement('div');
-      status.className = 'health-status';
-      status.dataset.health = 'status';
-
-      var reason = doc.createElement('div');
-      reason.className = 'health-reason';
-      reason.dataset.health = 'reason';
-
-      var grid = doc.createElement('div');
-      grid.className = 'health-grid';
-      grid.appendChild(healthMetric('Links', 'links'));
-      grid.appendChild(healthMetric('Uses', 'uses'));
-      grid.appendChild(healthMetric('Used by', 'used-by'));
-
-      panel.appendChild(label);
-      panel.appendChild(title);
-      panel.appendChild(status);
-      panel.appendChild(reason);
-      panel.appendChild(grid);
-      applyHealthPanel(panel, b, map);
-      return panel;
-    }
-
-    function applyHealthPanel(panel, b, map) {
-      var info = collectBlockHealth(b, cur().blocks, map, deps.diagnose, deps.fmt);
-      panel.dataset.bid = info.id;
-      panel.querySelector('[data-health="title"]').textContent = info.title;
-      var status = panel.querySelector('[data-health="status"]');
-      status.className = 'health-status ' + info.status;
-      status.textContent = info.statusText;
-      var reason = panel.querySelector('[data-health="reason"]');
-      reason.textContent = info.reason;
-      reason.hidden = !info.reason;
-      panel.querySelector('[data-health="links"]').textContent = String(info.linkCount);
-      panel.querySelector('[data-health="uses"]').textContent = formatHealthList(info.uses);
-      panel.querySelector('[data-health="used-by"]').textContent = formatHealthList(info.usedBy);
     }
 
     function inputRow(it) {
