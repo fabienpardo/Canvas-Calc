@@ -1,4 +1,4 @@
-const ASSET_REVISION = 'e9435ca3cd70';
+const ASSET_REVISION = 'd25c9e5b3e35';
 const CACHE_PREFIX = 'canvas-calc-';
 const CACHE = CACHE_PREFIX + ASSET_REVISION;
 const ASSETS = [
