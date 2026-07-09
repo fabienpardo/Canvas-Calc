@@ -304,7 +304,8 @@
   .cap:empty { display: none; }
   .block.active .cap:empty:not(:focus), .block.selected .cap:empty:not(:focus) {
     display: inline-flex; align-items: center; justify-content: center;
-    min-width: 16px; min-height: 14px; opacity: 0.7;
+    min-width: 24px; min-height: 24px; opacity: 0.7;
+    font-size: 15px;
     border: 1px dashed var(--block-border); border-radius: 999px;
   }
   .block.active .cap:empty::before, .block.selected .cap:empty::before { content: "+"; }
