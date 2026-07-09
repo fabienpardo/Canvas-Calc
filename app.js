@@ -211,6 +211,7 @@
     fillMissingOp: fillMissingOp,
     linkedSource: linkedSource,
     linkedValue: linkedValue,
+    createEvaluationMemo: E.createEvaluationMemo,
     resolve: resolve,
     isComplete: E.isComplete,
     hasResultSlot: E.hasResultSlot,
@@ -430,7 +431,8 @@
     blurActiveTextEntry: blurActiveTextEntry,
     syncTextEditingState: syncTextEditingState,
     deleteUndoStack: function(id){ historyCtl.deleteStack(id); },
-    confirmDialog: confirmDialog
+    confirmDialog: confirmDialog,
+    cancelPendingLink: function(){ if (inputCtl) inputCtl.cancelPendingLink(); }
   });
   function applyCanvasName(){ canvasManager.applyCanvasName(); }
 
@@ -679,7 +681,14 @@
   function setNumpadHidden(hidden) {
     var np = document.getElementById('numpad');
     var toggle = document.getElementById('padToggle');
+    var grid = document.querySelector('.padgrid');
     np.classList.toggle('hidden', hidden);
+    // Keep the reveal control reachable while removing the translated-offscreen
+    // key grid from sequential focus and the accessibility tree.
+    if (grid) {
+      grid.inert = !!hidden;
+      grid.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+    }
     if (toggle) {
       toggle.setAttribute('aria-label', hidden ? 'Show keypad' : 'Hide keypad');
       toggle.setAttribute('aria-expanded', hidden ? 'false' : 'true');
@@ -725,6 +734,9 @@
     }
     sb.classList.toggle('open', open);
     sb.setAttribute('aria-hidden', open ? 'false' : 'true');
+    // A transformed-away sidebar otherwise leaves its inputs in Tab order even
+    // though assistive technology is told the panel is hidden.
+    sb.inert = !open;
     document.body.classList.toggle('sidebar-open', open);
     if (varsBtn) varsBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
     layoutOverlays();

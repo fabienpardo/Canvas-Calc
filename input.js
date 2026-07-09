@@ -13,7 +13,10 @@
   function create(deps) {
     var Editing = deps.Editing;
     var isOp = Editing.isOp;
-    var pendingLink = null; // keyboard link flow: the picked-up source, awaiting a target
+    // Keyboard links and the structural clipboard are only valid in the canvas
+    // that created them. Block/token ids repeat across canvases, so an id alone
+    // must never be allowed to resolve against a different sheet.
+    var pendingLink = null; // { canvasId, sourceId, sourceTid }
 
     function status(msg) { if (deps.setLinkStatus) deps.setLinkStatus(msg); }
 
@@ -74,17 +77,22 @@
       if (sel.blockId == null) return null;
       if (sel.kind === 'result') {
         if (!resultIsLinkable(deps.byId(sel.blockId))) return { blocked: true };
-        return { sourceId: sel.blockId, sourceTid: null };
+        return { canvasId: deps.cur().id, sourceId: sel.blockId, sourceTid: null };
       }
       if (sel.termIndex == null) return null;
       var b = deps.byId(sel.blockId), t = b && b.terms[sel.termIndex];
       if (!t) return null;
-      if (sel.kind === 'number' && t.type === 'number') return { sourceId: sel.blockId, sourceTid: t.tid };
-      if (sel.kind === 'linked' && t.type === 'linked') return { sourceId: t.sourceId, sourceTid: t.sourceTid }; // chain
+      if (sel.kind === 'number' && t.type === 'number') return { canvasId: deps.cur().id, sourceId: sel.blockId, sourceTid: t.tid };
+      if (sel.kind === 'linked' && t.type === 'linked') return { canvasId: deps.cur().id, sourceId: t.sourceId, sourceTid: t.sourceTid }; // chain
       return null;
     }
     function placePendingLink(sel) {
       var src = pendingLink;
+      if (src.canvasId !== deps.cur().id) {
+        pendingLink = null;
+        status('Link cancelled — canvases are separate.');
+        return;
+      }
       // The source can be deleted between pickup and placement (it stays selected
       // after L, so Delete reaches it). Never commit a link to a vanished source.
       if (!sourcePresent({ type: 'linked', sourceId: src.sourceId, sourceTid: src.sourceTid }, deps.blocksMap())) {
@@ -128,6 +136,12 @@
       }
       placePendingLink(sel);
     }
+    function cancelPendingLink() {
+      if (!pendingLink) return false;
+      pendingLink = null;
+      status('');
+      return true;
+    }
 
     // Remove a term and move the selection to the previous one (backspace chain).
     function deleteTermAndSelectPrev(b, idx) {
@@ -139,7 +153,7 @@
     // links rather than flattened numbers. Matched against the system clipboard
     // text on paste, so external text still parses normally and our own copy is
     // only rebuilt when the clipboard still holds exactly what we wrote.
-    var internalClip = null; // { text, terms }
+    var internalClip = null; // { canvasId, text, terms }
 
     function cloneTermForClip(t) {
       if (t.type === 'number') return { type: 'number', value: t.value };
@@ -169,7 +183,7 @@
     function copySelection() {
       var text = currentSelectionText();
       if (text == null || text === '') { internalClip = null; return null; }
-      internalClip = { text: text, terms: selectionTerms() };
+      internalClip = { canvasId: deps.cur().id, text: text, terms: selectionTerms() };
       return text;
     }
 
@@ -185,10 +199,16 @@
     // Turn clipped terms into insertable terms: keep a link live when its source
     // still exists and wouldn't loop into the target; otherwise freeze it to its
     // last value so the paste is always a valid expression.
-    function rebuildClip(terms, target) {
+    function rebuildClip(terms, target, sourceCanvasId) {
       var map = deps.blocksMap();
+      var sameCanvas = sourceCanvasId === deps.cur().id;
       return terms.map(function (t) {
         if (t.type !== 'linked') return { type: t.type, value: t.value };
+        // Cross-canvas links are not part of the model. Never rebind a copied
+        // b1/t1 to an unrelated b1/t1 in the destination canvas.
+        if (!sameCanvas) {
+          return { type: 'number', value: String(t.frozen != null ? t.frozen : 0) };
+        }
         var cycles = t.sourceTid == null && target && deps.createsCycle && deps.createsCycle(target.id, t.sourceId);
         if (sourcePresent(t, map) && !cycles && (!target || t.sourceId !== target.id)) {
           return { type: 'linked', sourceId: t.sourceId, sourceTid: t.sourceTid };
@@ -362,7 +382,7 @@
         if (!target) { target = ensureActiveBlock(); idx = target.terms.length; }
         // Internal paste rebuilds live links (relative to the target); external
         // text is just the parsed terms.
-        var terms = isInternal ? rebuildClip(rawTerms, target) : rawTerms;
+        var terms = isInternal ? rebuildClip(rawTerms, target, internalClip.canvasId) : rawTerms;
         terms.forEach(function (t) {
           if (t.type === 'number' && t.tid == null) t.tid = 't' + (deps.cur().nextTid++); // engine returns tid-less numbers
         });
@@ -379,7 +399,7 @@
 
       // Keyboard linking: pick up / place a link, or cancel a pending one.
       if (k === 'link') { handleLinkKey(); return; }
-      if (k === 'link-cancel') { if (pendingLink) { pendingLink = null; status(''); } return; }
+      if (k === 'link-cancel') { cancelPendingLink(); return; }
 
       // Delete the selected (or active) block
       if (k === 'del') {
@@ -616,7 +636,8 @@
       currentSelectionText: currentSelectionText,
       copySelection: copySelection,
       structuredBlockText: structuredBlockText,
-      structuredCanvasText: structuredCanvasText
+      structuredCanvasText: structuredCanvasText,
+      cancelPendingLink: cancelPendingLink
     };
   }
 

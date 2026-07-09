@@ -34,6 +34,7 @@ run in the shipped app and under `node --test`:
 
 **Engine surface (pure; no `document`/`window`):**
 - `tokenize(block, map, stack)`, `evalTokens(tokens)`, `resolve(block, map)`
+  and `createEvaluationMemo()` for render-scoped dependency reuse
 - `fmt(v)`, `groupDisplay(raw)`, `parseExpression(text)`
 - `createsCycle(...)`, `blockDefinition(block, map)`, `linkedValue/linkedSource`,
   `findTermByTid`, `diagnose(block, map)`
@@ -74,6 +75,8 @@ npm run test:e2e
 - Tolerant editing states: `"5 +"` → 5; empty parens `()` → 0; leading operator ignored
 - Division edge: `1/0` → `"∞"`; `0/0` → `"—"` (NaN, **not** ∞ — regression)
 - Linked result cascade: `A=10`, `B=A*2 ⇒ 20`; set `A=20 ⇒ B=40`
+- A render-scoped evaluation memo resolves a shared linked source once, then a
+  fresh memo observes the next edit
 - Linked **number-term** reference resolves to that number's value
 - Linked result source unresolved: dependent shows `?` with a source-fix reason
 - Cycle detection: direct `A↔B` refused; **number-term links are never cycles**
@@ -176,18 +179,20 @@ chase coverage on rendering — assert behavior and computed values, not markup.
     when dropping onto a number chip, pending-result refusal, same-session
     copy/paste live-link preservation, source-unresolved dependent explanation,
     cycle-rejection dialog, neutral own-source drag cancel, Escape pointer-drag
-    cancel, delete-source-with-dependents warning and cancel path.
+    cancel, pointer-cancel cleanup/reversion, delete-source-with-dependents
+    warning and cancel path.
   - `e2e/persistence.spec.js` — old-state load + tid migration, default
     zoom/grid, restored zoom/grid, pagehide save flush, corrupt +
     malformed-but-valid localStorage survive.
   - `e2e/canvases.spec.js` — multi-canvas isolation/switch, per-canvas zoom,
-    rename persistence, delete + fallback, multi-canvas persistence, migration.
+    rename persistence, delete + fallback, multi-canvas persistence, migration,
+    and cancellation/freezing of transient links across canvas boundaries.
   - `e2e/layout.spec.js` — zoom control pinned on scroll; canvas behind keypad,
     sidebar closes the keypad, bounded canvas scroll space.
   - `e2e/mobile.spec.js` — mobile (iPhone 16 Pro Max-size viewport) smoke,
     viewport fit, long-expression caret follow, Done result reveal, sidebar
-    blur/keypad close, hidden-panel input blur, linked-chip selection visuals,
-    and touch link-drop insertion.
+    blur/keypad close, inert hidden controls, hidden-panel input blur,
+    linked-chip selection visuals, and touch link-drop insertion.
 - **CI:** `.github/workflows/test.yml` runs unit + e2e.
 
 ### Backlog (nice to have)

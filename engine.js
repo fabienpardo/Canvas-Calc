@@ -21,6 +21,18 @@
     try { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 10 }); } catch (e) { return null; }
   })();
   var MALFORMED = {};
+  var hasOwn = Object.prototype.hasOwnProperty;
+
+  // A renderer creates one memo for each render pass. Resolving a shared source
+  // once is enough for every block, chip, and sidebar row in that pass; a fresh
+  // memo on the next pass keeps the engine's normal live-update semantics.
+  function createEvaluationMemo() {
+    return { resolved: Object.create(null), diagnoses: Object.create(null) };
+  }
+
+  function hasMemoValue(bucket, id) {
+    return !!bucket && hasOwn.call(bucket, id);
+  }
 
   // ---------- Model helpers ----------
   function findTermByTid(b, tid) {
@@ -29,13 +41,13 @@
   }
 
   // Value of a linked term: a referenced number term, or a block's result.
-  function linkedValue(t, map) {
+  function linkedValue(t, map, memo) {
     var src = map[t.sourceId]; if (!src) return null;
     if (t.sourceTid != null) {
       var term = findTermByTid(src, t.sourceTid); if (!term) return null;
       var v = parseFloat(term.value); return isNaN(v) ? 0 : v;
     }
-    var result = resolveInternal(src, map);
+    var result = resolveInternal(src, map, null, memo);
     return result === MALFORMED ? null : result;
   }
   // Label accessor for a linked term's source (number term or block title).
@@ -50,7 +62,7 @@
 
   // ---------- Evaluation ----------
   // Build a token stream from a block's terms, resolving linked operands to numbers.
-  function tokenize(block, map, stack) {
+  function tokenize(block, map, stack, memo) {
     var tokens = [];
     for (var i = 0; i < block.terms.length; i++) {
       var t = block.terms[i];
@@ -65,7 +77,7 @@
             var lv = lt ? parseFloat(lt.value) : NaN; val = isNaN(lv) ? 0 : lv;
           } else {
             var sub = {}; for (var k in stack) sub[k] = stack[k];
-            var r = resolveInternal(src, map, sub);
+            var r = resolveInternal(src, map, sub, memo);
             if (r === MALFORMED) return MALFORMED;
             val = (r == null || isNaN(r)) ? 0 : r;
           }
@@ -182,19 +194,24 @@
     return -1;
   }
 
-  function resolveInternal(block, map, stack) {
+  function resolveInternal(block, map, stack, memo) {
     stack = stack || {};
     if (stack[block.id]) return null; // cycle
-    if (missingOperatorIndex(block.terms) >= 0) return MALFORMED;
+    if (memo && hasMemoValue(memo.resolved, block.id)) return memo.resolved[block.id];
+    if (missingOperatorIndex(block.terms) >= 0) {
+      if (memo) memo.resolved[block.id] = MALFORMED;
+      return MALFORMED;
+    }
     stack[block.id] = true;
-    var tokens = tokenize(block, map, stack);
+    var tokens = tokenize(block, map, stack, memo);
     delete stack[block.id];
-    if (tokens === MALFORMED) return MALFORMED;
-    return evalTokens(tokens);
+    var result = tokens === MALFORMED ? MALFORMED : evalTokens(tokens);
+    if (memo) memo.resolved[block.id] = result;
+    return result;
   }
 
-  function resolve(block, map, stack) {
-    var result = resolveInternal(block, map, stack);
+  function resolve(block, map, stack, memo) {
+    var result = resolveInternal(block, map, stack, memo);
     return result === MALFORMED ? null : result;
   }
 
@@ -273,17 +290,17 @@
   // alone under-reports the problem. For a result link we also consult the
   // source's own diagnosis: if the source is itself unresolved, so are we. The
   // `stack` guards against cycles when diagnose recurses through the sources.
-  function hasUnresolvedLinkedSource(block, map, stack) {
+  function hasUnresolvedLinkedSource(block, map, stack, memo) {
     stack = stack || {};
     for (var i = 0; i < block.terms.length; i++) {
       var t = block.terms[i];
       if (t.type !== 'linked') continue;
-      if (linkedValue(t, map) == null) return true;
+      if (linkedValue(t, map, memo) == null) return true;
       if (t.sourceTid != null) continue; // number-term links are always a clean value
       var src = map[t.sourceId];
       if (!src || stack[src.id]) continue; // missing source / cycle handled elsewhere
       stack[src.id] = true;
-      var srcUnresolved = diagnose(src, map, stack).status === 'unresolved';
+      var srcUnresolved = diagnose(src, map, stack, memo).status === 'unresolved';
       delete stack[src.id];
       if (srcUnresolved) return true;
     }
@@ -296,13 +313,18 @@
   //   status 'ok'          -> value is the answer (may be null -> neutral "·")
   // Reason precedence runs structural -> parens -> links -> arithmetic, so a
   // deeper error is never masked by one that only matters once structure is sound.
-  function diagnose(block, map, stack) {
+  function diagnose(block, map, stack, memo) {
     map = map || {};
+    if (memo && hasMemoValue(memo.diagnoses, block.id)) return memo.diagnoses[block.id];
+    function done(diag) {
+      if (memo) memo.diagnoses[block.id] = diag;
+      return diag;
+    }
     var terms = block.terms;
     var emptyP = hasEmptyParens(terms);
     // Empty parens are a finished-looking but broken construct, so they surface
     // even before a second operand exists ("2 * ()" must read "?", not "0").
-    if (!hasResultSlot(terms) && !emptyP) return { status: 'incomplete', value: null, reason: null, message: '' };
+    if (!hasResultSlot(terms) && !emptyP) return done({ status: 'incomplete', value: null, reason: null, message: '' });
 
     var reason = null;
     if (missingOperatorIndex(terms) >= 0) reason = 'missing-operator';
@@ -313,21 +335,21 @@
       else if (ps.open > 0) reason = 'unmatched-open';
     }
     if (!reason && hasBrokenLink(block, map)) reason = 'broken-link';
-    if (reason) return { status: 'unresolved', value: null, reason: reason, message: REASON_MESSAGES[reason] };
+    if (reason) return done({ status: 'unresolved', value: null, reason: reason, message: REASON_MESSAGES[reason] });
 
     // A linked operand whose source exists but cannot currently resolve leaves
     // this block unresolved too. The repair belongs to the source, but the
     // dependent should still explain why it is showing "?".
-    if (hasUnresolvedLinkedSource(block, map, stack)) {
-      return { status: 'unresolved', value: null, reason: 'source-unresolved', message: REASON_MESSAGES['source-unresolved'] };
+    if (hasUnresolvedLinkedSource(block, map, stack, memo)) {
+      return done({ status: 'unresolved', value: null, reason: 'source-unresolved', message: REASON_MESSAGES['source-unresolved'] });
     }
 
-    var value = resolve(block, map);
+    var value = resolve(block, map, null, memo);
     // Only division can make a finite-input expression non-finite here.
     if (value != null && !isFinite(value)) {
-      return { status: 'unresolved', value: null, reason: 'divide-by-zero', message: REASON_MESSAGES['divide-by-zero'] };
+      return done({ status: 'unresolved', value: null, reason: 'divide-by-zero', message: REASON_MESSAGES['divide-by-zero'] });
     }
-    return { status: 'ok', value: value, reason: null, message: '' };
+    return done({ status: 'ok', value: value, reason: null, message: '' });
   }
 
   // ---------- Formatting ----------
@@ -362,7 +384,7 @@
   function labelOf(s) { return (s && s.trim()) ? s.trim() : ''; }
 
   // Express a block's formula using the labels of its operands.
-  function blockDefinition(b, map) {
+  function blockDefinition(b, map, memo) {
     if (!b.terms.length) return '—';
     var parts = [];
     b.terms.forEach(function (t) {
@@ -376,7 +398,7 @@
           var term = findTermByTid(src, t.sourceTid);
           parts.push(term ? (labelOf(term.label) || (term.value === '' ? '0' : term.value)) : '?');
         } else {
-          parts.push(labelOf(src.label) || fmt(resolve(src, map)));
+          parts.push(labelOf(src.label) || fmt(resolve(src, map, null, memo)));
         }
       }
     });
@@ -473,6 +495,7 @@
     NUM_GROUP: NUM_GROUP, NUM_DECIMAL: NUM_DECIMAL,
     findTermByTid: findTermByTid,
     linkedValue: linkedValue, linkedSource: linkedSource,
+    createEvaluationMemo: createEvaluationMemo,
     tokenize: tokenize, evalTokens: evalTokens, resolve: resolve,
     isComplete: isComplete,
     unmatchedOpenParens: unmatchedOpenParens,

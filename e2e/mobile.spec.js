@@ -156,6 +156,24 @@ test('mobile: closing sidebar blurs focused sidebar inputs', async ({ page }) =>
   })).toBe(false);
 });
 
+test('mobile: closed sidebar and hidden keypad are inert', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 0');
+  await press(page, '=');
+
+  await page.locator('#varsBtn').click();
+  await expect.poll(() => page.evaluate(() => document.getElementById('sidebar').inert)).toBe(false);
+  await page.locator('#sidebarClose').click();
+
+  await expect(page.locator('#numpad')).toHaveClass(/hidden/);
+  await expect.poll(() => page.evaluate(() => ({
+    sidebar: document.getElementById('sidebar').inert,
+    keypad: document.querySelector('.padgrid').inert,
+    keypadHidden: document.querySelector('.padgrid').getAttribute('aria-hidden')
+  }))).toEqual({ sidebar: true, keypad: true, keypadHidden: 'true' });
+});
+
 test('mobile: closing a dialog does not restore text-entry focus', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

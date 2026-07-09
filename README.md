@@ -133,9 +133,9 @@ browser suite:
 - `test/sw.test.js` covers the service-worker precache manifest and cache
   revision guard.
 - `e2e/*.spec.js` covers the browser wiring: creating blocks, dragging,
-  linking, persistence, multiple canvases, zoom/layout behavior, mobile
-  viewport fit, unresolved-expression explanations, offline reloads, and
-  undo/redo flows.
+  linking (including canvas-scoped transient links), persistence, multiple
+  canvases, zoom/layout behavior, mobile viewport fit and interrupted gestures,
+  unresolved-expression explanations, offline reloads, and undo/redo flows.
 
 More detail lives in [TESTING.md](TESTING.md).
 

@@ -9,6 +9,35 @@ async function renameCurrentCanvas(page, title) {
   await page.locator('#canvasMenu .cv-row.active input.cv-name').fill(title);
 }
 
+// Block and token ids are intentionally canvas-local, so both sheets use b1
+// (and t1/t2). These fixtures exercise transient operations across that boundary.
+function twoCanvasLinkState() {
+  return {
+    canvases: [
+      {
+        id: 'c1', title: 'Canvas 1', nextId: 3, nextTid: 3, zoom: 1,
+        blocks: [
+          { id: 'b1', x: 40, y: 30, label: '', terms: [
+            { type: 'number', value: '2', tid: 't1' },
+            { type: 'operator', value: '+' },
+            { type: 'number', value: '3', tid: 't2' }
+          ] },
+          { id: 'b2', x: 40, y: 130, label: '', terms: [{ type: 'linked', sourceId: 'b1' }] }
+        ]
+      },
+      {
+        id: 'c2', title: 'Canvas 2', nextId: 2, nextTid: 3, zoom: 1,
+        blocks: [{ id: 'b1', x: 40, y: 30, label: '', terms: [
+          { type: 'number', value: '4', tid: 't1' },
+          { type: 'operator', value: '+' },
+          { type: 'number', value: '5', tid: 't2' }
+        ] }]
+      }
+    ],
+    activeCanvasId: 'c1', nextCanvasId: 3, fontSize: 22, showGrid: false
+  };
+}
+
 test('a new canvas is isolated; switching back preserves content', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
@@ -44,6 +73,44 @@ test('each canvas keeps its own zoom', async ({ page }) => {
   await openMenu(page);
   await switchTo(page, 'Canvas 1');
   await expect(page.locator('#zoomLevel')).toHaveText('144%');
+});
+
+test('switching canvases cancels an in-progress keyboard link', async ({ page }) => {
+  await seed(page, twoCanvasLinkState());
+  const source = page.locator('.block').first();
+  await source.locator('.result').focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('l');
+  await expect(page.locator('#linkStatus')).toContainText('Linking 5');
+
+  await openMenu(page);
+  await switchTo(page, 'Canvas 2');
+  await expect(page.locator('#linkStatus')).toBeHidden();
+
+  // L now starts a fresh flow instead of silently resolving Canvas 1's b1
+  // against Canvas 2's identically named b1.
+  await page.keyboard.press('l');
+  await expect(page.locator('#linkStatus')).toContainText('Select a result or number');
+  await expect(page.locator('.term.linked')).toHaveCount(0);
+});
+
+test('pasting a copied live link into another canvas freezes its copied value', async ({ page }) => {
+  await seed(page, twoCanvasLinkState());
+  const alias = page.locator('.block').nth(1);
+  await alias.locator('.result').click();
+  await page.locator('#menuBtn').click();
+  await page.locator('#copyItem').click();
+
+  await openMenu(page);
+  await switchTo(page, 'Canvas 2');
+  await page.locator('#menuBtn').click();
+  await page.locator('#pasteItem').click();
+
+  // Canvas 2 also has b1, but it is 9. The pasted alias must retain Canvas 1's
+  // copied value (5) as a number rather than rebinding to this b1.
+  const pasted = page.locator('.block').nth(1);
+  await expect(pasted.locator('.term.linked')).toHaveCount(0);
+  await expect(pasted.locator('.term.number')).toHaveText('5');
 });
 
 test('renaming the current canvas persists across reload', async ({ page }) => {
