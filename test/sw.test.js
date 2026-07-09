@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 
@@ -30,6 +31,38 @@ test('runtime caching only stores successful responses', () => {
 
 test('non-GET requests are not intercepted', () => {
   assert.match(sw, /method !== 'GET'/);
+});
+
+test('unsupported request schemes are not intercepted', () => {
+  const listeners = {};
+  const context = {
+    URL,
+    Promise,
+    self: {
+      addEventListener(type, handler) { listeners[type] = handler; },
+      skipWaiting() { return Promise.resolve(); },
+      clients: { claim() { return Promise.resolve(); } }
+    },
+    caches: {
+      open() {
+        throw new Error('cache should not be opened for unsupported schemes');
+      },
+      keys() { return Promise.resolve([]); },
+      delete() { return Promise.resolve(false); }
+    },
+    fetch() {
+      throw new Error('fetch should not be called for unsupported schemes');
+    }
+  };
+  vm.runInNewContext(sw, context);
+
+  let intercepted = false;
+  listeners.fetch({
+    request: { method: 'GET', url: 'chrome-extension://example/content.js' },
+    respondWith() { intercepted = true; }
+  });
+
+  assert.equal(intercepted, false);
 });
 
 test('old Canvas Calc caches are cleaned without touching other cache namespaces', () => {
