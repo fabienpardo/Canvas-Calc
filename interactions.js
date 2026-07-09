@@ -98,6 +98,7 @@
     }
 
     function cancelPointerGesture() {
+      clearTimeout(lpTimer);
       if (pointer.mode === 'drag-block' && pointer.block && pointer.moved) {
         pointer.block.x = pointer.origX;
         pointer.block.y = pointer.origY;
@@ -357,6 +358,12 @@
       }
       resetPointer();
     });
+    // Browsers cancel a pointer sequence when a gesture is interrupted (for
+    // example, by an OS-level touch gesture). Treat it as an explicit cancel,
+    // not a partial drop: remove visual affordances and revert an unsaved drag.
+    deps.wrap.addEventListener('pointercancel', function(){
+      cancelPointerGesture();
+    });
 
     doc.addEventListener('keydown', function(e){
       if (e.key !== 'Escape') return;
@@ -382,6 +389,7 @@
     });
     deps.canvas.addEventListener('pointermove', function(){ clearTimeout(lpTimer); });
     deps.canvas.addEventListener('pointerup', function(){ clearTimeout(lpTimer); });
+    deps.canvas.addEventListener('pointercancel', function(){ clearTimeout(lpTimer); });
 
     deps.wrap.addEventListener('wheel', function(e){
       if (!e.ctrlKey) return;

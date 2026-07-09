@@ -48,6 +48,7 @@
     function setActiveCanvas(id) {
       var s = state();
       if (!s.canvases.some(function (c) { return c.id === id; })) return;
+      if (id !== s.activeCanvasId && deps.cancelPendingLink) deps.cancelPendingLink();
       s.activeCanvasId = id;
       deps.setZoom(deps.clampZoom(cur().zoom));
       deps.clearSelection();

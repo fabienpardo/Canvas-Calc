@@ -151,6 +151,46 @@ test('Escape cancels an in-progress pointer link drag', async ({ page }) => {
   await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 
+test('pointercancel clears an interrupted link drag without creating a link', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  const a = page.locator('.block').first();
+  const rb = await a.locator('.result').boundingBox();
+
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rb.x + 40, rb.y + 40, { steps: 4 });
+  await expect(page.locator('#ghost')).toBeVisible();
+  await page.locator('#canvasWrap').dispatchEvent('pointercancel');
+  await expect(page.locator('#ghost')).toBeHidden();
+  await expect(a).not.toHaveClass(/drop-ok|drop-invalid/);
+
+  await page.mouse.up();
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(page.locator('.term.linked')).toHaveCount(0);
+});
+
+test('pointercancel restores an interrupted block drag to its saved position', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  const block = page.locator('.block').first();
+  const before = await block.evaluate((el) => ({ left: el.style.left, top: el.style.top }));
+  const box = await block.boundingBox();
+
+  await page.mouse.move(box.x + 6, box.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 86, box.y + 46, { steps: 4 });
+  await expect(block).not.toHaveCSS('left', before.left);
+  await page.locator('#canvasWrap').dispatchEvent('pointercancel');
+  await expect(block).toHaveCSS('left', before.left);
+  await expect(block).toHaveCSS('top', before.top);
+  await page.mouse.up();
+});
+
 test('copy/paste keeps a linked value live within the session', async ({ page }) => {
   await fresh(page);
   await addBlock(page);

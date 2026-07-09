@@ -182,6 +182,30 @@ test('linked result cascades and updates live', () => {
   assert.equal(E.resolve(b, m), 40);
 });
 
+test('evaluation memo resolves a shared source once per render pass', () => {
+  var reads = 0;
+  var sourceValue = 5;
+  var sourceNumber = { type: 'number', tid: 'source-value' };
+  Object.defineProperty(sourceNumber, 'value', {
+    enumerable: true,
+    get: function () { reads++; return String(sourceValue); }
+  });
+  var source = block('source', [sourceNumber]);
+  var first = block('first', [linkResult('source'), op('+'), num(1)]);
+  var second = block('second', [linkResult('source'), op('+'), num(2)]);
+  var m = mapOf(source, first, second);
+  var memo = E.createEvaluationMemo();
+
+  assert.equal(E.diagnose(first, m, null, memo).value, 6);
+  assert.equal(E.diagnose(second, m, null, memo).value, 7);
+  assert.equal(reads, 1);
+
+  sourceValue = 10;
+  var nextPass = E.createEvaluationMemo();
+  assert.equal(E.diagnose(first, m, null, nextPass).value, 11);
+  assert.equal(reads, 2);
+});
+
 test('linked number-term resolves to that term value', () => {
   var price = num(12); // a labeled input inside a block
   var a = block('a', [price, op('*'), num(3)]);

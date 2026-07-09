@@ -20,6 +20,7 @@
     var blockEls = {};  // id -> element
     var blockSigs = {}; // id -> signature string
     var lastCanvasId = null; // reconcile is keyed by block id, which repeats across canvases
+    var evaluationMemo = null;
     var SidebarApi = deps.Sidebar || (typeof CanvasSidebar !== 'undefined' ? CanvasSidebar : null);
     var sidebarCtl = SidebarApi ? SidebarApi.create({
       document: doc,
@@ -32,11 +33,11 @@
       getActiveBlockId: deps.getActiveBlockId,
       isComplete: deps.isComplete,
       missingOperatorIndex: deps.missingOperatorIndex,
-      diagnose: deps.diagnose,
+      diagnose: function(block, map){ return deps.diagnose(block, map, null, evaluationMemo); },
       fmt: deps.fmt,
-      resolve: deps.resolve,
+      resolve: function(block, map){ return deps.resolve(block, map, null, evaluationMemo); },
       groupDisplay: deps.groupDisplay,
-      blockDefinition: deps.blockDefinition,
+      blockDefinition: function(block, map){ return deps.blockDefinition(block, map, evaluationMemo); },
       snapshot: deps.snapshot,
       save: deps.save,
       renderAll: renderAll,
@@ -55,6 +56,9 @@
 
     function cur() { return deps.cur(); }
     function sel() { return deps.getSelection(); }
+    function resetEvaluationMemo() {
+      evaluationMemo = deps.createEvaluationMemo ? deps.createEvaluationMemo() : null;
+    }
 
 
     // Everything renderBlock() reads for a given block. If this string is equal
@@ -72,13 +76,13 @@
           return;
         }
         var s = deps.linkedSource(t, map); var lbl = s ? s.getLabel() : '';
-        var lv = deps.linkedValue(t, map);
+        var lv = deps.linkedValue(t, map, evaluationMemo);
         parts.push('l', t.sourceId, t.sourceTid == null ? '@' : t.sourceTid, lbl || '',
           lv == null ? '?' : lv, linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || '');
       });
       var missIdx = deps.missingOperatorIndex(b.terms);
       parts.push('m' + missIdx); // missing-operator marker position
-      var diag = deps.diagnose(b, map);
+      var diag = deps.diagnose(b, map, null, evaluationMemo);
       if (deps.hasResultSlot(b.terms) || diag.status === 'unresolved') {
         parts.push('=', diag.status, diag.reason || '',
           diag.message || '',
@@ -107,6 +111,7 @@
       if (cur().id !== lastCanvasId) { resetBlocks(); lastCanvasId = cur().id; }
       deps.hint.style.display = cur().blocks.length ? 'none' : '';
       var map = deps.blocksMap();
+      resetEvaluationMemo();
       linkColorMap = computeLinkColors();
 
       var present = {};
@@ -329,7 +334,7 @@
           if (linkColorMap[nkey]) span.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[nkey] + ', inset 0 0 0 1px ' + linkColorMap[nkey] + '59';
         } else {
           span.className = 'term linked' + span.className;
-          var lv = deps.linkedValue(t, map);
+          var lv = deps.linkedValue(t, map, evaluationMemo);
           span.textContent = (lv==null) ? '?' : deps.fmt(lv);
           span.dataset.linked = '1';
           span.title = termSelected ? 'Selected linked value' : 'Select linked value';
@@ -351,7 +356,7 @@
         else if (idx === activeTailIdx) appendInputCue(span);
       });
 
-      var diag = deps.diagnose(b, map);
+      var diag = deps.diagnose(b, map, null, evaluationMemo);
       if (deps.hasResultSlot(b.terms) || diag.status === 'unresolved') {
         var unresolved = diag.status === 'unresolved';
         var val = unresolved ? null : diag.value;
@@ -508,6 +513,7 @@
     }
 
     function renderSidebar() {
+      resetEvaluationMemo();
       if (sidebarCtl) sidebarCtl.renderSidebar();
     }
 
