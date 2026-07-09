@@ -24,6 +24,11 @@ const ASSETS = [
   './favicon-32.png'
 ];
 
+function isHttpRequest(req) {
+  const protocol = new URL(req.url).protocol;
+  return protocol === 'http:' || protocol === 'https:';
+}
+
 self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); })
@@ -44,6 +49,7 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   const req = e.request;
   if (req.method !== 'GET') return;
+  if (!isHttpRequest(req)) return;
 
   // Navigations / HTML: network-first so deploys aren't masked by stale cache,
   // falling back to the cached shell when offline.

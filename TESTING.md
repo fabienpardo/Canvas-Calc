@@ -157,8 +157,9 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   `test/sw.test.js` — service-worker
   precache (incl. `app.js`, `state.js`, `engine.js`, `sidebar.js`, `render.js`,
   `interactions.js`, `canvases.js`, `editing.js`, `input.js`, `history.js`, and
-  `store.js`), asset-revision hash guard, `res.ok` guard, non-GET ignored,
-  Canvas Calc-only cache cleanup, and current-cache-scoped reads.
+  `store.js`), asset-revision hash guard, `res.ok` guard, non-GET and
+  unsupported-scheme requests ignored, Canvas Calc-only cache cleanup, and
+  current-cache-scoped reads.
 - **E2E (Playwright, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, plus-minus
@@ -216,3 +217,4 @@ chase coverage on rendering — assert behavior and computed values, not markup.
 - Empty-state add, overflow-menu navigation, and term selection have keyboard smoke coverage
 - Links stay attached at non-1 zoom
 - Service worker no longer caches error responses
+- Service worker ignores unsupported request schemes such as browser-extension URLs
