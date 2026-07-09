@@ -211,7 +211,7 @@
   #zoomCtl button {
     border: none; background: transparent; color: var(--text);
     font-family: var(--sans); font-size: 16px; cursor: pointer;
-    width: 34px; height: 32px; display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
   }
   #zoomCtl button:active { background: var(--key-active); }
   #zoomLevel { font-size: 12px !important; width: 48px !important; color: var(--text-dim); }
@@ -669,7 +669,11 @@
   }
   .hint-mark:active { background: var(--accent-strong); }
   .hint-title { font-size: 17px; font-weight: 700; color: var(--text); }
-  .hint-sub { font-size: 13.5px; line-height: 1.45; margin-top: 5px; }
+  /* Darker than --text-dim so it clears WCAG AA (4.5:1) over --canvas; dark theme keeps the lighter dim tone below. */
+  .hint-sub { font-size: 13.5px; line-height: 1.45; margin-top: 5px; color: #566475; }
+  @media (prefers-color-scheme: dark) {
+    .hint-sub { color: var(--text-dim); }
+  }
   .hint-sub b { color: var(--accent); font-weight: 600; }
 
   /* Sidebar (variables) */
