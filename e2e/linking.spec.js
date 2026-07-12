@@ -11,6 +11,26 @@ async function dragResultTo(page, resultLocator, toX, toY) {
   await page.mouse.up();
 }
 
+async function savedBlockWithFreshHistory(page) {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '8 + 2');
+  await press(page, '=');
+  // History is session-only. Reload the persisted block so the assertions
+  // below start from a genuinely empty undo stack.
+  await page.reload();
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(page.locator('#undoBtn')).toBeDisabled();
+  return page.locator('.block').first();
+}
+
+async function beginBlockDrag(page, block, dx = 80, dy = 40) {
+  const box = await block.boundingBox();
+  await page.mouse.move(box.x + 6, box.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 6 + dx, box.y + 6 + dy, { steps: 4 });
+}
+
 test('selecting a result + an operator creates a linked block', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
@@ -172,23 +192,40 @@ test('pointercancel clears an interrupted link drag without creating a link', as
   await expect(page.locator('.term.linked')).toHaveCount(0);
 });
 
-test('pointercancel restores an interrupted block drag to its saved position', async ({ page }) => {
-  await fresh(page);
-  await addBlock(page);
-  await type(page, '8 + 2');
-  await press(page, '=');
-  const block = page.locator('.block').first();
+test('Escape and pointercancel restore block drags without adding undo history', async ({ page }) => {
+  const block = await savedBlockWithFreshHistory(page);
   const before = await block.evaluate((el) => ({ left: el.style.left, top: el.style.top }));
-  const box = await block.boundingBox();
 
-  await page.mouse.move(box.x + 6, box.y + 6);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 86, box.y + 46, { steps: 4 });
+  await beginBlockDrag(page, block);
   await expect(block).not.toHaveCSS('left', before.left);
-  await page.locator('#canvasWrap').dispatchEvent('pointercancel');
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
   await expect(block).toHaveCSS('left', before.left);
   await expect(block).toHaveCSS('top', before.top);
+  await expect(page.locator('#undoBtn')).toBeDisabled();
+
+  await beginBlockDrag(page, block, 100, 60);
+  await expect(block).not.toHaveCSS('left', before.left);
+  await page.locator('#canvasWrap').dispatchEvent('pointercancel');
   await page.mouse.up();
+  await expect(block).toHaveCSS('left', before.left);
+  await expect(block).toHaveCSS('top', before.top);
+  await expect(page.locator('#undoBtn')).toBeDisabled();
+});
+
+test('a completed block drag adds one undo step that restores its original position', async ({ page }) => {
+  const block = await savedBlockWithFreshHistory(page);
+  const before = await block.evaluate((el) => ({ left: el.style.left, top: el.style.top }));
+
+  await beginBlockDrag(page, block, 120, 60);
+  await page.mouse.up();
+  await expect(block).not.toHaveCSS('left', before.left);
+  await expect(page.locator('#undoBtn')).toBeEnabled();
+
+  await page.locator('#undoBtn').click();
+  await expect(block).toHaveCSS('left', before.left);
+  await expect(block).toHaveCSS('top', before.top);
+  await expect(page.locator('#undoBtn')).toBeDisabled();
 });
 
 test('copy/paste keeps a linked value live within the session', async ({ page }) => {

@@ -236,18 +236,41 @@
   // layout it needs): a deferred scroll would leave a window where on-screen
   // positions differ from the just-rendered DOM, which is both a tap-target
   // hazard and a source of nondeterminism.
+  function shortLandscapeDockEdge() {
+    var pad = document.getElementById('numpad');
+    if (!pad || pad.classList.contains('hidden') || !window.matchMedia ||
+        !window.matchMedia('(orientation: landscape) and (max-height: 500px) and (max-width: 759px)').matches) {
+      return null;
+    }
+    var toggle = document.getElementById('padToggle');
+    var padR = pad.getBoundingClientRect();
+    var toggleR = toggle ? toggle.getBoundingClientRect() : null;
+    return toggleR && toggleR.width ? toggleR.left : padR.left;
+  }
+
   function visibleCanvasRect(margin) {
     var wrapR = wrap.getBoundingClientRect();
     var pad = document.getElementById('numpad');
-    var padH = (pad && !pad.classList.contains('hidden')) ? pad.offsetHeight : 0;
+    var padVisible = pad && !pad.classList.contains('hidden');
+    var dockEdge = shortLandscapeDockEdge();
     var vv = window.visualViewport;
     var viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    var right = wrapR.right;
+    var bottom = Math.min(wrapR.bottom, viewportBottom);
+    if (dockEdge != null) {
+      // The compact landscape keypad occupies the right side rather than the
+      // bottom. Include its protruding reveal tab in the occluded edge so the
+      // active caret and completed result stay in the unobstructed left pane.
+      right = Math.min(right, dockEdge);
+    } else if (padVisible) {
+      bottom = Math.min(bottom, viewportBottom - pad.offsetHeight);
+    }
     margin = margin == null ? 18 : margin;
     return {
       left: wrapR.left + margin,
-      right: wrapR.right - margin,
+      right: right - margin,
       top: wrapR.top + margin,
-      bottom: Math.min(wrapR.bottom, viewportBottom - padH) - margin
+      bottom: bottom - margin
     };
   }
 
@@ -333,7 +356,14 @@
     }
     var viewW = wrap.clientWidth / zoom, viewH = wrap.clientHeight / zoom;
     var pad = Math.round(Math.max(140, Math.min(320, Math.max(viewW, viewH) * 0.24)));
-    var W = Math.max(maxR + pad, viewW + pad), H = Math.max(maxB + pad, viewH + pad);
+    // A right-side dock reduces the visible pane without reducing clientWidth.
+    // Reserve enough logical trailing space for scrollRectIntoView() to move
+    // content fully left of that occlusion.
+    var wrapR = wrap.getBoundingClientRect();
+    var visibleR = visibleCanvasRect(18);
+    var rightRevealPad = Math.ceil(Math.max(0, wrapR.right - visibleR.right) / zoom);
+    var padX = Math.max(pad, rightRevealPad);
+    var W = Math.max(maxR + padX, viewW + pad), H = Math.max(maxB + pad, viewH + pad);
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
     canvas.style.transform = 'scale(' + zoom + ')';
@@ -869,8 +899,25 @@
   document.getElementById('zoomOut').addEventListener('click', function(){ zoomByCenter(1/1.2); });
   document.getElementById('zoomLevel').addEventListener('click', resetZoom);
 
+  function isBlockingOverlayOpen() {
+    var overflowMenu = document.getElementById('menu');
+    var canvasMenu = document.getElementById('canvasMenu');
+    var toast = document.getElementById('toast');
+    var sidebar = document.getElementById('sidebar');
+    return !!(
+      (overflowMenu && !overflowMenu.hidden) ||
+      (canvasMenu && !canvasMenu.hidden) ||
+      (toast && toast.style.display === 'block') ||
+      (sidebar && sidebar.classList.contains('open'))
+    );
+  }
+
   // physical keyboard support (nice for desktop testing)
   window.addEventListener('keydown', function(e){
+    // Overlay handlers get first refusal for navigation, activation, and
+    // dismissal. Other calculator keys must not mutate the canvas behind an
+    // open menu, dialog, or panel.
+    if (e.defaultPrevented || isBlockingOverlayOpen()) return;
     var ae = document.activeElement;
     if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
     var k=e.key;

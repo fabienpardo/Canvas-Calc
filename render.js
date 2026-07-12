@@ -21,6 +21,14 @@
     var blockSigs = {}; // id -> signature string
     var lastCanvasId = null; // reconcile is keyed by block id, which repeats across canvases
     var evaluationMemo = null;
+    // Keep the original pointer target through the synthetic click. A selection
+    // render can replace that target before mobile browsers dispatch the click.
+    var pointerDownTarget = null;
+    doc.addEventListener('pointerdown', function(e){ pointerDownTarget = e.target; }, true);
+    doc.addEventListener('pointerup', function(){
+      setTimeout(function(){ pointerDownTarget = null; }, 0);
+    }, true);
+    doc.addEventListener('pointercancel', function(){ pointerDownTarget = null; }, true);
     var SidebarApi = deps.Sidebar || (typeof CanvasSidebar !== 'undefined' ? CanvasSidebar : null);
     var sidebarCtl = SidebarApi ? SidebarApi.create({
       document: doc,
@@ -231,9 +239,20 @@
           var sn = window.getSelection(); sn.removeAllRanges(); sn.addRange(r);
         }
       });
+      cap.addEventListener('focus', function(){
+        // Keyboard focus has no pointer target, while a genuine caption press
+        // records this exact element. Reject only a click retargeted after render.
+        if (pointerDownTarget && pointerDownTarget !== cap) cap.blur();
+      });
       cap.addEventListener('click', function(e){
         e.stopPropagation();
-        if (doc.activeElement !== cap) cap.focus();
+        // Direct caption presses focus during pointerdown above. A result tap can
+        // re-render first and retarget its synthetic click to this replacement
+        // caption, so cancel the browser's click-to-focus default in that case.
+        if (pointerDownTarget && pointerDownTarget !== cap) {
+          e.preventDefault();
+          if (doc.activeElement === cap) cap.blur();
+        }
       });
       cap.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); cap.blur(); } });
       cap.addEventListener('blur', function(){
@@ -471,7 +490,9 @@
     function layoutOverlays() {
       var win = doc.defaultView || window;
       var wide = win.matchMedia && win.matchMedia('(min-width: 760px)').matches;
-      var h = (!wide && !deps.numpad.classList.contains('hidden')) ? deps.numpad.offsetHeight : 0;
+      var shortLandscape = !wide && win.matchMedia &&
+        win.matchMedia('(orientation: landscape) and (max-height: 500px)').matches;
+      var h = (!wide && !shortLandscape && !deps.numpad.classList.contains('hidden')) ? deps.numpad.offsetHeight : 0;
       deps.sidebar.style.bottom = h + 'px';
       deps.zoomCtl.style.bottom = (wide ? 18 : h + 12) + 'px';
       // The empty-canvas hint is a band over the visible canvas (toolbar to
@@ -486,7 +507,9 @@
       if (deps.linkTip) {
         var pad = deps.numpad;
         var clearance;
-        if (pad.classList.contains('hidden')) {
+        if (shortLandscape) {
+          clearance = 12;
+        } else if (pad.classList.contains('hidden')) {
           clearance = 44; // only the pull tab pokes above the bottom edge
         } else {
           var top = pad.getBoundingClientRect().top;
@@ -495,8 +518,17 @@
         var tip = deps.linkTip;
         if (wide) {
           tip.style.left = 'auto'; tip.style.right = '18px'; tip.style.transform = 'none';
+          tip.style.maxWidth = '';
+        } else if (shortLandscape) {
+          tip.style.left = '12px'; tip.style.right = 'auto'; tip.style.transform = 'none';
+          tip.style.maxWidth = 'calc(52vw - 28px)';
+          if (deps.zoomCtl) {
+            var shortZTop = deps.zoomCtl.getBoundingClientRect().top;
+            if (shortZTop) clearance = Math.max(clearance, (win.innerHeight - shortZTop) + 10);
+          }
         } else {
           tip.style.left = '50%'; tip.style.right = 'auto'; tip.style.transform = 'translateX(-50%)';
+          tip.style.maxWidth = '';
           // On narrow screens the centred tip would sit on top of the bottom-left
           // zoom control (same band above the keypad); lift it clear of that too.
           if (deps.zoomCtl) {

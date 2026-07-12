@@ -73,6 +73,54 @@ test('a tap that dismisses a menu or canvas rename never creates a block', async
   await expect(page.locator('.block')).toHaveCount(2);
 });
 
+test('open menus and the variables sidebar block calculator keyboard input', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '4');
+  await press(page, '=');
+  await expect(page.locator('.block')).toHaveCount(1);
+
+  await page.locator('#menuBtn').click();
+  await expect(page.locator('#menu')).toBeVisible();
+  await page.keyboard.press('7');
+  await expect(page.locator('.block')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toBeHidden();
+
+  await page.locator('#canvasBtn').click();
+  await expect(page.locator('#canvasMenu')).toBeVisible();
+  await page.keyboard.press('7');
+  await expect(page.locator('.block')).toHaveCount(1);
+  await page.locator('#canvasBtn').click();
+
+  await page.locator('#varsBtn').click();
+  await expect(page.locator('#sidebar')).toHaveClass(/open/);
+  await page.keyboard.press('7');
+  await expect(page.locator('.block')).toHaveCount(1);
+  await page.locator('#sidebarClose').click();
+
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('4');
+});
+
+test('confirmation dialog blocks calculator keyboard input until it closes', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '4');
+  await press(page, '=');
+
+  await page.locator('#clearBtn').click();
+  await expect(page.locator('#toast')).toBeVisible();
+  await page.keyboard.press('7');
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('4');
+
+  await page.locator('#toastRow button', { hasText: 'Cancel' }).click();
+  await expect(page.locator('#toast')).toBeHidden();
+  await page.keyboard.press('7');
+  await expect(page.locator('.block')).toHaveCount(2);
+  await expect(lastBlock(page).locator('.term.number')).toHaveText('7');
+});
+
 test('typing after selecting another block leaves only the draft focused', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
