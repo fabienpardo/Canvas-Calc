@@ -100,6 +100,8 @@ test('mobile: short landscape side-docks a fully reachable keypad beside useful 
   await fresh(page);
 
   const pad = await page.locator('#numpad').boundingBox();
+  const toggle = page.locator('#padToggle');
+  const toggleBox = await toggle.boundingBox();
   const toolbar = await page.locator('#toolbar').boundingBox();
   expect(pad.x).toBeGreaterThan(300);
   expect(pad.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height - 1);
@@ -123,19 +125,43 @@ test('mobile: short landscape side-docks a fully reachable keypad beside useful 
     expect(key.height).toBeGreaterThanOrEqual(40);
   }
 
-  await addBlock(page);
+  const hint = await page.locator('.hint-mark').boundingBox();
+  expect(hint.x + hint.width).toBeLessThanOrEqual(toggleBox.x);
+  await page.touchscreen.tap(hint.x + hint.width / 2, hint.y + hint.height / 2);
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(page.locator('#numpad')).not.toHaveClass(/hidden/);
   await press(page, '7');
   await press(page, '+');
   await press(page, '1');
   await press(page, '=');
   await expect(page.locator('.block').last().locator('.result')).toHaveText('8');
 
-  const toggle = page.locator('#padToggle');
   await toggle.click();
   await expect(page.locator('#numpad')).toHaveClass(/hidden/);
   await expect(toggle).toBeInViewport();
   await toggle.click();
   await expect(page.locator('#numpad')).not.toHaveClass(/hidden/);
+});
+
+test('mobile: short landscape keeps long input and Done inside the left canvas pane', async ({ page }) => {
+  await page.setViewportSize({ width: 667, height: 375 });
+  await fresh(page);
+  await addBlock(page);
+  await type(page, Array.from({ length: 16 }, () => '1 +').join(' ') + ' 1');
+
+  const wrap = await page.locator('#canvasWrap').boundingBox();
+  const toggle = await page.locator('#padToggle').boundingBox();
+  const inSafePane = async (locator) => {
+    const box = await locator.boundingBox();
+    return !!box &&
+      box.x >= wrap.x + 17 && box.x + box.width <= toggle.x - 17 &&
+      box.y >= wrap.y + 17 && box.y + box.height <= wrap.y + wrap.height - 17;
+  };
+  await expect.poll(() => inSafePane(lastBlock(page).locator('.expr-caret'))).toBe(true);
+
+  await press(page, '=');
+  await expect(lastBlock(page).locator('.result')).toHaveText('17');
+  await expect.poll(() => inSafePane(lastBlock(page).locator('.result'))).toBe(true);
 });
 
 test('mobile: a long canvas list stays bounded and keeps every action reachable', async ({ page }) => {
