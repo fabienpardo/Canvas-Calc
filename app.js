@@ -869,8 +869,25 @@
   document.getElementById('zoomOut').addEventListener('click', function(){ zoomByCenter(1/1.2); });
   document.getElementById('zoomLevel').addEventListener('click', resetZoom);
 
+  function isBlockingOverlayOpen() {
+    var overflowMenu = document.getElementById('menu');
+    var canvasMenu = document.getElementById('canvasMenu');
+    var toast = document.getElementById('toast');
+    var sidebar = document.getElementById('sidebar');
+    return !!(
+      (overflowMenu && !overflowMenu.hidden) ||
+      (canvasMenu && !canvasMenu.hidden) ||
+      (toast && toast.style.display === 'block') ||
+      (sidebar && sidebar.classList.contains('open'))
+    );
+  }
+
   // physical keyboard support (nice for desktop testing)
   window.addEventListener('keydown', function(e){
+    // Overlay handlers get first refusal for navigation, activation, and
+    // dismissal. Other calculator keys must not mutate the canvas behind an
+    // open menu, dialog, or panel.
+    if (e.defaultPrevented || isBlockingOverlayOpen()) return;
     var ae = document.activeElement;
     if (ae && (ae.isContentEditable || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')) return;
     var k=e.key;

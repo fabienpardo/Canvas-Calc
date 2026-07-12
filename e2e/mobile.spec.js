@@ -46,6 +46,26 @@ test('mobile: create a block and evaluate', async ({ page }) => {
   await expect(lastBlock(page).locator('.result')).toHaveText('42');
 });
 
+test('mobile: tapping a finished result selects it without focusing its caption', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '6 * 7');
+  await press(page, '=');
+
+  await lastBlock(page).locator('.result').tap();
+
+  await expect(lastBlock(page)).toHaveClass(/selected/);
+  await expect(lastBlock(page).locator('.result')).toHaveClass(/sel/);
+  await expect.poll(async () => page.evaluate(() => {
+    const ae = document.activeElement;
+    return !!ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+  })).toBe(false);
+  await expect.poll(async () => page.evaluate(() =>
+    document.documentElement.classList.contains('text-editing')
+  )).toBe(false);
+  await expect(page.locator('#numpad')).not.toHaveClass(/hidden/);
+});
+
 test('mobile: long-press on a block reveals its delete control, never deletes', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
@@ -73,6 +93,80 @@ test('mobile: keypad fits within the viewport width', async ({ page }) => {
   expect(pad.x + pad.width).toBeLessThanOrEqual(vw + 1);
   expect(pad.height).toBeLessThanOrEqual(page.viewportSize().height * 0.34);
   expect(bottomGap).toBeLessThanOrEqual(Math.max(32, padBottom + 6));
+});
+
+test('mobile: short landscape side-docks a fully reachable keypad beside useful canvas space', async ({ page }) => {
+  await page.setViewportSize({ width: 667, height: 375 });
+  await fresh(page);
+
+  const pad = await page.locator('#numpad').boundingBox();
+  const toolbar = await page.locator('#toolbar').boundingBox();
+  expect(pad.x).toBeGreaterThan(300);
+  expect(pad.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height - 1);
+  expect(pad.y + pad.height).toBeLessThanOrEqual(375);
+  expect(pad.x).toBeGreaterThanOrEqual(667 * 0.45);
+  const zoom = await page.locator('#zoomCtl').boundingBox();
+  expect(zoom.x + zoom.width).toBeLessThan(pad.x);
+  expect(zoom.y + zoom.height).toBeLessThanOrEqual(375);
+
+  const keys = await page.locator('.padgrid .key').evaluateAll((els) => els.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+  }));
+  expect(keys).toHaveLength(20);
+  for (const key of keys) {
+    expect(key.left).toBeGreaterThanOrEqual(0);
+    expect(key.top).toBeGreaterThanOrEqual(0);
+    expect(key.right).toBeLessThanOrEqual(667);
+    expect(key.bottom).toBeLessThanOrEqual(375);
+    expect(key.width).toBeGreaterThanOrEqual(44);
+    expect(key.height).toBeGreaterThanOrEqual(40);
+  }
+
+  await addBlock(page);
+  await press(page, '7');
+  await press(page, '+');
+  await press(page, '1');
+  await press(page, '=');
+  await expect(page.locator('.block').last().locator('.result')).toHaveText('8');
+
+  const toggle = page.locator('#padToggle');
+  await toggle.click();
+  await expect(page.locator('#numpad')).toHaveClass(/hidden/);
+  await expect(toggle).toBeInViewport();
+  await toggle.click();
+  await expect(page.locator('#numpad')).not.toHaveClass(/hidden/);
+});
+
+test('mobile: a long canvas list stays bounded and keeps every action reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  const canvases = Array.from({ length: 15 }, (_, i) => ({
+    id: `c${i + 1}`, title: `Canvas ${i + 1}`, nextId: 1, nextTid: 1,
+    zoom: 1, blocks: []
+  }));
+  await seed(page, {
+    canvases, activeCanvasId: 'c15', nextCanvasId: 16,
+    fontSize: 22, showGrid: false
+  });
+
+  await page.locator('#canvasBtn').click();
+  const menu = page.locator('#canvasMenu');
+  const metrics = await menu.evaluate((el) => ({
+    overflowY: getComputedStyle(el).overflowY,
+    clientHeight: el.clientHeight,
+    scrollHeight: el.scrollHeight,
+    bottom: el.getBoundingClientRect().bottom
+  }));
+  expect(metrics.overflowY).toBe('auto');
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+  expect(metrics.bottom).toBeLessThanOrEqual(664);
+  await expect(menu.locator('.cv-row.active')).toBeInViewport();
+
+  const add = menu.locator('.cv-new');
+  await add.scrollIntoViewIfNeeded();
+  await expect(add).toBeInViewport();
+  await add.click();
+  await expect(page.locator('#canvasName')).toHaveText('Canvas 16');
 });
 
 test('mobile: long expression input follows the caret above the keypad', async ({ page }) => {

@@ -100,6 +100,8 @@
   .cv-caret { width: 15px; height: 15px; color: var(--text-dim); flex: 0 0 auto; }
   #canvasMenu {
     position: absolute; top: calc(100% + 7px); left: 0; min-width: 230px;
+    max-height: min(72vh, calc(100dvh - 74px - env(safe-area-inset-bottom)));
+    overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
     background: var(--block); border: 1px solid var(--block-border);
     border-radius: 12px; box-shadow: var(--shadow-soft);
     padding: 6px; z-index: 60;
@@ -588,6 +590,35 @@
     .cv-btn { max-width: min(170px, calc(100vw - 238px)); padding-left: 7px; padding-right: 7px; }
     .tbtn { width: 40px; height: 40px; }
     .tbtn.txt { padding-left: 9px; padding-right: 9px; }
+  }
+
+  /* A bottom sheet consumes almost all of a phone's short landscape viewport.
+     Dock the same keypad beside the canvas instead, preserving full-size keys
+     and a useful calculation area. */
+  @media (orientation: landscape) and (max-height: 500px) and (max-width: 759px) {
+    #numpad {
+      left: auto; right: max(8px, env(safe-area-inset-right));
+      top: calc(62px + env(safe-area-inset-top));
+      bottom: max(8px, env(safe-area-inset-bottom));
+      width: min(48vw, 340px);
+      border: 1px solid var(--block-border); border-radius: 16px;
+      padding: 8px; box-shadow: var(--shadow-soft);
+    }
+    #numpad.hidden { transform: translateX(calc(100% + 8px)); }
+    #padToggle {
+      top: 50%; left: -32px; transform: translateY(-50%);
+      width: 32px; height: 54px;
+      border: 1px solid var(--block-border); border-right: none;
+      border-radius: 14px 0 0 14px;
+      box-shadow: -4px 0 12px rgba(15, 23, 42, 0.08);
+    }
+    #padToggle::before { transform: rotate(-45deg); }
+    #numpad.hidden #padToggle::before { transform: rotate(135deg); }
+    .padgrid {
+      height: 100%; max-width: none; gap: 4px;
+      grid-template-rows: repeat(6, minmax(0, 1fr));
+    }
+    .key { height: auto; min-height: 0; }
   }
 
   /* Toast / confirm */

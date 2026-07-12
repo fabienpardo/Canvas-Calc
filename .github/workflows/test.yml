@@ -38,9 +38,8 @@ jobs:
           if-no-files-found: ignore
 
   e2e-ios:
-    # iOS/WebKit lane for the mobile spec. Non-blocking while the lane is young.
+    # Required iOS/WebKit lane for touch, focus, and compact-viewport regressions.
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

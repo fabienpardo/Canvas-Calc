@@ -104,7 +104,6 @@
         pointer.block.y = pointer.origY;
         if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
         deps.renderAll();
-        deps.save();
       }
       if (pointer.blockEl && pointer.pointerId != null && pointer.blockEl.releasePointerCapture) {
         try { pointer.blockEl.releasePointerCapture(pointer.pointerId); } catch (err) {}
@@ -213,7 +212,7 @@
         pointer.startX=e.clientX; pointer.startY=e.clientY;
         pointer.origX=pointer.block.x; pointer.origY=pointer.block.y;
         pointer.pointerId = e.pointerId; pointer.blockEl = bEl;
-        pointer.moved=false; pointer.snapshotted=false;
+        pointer.moved=false;
         deps.setSelection({ blockId:pointer.block.id, termIndex:null, kind:'result' });
         if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
         deps.canvas.querySelectorAll('.selected, .sel').forEach(function(x){ x.classList.remove('selected','sel'); });
@@ -270,7 +269,6 @@
         return;
       }
       if (pointer.mode==='drag-block' && pointer.block) {
-        if (!pointer.snapshotted) { deps.snapshot(); pointer.snapshotted = true; }
         var z = deps.getZoom();
         pointer.block.x = deps.snap(pointer.origX+dx/z);
         pointer.block.y = deps.snap(pointer.origY+dy/z);
@@ -327,7 +325,17 @@
       }
 
       if (pointer.mode==='drag-block') {
-        if (pointer.moved) deps.save();
+        if (pointer.moved &&
+            (pointer.block.x !== pointer.origX || pointer.block.y !== pointer.origY)) {
+          // Pointer moves are transient. Snapshot the pre-drag model only once
+          // the move is committed, then restore the final coordinates before
+          // persisting them. Cancelled drags therefore never enter history.
+          var finalX = pointer.block.x, finalY = pointer.block.y;
+          pointer.block.x = pointer.origX; pointer.block.y = pointer.origY;
+          deps.snapshot();
+          pointer.block.x = finalX; pointer.block.y = finalY;
+          deps.save();
+        }
         resetPointer(); return;
       }
 

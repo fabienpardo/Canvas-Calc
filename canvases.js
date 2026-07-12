@@ -172,11 +172,18 @@
       canvasMenuEl.appendChild(add);
     }
 
+    function revealActiveCanvasRow() {
+      var row = canvasMenuEl.querySelector('.cv-row.active');
+      if (!row || canvasMenuEl.clientHeight >= canvasMenuEl.scrollHeight) return;
+      canvasMenuEl.scrollTop = Math.max(0, row.offsetTop - 6);
+    }
+
     function openCanvasMenu() {
       if (deps.blurActiveTextEntry) deps.blurActiveTextEntry();
       editingCanvasId = null;
       renderCanvasMenu();
       canvasMenuEl.hidden = false;
+      revealActiveCanvasRow();
       canvasBtnEl.setAttribute('aria-expanded', 'true');
     }
 
