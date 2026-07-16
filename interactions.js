@@ -12,6 +12,8 @@
     var pointer = { mode:null, startX:0, startY:0, block:null, moved:false, linkSrc:null, pendingSelect:null };
     var pinchPts = {}, pinch = null;
     var lpTimer = null;
+    var dragFrame = null;
+    var pendingDrag = null;
     var dropCaret = null;
     var TOUCH_DROP_Y_OFFSET = 48;
 
@@ -30,7 +32,22 @@
       });
     }
 
-    function resetPointer() { pointer = { mode:null }; setGhostColor(null); }
+    function cancelDragFrame() {
+      if (dragFrame != null) {
+        var win = doc.defaultView || window;
+        if (win.cancelAnimationFrame) win.cancelAnimationFrame(dragFrame);
+        else clearTimeout(dragFrame);
+      }
+      dragFrame = null; pendingDrag = null;
+    }
+
+    function resetPointer() { cancelDragFrame(); pointer = { mode:null }; setGhostColor(null); }
+
+    function clearLongPress() {
+      if (lpTimer == null) return;
+      clearTimeout(lpTimer);
+      lpTimer = null;
+    }
 
     function clearTargets(){
       deps.canvas.querySelectorAll('.drop-ok, .drop-invalid').forEach(function(e){
@@ -110,7 +127,8 @@
     }
 
     function cancelPointerGesture() {
-      clearTimeout(lpTimer);
+      clearLongPress();
+      cancelDragFrame();
       if (pointer.mode === 'drag-block' && pointer.block && pointer.moved) {
         pointer.block.x = pointer.origX;
         pointer.block.y = pointer.origY;
@@ -123,6 +141,41 @@
       clearTargets(); clearCaret();
       deps.ghost.style.display = 'none';
       resetPointer();
+    }
+
+    function applyPendingDrag() {
+      dragFrame = null;
+      if (!pendingDrag || pointer.mode !== 'drag-block' || !pointer.block) {
+        pendingDrag = null;
+        return;
+      }
+      var next = pendingDrag;
+      pendingDrag = null;
+      pointer.block.x = next.x; pointer.block.y = next.y;
+      var el = deps.blockEl(pointer.block.id);
+      if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
+      deps.drawLinks(deps.blocksMap());
+      // Keep the "+" docked below the lowest block in the same visual frame.
+      if (deps.positionAddBtn) deps.positionAddBtn();
+    }
+
+    function scheduleBlockDrag(x, y) {
+      pendingDrag = { x: x, y: y };
+      if (dragFrame != null) return;
+      var win = doc.defaultView || window;
+      if (win.requestAnimationFrame) dragFrame = win.requestAnimationFrame(applyPendingDrag);
+      else dragFrame = setTimeout(applyPendingDrag, 0);
+    }
+
+    function flushBlockDrag() {
+      if (!pendingDrag) return;
+      if (dragFrame != null) {
+        var win = doc.defaultView || window;
+        if (win.cancelAnimationFrame) win.cancelAnimationFrame(dragFrame);
+        else clearTimeout(dragFrame);
+        dragFrame = null;
+      }
+      applyPendingDrag();
     }
 
     // Insert a dragged value just before the term at `idx`, gluing it to its
@@ -222,6 +275,17 @@
 
       var bEl = target.closest && target.closest('.block');
       if (bEl) {
+        // WebKit can keep a contenteditable caption focused when another part
+        // of the same block is pressed. Blur it explicitly so its text commits
+        // and the mobile text-entry state/keypad close before block selection.
+        var pressedBlockId = bEl.dataset.id;
+        var activeEntry = doc.activeElement;
+        if (activeEntry && activeEntry.classList && activeEntry.classList.contains('cap')) {
+          if (deps.finishTextEditing) deps.finishTextEditing();
+          else activeEntry.blur();
+          // A changed caption re-renders on blur, so continue with the live node.
+          bEl = deps.blockEl(pressedBlockId) || bEl;
+        }
         pointer.mode='drag-block'; pointer.block=deps.byId(bEl.dataset.id);
         // Whole-block selection leaves any different block that was being
         // edited. In particular, reap and persist removal of a fresh
@@ -304,15 +368,7 @@
       }
       if (pointer.mode==='drag-block' && pointer.block) {
         var z = deps.getZoom();
-        pointer.block.x = deps.snap(pointer.origX+dx/z);
-        pointer.block.y = deps.snap(pointer.origY+dy/z);
-        if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
-        var el = deps.blockEl(pointer.block.id);
-        if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
-        deps.drawLinks(deps.blocksMap());
-        // Keep the "+" docked below the lowest block as it moves, instead of
-        // stranding it at the pre-drag position until pointerup re-renders.
-        if (deps.positionAddBtn) deps.positionAddBtn();
+        scheduleBlockDrag(deps.snap(pointer.origX+dx/z), deps.snap(pointer.origY+dy/z));
         e.preventDefault();
         return;
       }
@@ -362,6 +418,9 @@
       }
 
       if (pointer.mode==='drag-block') {
+        // A quick release can beat the scheduled animation frame. Commit the
+        // last pointer coordinates synchronously so persistence never lags the UI.
+        flushBlockDrag();
         if (pointer.moved &&
             (pointer.block.x !== pointer.origX || pointer.block.y !== pointer.origY)) {
           // Pointer moves are transient. Snapshot the pre-drag model only once
@@ -425,16 +484,18 @@
         // Long-press reveals the block's actions (the × delete control) by
         // making it active, rather than deleting outright — a stationary hold
         // should never destroy a block with no warning.
+        clearLongPress();
         lpTimer = setTimeout(function(){
+          lpTimer = null;
           var blk = deps.byId(bEl.dataset.id);
           if (!blk) return;
           deps.setActiveBlockId(blk.id); deps.clearSelection(); deps.renderAll();
         }, 550);
       }
     });
-    deps.canvas.addEventListener('pointermove', function(){ clearTimeout(lpTimer); });
-    deps.canvas.addEventListener('pointerup', function(){ clearTimeout(lpTimer); });
-    deps.canvas.addEventListener('pointercancel', function(){ clearTimeout(lpTimer); });
+    deps.canvas.addEventListener('pointermove', clearLongPress);
+    deps.canvas.addEventListener('pointerup', clearLongPress);
+    deps.canvas.addEventListener('pointercancel', clearLongPress);
 
     deps.wrap.addEventListener('wheel', function(e){
       if (!e.ctrlKey) return;
@@ -449,7 +510,7 @@
       if (pinchCount()===2) {
         var ids=Object.keys(pinchPts), a=pinchPts[ids[0]], b=pinchPts[ids[1]];
         pinch = { dist: Math.hypot(b.x-a.x, b.y-a.y), z: deps.getZoom() };
-        resetPointer(); deps.ghost.style.display='none'; clearTargets(); clearCaret();
+        clearLongPress(); resetPointer(); deps.ghost.style.display='none'; clearTargets(); clearCaret();
       }
     }, true);
     deps.wrap.addEventListener('pointermove', function(e){

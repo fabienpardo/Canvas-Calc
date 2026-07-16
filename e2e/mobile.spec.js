@@ -102,6 +102,32 @@ test('mobile: tapping a populated block body abandons an empty draft', async ({ 
   await expect(populated).toHaveClass(/selected/);
 });
 
+test('mobile: returning from a caption to its block clears text-entry focus', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 0');
+  await press(page, '=');
+  const block = lastBlock(page);
+  await block.click({ position: { x: 6, y: 6 } });
+  const caption = block.locator('.result-cell .cap');
+  await caption.click();
+  await page.keyboard.type('Total');
+  await expect.poll(() => page.evaluate(() =>
+    document.documentElement.classList.contains('text-editing')
+  )).toBe(true);
+
+  const box = await block.boundingBox();
+  await page.mouse.click(box.x + 6, box.y + 6);
+
+  await expect(caption).toHaveText('Total');
+  await expect.poll(() => page.evaluate(() => {
+    const active = document.activeElement;
+    return document.documentElement.classList.contains('text-editing') ||
+      !!(active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'));
+  })).toBe(false);
+  await expect(page.locator('#numpad')).not.toHaveClass(/hidden/);
+});
+
 test('mobile: keypad fits within the viewport width', async ({ page }) => {
   await fresh(page);
   const vw = page.viewportSize().width;
