@@ -117,6 +117,14 @@
 
     function renderAll() {
       if (cur().id !== lastCanvasId) { resetBlocks(); lastCanvasId = cur().id; }
+      // Reap abandoned empty drafts: a term-less block is only ever the one
+      // currently being typed into. Once focus moves elsewhere it's a stray
+      // "Type a number…" placeholder, so drop it before rendering. Self-healing
+      // — also clears any empty block restored from storage on load (its DOM is
+      // then torn down by the "no longer exists" pass below).
+      var activeDraftId = deps.getActiveBlockId();
+      var kept = cur().blocks.filter(function(b){ return b.terms.length || b.id === activeDraftId; });
+      if (kept.length !== cur().blocks.length) cur().blocks = kept;
       deps.hint.style.display = cur().blocks.length ? 'none' : '';
       var map = deps.blocksMap();
       resetEvaluationMemo();
@@ -409,7 +417,14 @@
           res.title = selection.blockId===b.id && selection.kind==='result' ? 'Selected result' : 'Select or drag this result';
           makeSelectable(res, res.title, b.id, null, 'result');
           var rkey = deps.srcKey(b.id, null);
-          if (linkColorMap[rkey]) res.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[rkey] + ', inset 0 0 0 1px ' + linkColorMap[rkey] + '59';
+          var rsel = selection.blockId===b.id && selection.kind==='result';
+          if (linkColorMap[rkey]) {
+            // Referenced results keep their pill background (CSS .linksrc); the
+            // link-colored ring is skipped while selected so the solid accent
+            // focus isn't fighting an inline box-shadow.
+            res.className += ' linksrc';
+            if (!rsel) res.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[rkey] + ', inset 0 0 0 1px ' + linkColorMap[rkey] + '59';
+          }
         }
         rcell.appendChild(res);
         expr.appendChild(rcell);

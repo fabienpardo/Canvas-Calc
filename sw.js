@@ -1,4 +1,4 @@
-const ASSET_REVISION = '917bfdbfb835';
+const ASSET_REVISION = 'e409a09d6dda';
 const CACHE_PREFIX = 'canvas-calc-';
 const CACHE = CACHE_PREFIX + ASSET_REVISION;
 const ASSETS = [
@@ -31,8 +31,12 @@ function isHttpRequest(req) {
 
 self.addEventListener('install', function (e) {
   e.waitUntil(
-    caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); })
-      .then(function () { return self.skipWaiting(); })
+    caches.open(CACHE).then(function (c) {
+      // Bypass the HTTP cache: a new revision must precache the bytes actually
+      // on the server, not whatever stale copies the browser cached earlier —
+      // otherwise the new cache is poisoned with old assets under a new name.
+      return c.addAll(ASSETS.map(function (a) { return new Request(a, { cache: 'reload' }); }));
+    }).then(function () { return self.skipWaiting(); })
   );
 });
 
