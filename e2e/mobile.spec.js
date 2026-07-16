@@ -377,7 +377,7 @@ test('mobile: Done minimally reveals a clipped result', async ({ page }) => {
   }).toBe(true);
 });
 
-test('mobile: selecting a linked chip has no caret and no active block outline', async ({ page }) => {
+test('mobile: selecting a linked chip reveals block delete without a caret or block outline', async ({ page }) => {
   await seed(page, {
     canvases: [{
       id: 'c1',
@@ -401,8 +401,13 @@ test('mobile: selecting a linked chip has no caret and no active block outline',
 
   await expect(linkedBlock).not.toHaveClass(/active/);
   await expect(linkedBlock).not.toHaveClass(/selected/);
+  await expect(linkedBlock).toHaveClass(/has-selection/);
   await expect(linkedBlock.locator('.term.linked')).toHaveClass(/sel/);
   await expect(linkedBlock.locator('.selection-caret')).toHaveCount(0);
+  await expect(linkedBlock.locator('.block-del')).toBeVisible();
+
+  await linkedBlock.locator('.block-del').click();
+  await expect(page.locator('.block')).toHaveCount(1);
 });
 
 test('mobile: dropping with the finger below the preview inserts at the visible target', async ({ page, browserName }) => {

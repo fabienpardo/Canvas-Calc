@@ -308,7 +308,9 @@
   }
   /* Invisible 44px hit area so the small corner control is comfortably tappable. */
   .block-del::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
-  .block.selected .block-del, .block.active .block-del { display: flex; }
+  .block.selected .block-del,
+  .block.active .block-del,
+  .block.has-selection .block-del { display: flex; }
   @media (hover: hover) { .block:hover .block-del { display: flex; } }
   .block.empty-draft .block-del { display: none; }
   .block:has(.result-cell) .block-del { top: -18px; right: -18px; }

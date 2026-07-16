@@ -290,6 +290,7 @@
       el.className = 'block';
       if (!b.terms.length) el.className += ' empty-draft';
       if (selection.blockId===b.id && selection.kind==='result') el.className += ' selected';
+      if (selection.blockId===b.id && selection.kind!=='result') el.className += ' has-selection';
       if (deps.getActiveBlockId()===b.id) el.className += ' active';
       el.style.left = b.x + 'px';
       el.style.top = b.y + 'px';
