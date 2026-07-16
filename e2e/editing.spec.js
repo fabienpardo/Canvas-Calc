@@ -116,11 +116,12 @@ test('editing a label mutes selection visuals in other blocks', async ({ page })
   const second = page.locator('.block').nth(1);
   await second.locator('.result').click();
   await expect(second.locator('.result')).toHaveClass(/sel/);
-  await expect(second.locator('.result')).toHaveCSS('outline-style', 'solid');
+  // Selected result gets the solid accent focus fill (same as a selected term).
+  await expect(second.locator('.result')).toHaveCSS('background-color', 'rgb(31, 111, 235)');
 
   await first.locator('.result-cell .cap').click();
   await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('text-editing'))).toBe(true);
-  await expect(second.locator('.result')).toHaveCSS('outline-style', 'none');
+  await expect(second.locator('.result')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(second.locator('.block-del')).toBeHidden();
 });
 

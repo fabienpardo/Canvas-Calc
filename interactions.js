@@ -276,6 +276,9 @@
         var el = deps.blockEl(pointer.block.id);
         if (el){ el.style.left=pointer.block.x+'px'; el.style.top=pointer.block.y+'px'; }
         deps.drawLinks(deps.blocksMap());
+        // Keep the "+" docked below the lowest block as it moves, instead of
+        // stranding it at the pre-drag position until pointerup re-renders.
+        if (deps.positionAddBtn) deps.positionAddBtn();
         e.preventDefault();
         return;
       }

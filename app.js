@@ -649,6 +649,7 @@
     blocksMap: blocksMap,
     drawLinks: drawLinks,
     invalidateBlock: invalidateBlock,
+    positionAddBtn: positionAddBtn,
     snapshot: snapshot,
     save: save,
     renderAll: renderAll,
