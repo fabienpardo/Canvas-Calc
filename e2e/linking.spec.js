@@ -1,5 +1,18 @@
 const { test, expect } = require('@playwright/test');
-const { fresh, press, type, lastBlock, addBlock } = require('./helpers');
+const { fresh, press, type, lastBlock, seed, addBlock } = require('./helpers');
+
+function contrastRatio(a, b) {
+  function rgb(s) {
+    const values = (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    return /^color\(srgb\b/.test(s) ? values.map((v) => v * 255) : values;
+  }
+  function luminance(s) {
+    const c = rgb(s).map((v) => v / 255).map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  const l1 = luminance(a), l2 = luminance(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
 
 async function dragResultTo(page, resultLocator, toX, toY) {
   const b = await resultLocator.boundingBox();
@@ -40,6 +53,98 @@ test('selecting a result + an operator creates a linked block', async ({ page })
   await press(page, '+');
   await expect(page.locator('.block')).toHaveCount(2);
   await expect(page.locator('.term.linked')).toHaveCount(1);
+  const source = page.locator('.block').first().locator('.result');
+  const colors = await source.evaluate((el) => {
+    const path = document.querySelector('#linkLayer path');
+    const style = getComputedStyle(el);
+    return { background: style.backgroundColor, foreground: style.color, link: getComputedStyle(path).stroke };
+  });
+  expect(colors.background).toBe(colors.link);
+  expect(contrastRatio(colors.background, colors.foreground)).toBeGreaterThanOrEqual(4.5);
+
+  // Link provenance survives active editing, selection, and caption editing.
+  await page.locator('.block').first().locator('.term.number').first().click();
+  await expect(source).toHaveCSS('background-color', colors.link);
+  await source.click();
+  await expect(source).toHaveCSS('background-color', colors.link);
+  await expect(source).not.toHaveCSS('box-shadow', 'none');
+  await page.locator('.block').first().locator('.result-cell .cap').click();
+  await expect(source).toHaveCSS('background-color', colors.link);
+  await expect(source).toHaveCSS('box-shadow', 'none');
+});
+
+test('link palette keeps text and connector contrast in light and dark themes', async ({ page }) => {
+  for (const colorScheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme });
+    await fresh(page);
+    const samples = await page.evaluate(() => {
+      const host = document.createElement('div');
+      host.className = 'block';
+      host.style.cssText = 'position:fixed;left:-10000px;top:0;';
+      document.body.appendChild(host);
+      const canvas = getComputedStyle(document.querySelector('#canvasWrap')).backgroundColor;
+      const out = [];
+      for (let i = 0; i < 8; i++) {
+        const result = document.createElement('span');
+        result.className = `result linksrc link-color-${i}`;
+        result.textContent = '123';
+        const linked = document.createElement('span');
+        linked.className = `term linked link-color-${i}`;
+        linked.textContent = '123';
+        host.append(result, linked);
+        const rs = getComputedStyle(result), ls = getComputedStyle(linked);
+        out.push({
+          resultBackground: rs.backgroundColor,
+          resultText: rs.color,
+          linkedBackground: ls.backgroundColor,
+          linkedText: ls.color,
+          canvas
+        });
+        result.remove(); linked.remove();
+      }
+      host.remove();
+      return out;
+    });
+    for (const sample of samples) {
+      expect(contrastRatio(sample.resultBackground, sample.resultText)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(sample.linkedBackground, sample.linkedText)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(sample.resultBackground, sample.canvas)).toBeGreaterThanOrEqual(3);
+    }
+  }
+});
+
+test('unrelated link deletion does not recolor surviving sources', async ({ page }) => {
+  await seed(page, {
+    canvases: [{
+      id: 'c1', title: 'Canvas 1', nextId: 5, nextTid: 5, zoom: 1,
+      blocks: [
+        { id: 'b1', x: 40, y: 40, label: '', terms: [
+          { type: 'number', value: '2', tid: 't1' }, { type: 'operator', value: '+' }, { type: 'number', value: '3', tid: 't2' }
+        ] },
+        { id: 'b2', x: 40, y: 160, label: '', terms: [{ type: 'linked', sourceId: 'b1', sourceTid: null }] },
+        { id: 'b3', x: 380, y: 40, label: '', terms: [
+          { type: 'number', value: '7', tid: 't3' }, { type: 'operator', value: '+' }, { type: 'number', value: '1', tid: 't4' }
+        ] },
+        { id: 'b4', x: 380, y: 160, label: '', terms: [{ type: 'linked', sourceId: 'b3', sourceTid: null }] }
+      ]
+    }],
+    activeCanvasId: 'c1', nextCanvasId: 2, fontSize: 22, showGrid: false
+  });
+
+  const survivingSource = page.locator('.block[data-id="b3"] .result');
+  const survivingTarget = page.locator('.block[data-id="b4"] .term.linked');
+  const colorClass = (await survivingSource.getAttribute('class')).match(/link-color-\d+/)[0];
+  await expect(survivingTarget).toHaveClass(new RegExp(colorClass));
+
+  await page.locator('.block[data-id="b2"] .result').click();
+  await page.locator('.block[data-id="b2"] .block-del').click();
+  await expect(page.locator('.block')).toHaveCount(3);
+  await expect(survivingSource).toHaveClass(new RegExp(colorClass));
+  await expect(survivingTarget).toHaveClass(new RegExp(colorClass));
+
+  await page.reload();
+  await expect(page.locator('.block[data-id="b3"] .result')).toHaveClass(new RegExp(colorClass));
+  await expect(page.locator('.block[data-id="b4"] .term.linked')).toHaveClass(new RegExp(colorClass));
 });
 
 test('dropping a result onto a number chip inserts after its right half', async ({ page }) => {
@@ -161,9 +266,17 @@ test('Escape cancels an in-progress pointer link drag', async ({ page }) => {
   await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
   await page.mouse.down();
   await page.mouse.move(rb.x + 40, rb.y + 40, { steps: 4 });
-  await expect(page.locator('#ghost')).toBeVisible();
+  const ghost = page.locator('#ghost');
+  const sourceColor = (await a.locator('.result').getAttribute('class')).match(/link-color-\d+/)[0];
+  await expect(ghost).toBeVisible();
+  await expect(ghost).toHaveClass(new RegExp(sourceColor));
+  const ghostContrast = await ghost.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { background: s.backgroundColor, text: s.color };
+  });
+  expect(contrastRatio(ghostContrast.background, ghostContrast.text)).toBeGreaterThanOrEqual(4.5);
   await page.keyboard.press('Escape');
-  await expect(page.locator('#ghost')).toBeHidden();
+  await expect(ghost).toBeHidden();
   await page.mouse.move(rb.x + 260, rb.y + 220, { steps: 6 });
   await page.mouse.up();
 

@@ -29,7 +29,7 @@ covered by tests:
 - Source deletion is guarded: deleting a linked-from block confirms and freezes
   dependents; deleting a referenced number freezes dependent term links.
 - Link rules are locked in across pointer, keyboard, shortcuts, copy/paste, and
-  deletion paths: pending results cannot start result links, own-block/cycle
+  deletion paths: unresolved results cannot start result links, own-block/cycle
   links are refused, and unsafe copied links freeze to constants.
 - Structured text export is available from the overflow menu for a selected
   block or the whole canvas, using stable `@block#token` references for support

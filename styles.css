@@ -10,8 +10,14 @@
     --op: #b65a1e;
     --result: #0f766e;
     --result-bg: #e7f7f4;
-    --linked-bg: #edf5ff;
-    --linked-text: #2563eb;
+    --link-0: #c9772f; --link-on-0: #0b1220;
+    --link-1: #3f8f6b; --link-on-1: #0b1220;
+    --link-2: #7b5ea7; --link-on-2: #fff;
+    --link-3: #b8456b; --link-on-3: #fff;
+    --link-4: #3d7bb0; --link-on-4: #fff;
+    --link-5: #9a7b1f; --link-on-5: #0b1220;
+    --link-6: #5a8f3d; --link-on-6: #0b1220;
+    --link-7: #b0568f; --link-on-7: #fff;
     --accent: #1f6feb;
     --accent-strong: #1857c7;
     --warn: #b7791f;
@@ -40,8 +46,14 @@
       --op: #fb923c;
       --result: #5eead4;
       --result-bg: #123b39;
-      --linked-bg: #172b49;
-      --linked-text: #93c5fd;
+      --link-0: #fb923c; --link-on-0: #0b1220;
+      --link-1: #34d399; --link-on-1: #0b1220;
+      --link-2: #a78bfa; --link-on-2: #0b1220;
+      --link-3: #fb7185; --link-on-3: #0b1220;
+      --link-4: #60a5fa; --link-on-4: #0b1220;
+      --link-5: #facc15; --link-on-5: #0b1220;
+      --link-6: #84cc16; --link-on-6: #0b1220;
+      --link-7: #e879f9; --link-on-7: #0b1220;
       --accent: #60a5fa;
       --accent-strong: #3b82f6;
       --warn: #fbbf24;
@@ -55,6 +67,14 @@
       --shadow-tight: 0 4px 12px rgba(0,0,0,0.24);
     }
   }
+  .link-color-0 { --link-color: var(--link-0); --link-on-color: var(--link-on-0); }
+  .link-color-1 { --link-color: var(--link-1); --link-on-color: var(--link-on-1); }
+  .link-color-2 { --link-color: var(--link-2); --link-on-color: var(--link-on-2); }
+  .link-color-3 { --link-color: var(--link-3); --link-on-color: var(--link-on-3); }
+  .link-color-4 { --link-color: var(--link-4); --link-on-color: var(--link-on-4); }
+  .link-color-5 { --link-color: var(--link-5); --link-on-color: var(--link-on-5); }
+  .link-color-6 { --link-color: var(--link-6); --link-on-color: var(--link-on-6); }
+  .link-color-7 { --link-color: var(--link-7); --link-on-color: var(--link-on-7); }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0; padding: 0; height: 100%; overflow: hidden;
@@ -221,6 +241,11 @@
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 3;
   }
+  #linkLayer .link-path {
+    stroke: var(--link-color); stroke-width: 2.5;
+    stroke-linecap: round; stroke-dasharray: 0.1 5;
+  }
+  #linkLayer .link-dot { fill: var(--link-color); }
 
   /* Add-calculation button */
   #addBtn {
@@ -345,6 +370,12 @@
   .term.has-caret { padding-right: 10px; }
   .term.number { color: var(--text); }
   .term.number.sel { background: var(--accent); color: #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .term.number.linksrc {
+    box-shadow: inset 0 -3px 0 0 var(--link-color), inset 0 0 0 1px color-mix(in srgb, var(--link-color) 35%, transparent);
+  }
+  .term.number.linksrc.sel {
+    box-shadow: inset 0 -3px 0 0 var(--link-color), 0 0 0 2px color-mix(in srgb, var(--accent) 32%, transparent);
+  }
   .term.operator { color: var(--op); padding: 1px 2px; font-weight: 650; }
   /* Placeholder where an operator is expected between two adjacent operands. */
   .op-missing {
@@ -382,9 +413,9 @@
   .term.paren.sel { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 5px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .term.paren.sel.has-caret { padding-right: 10px; }
   .term.linked {
-    background: var(--linked-bg); color: var(--linked-text);
+    background: color-mix(in srgb, var(--link-color) 14%, var(--block)); color: var(--text);
     border-radius: 7px; padding: 1px 7px; font-weight: 650;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--linked-text) 48%, transparent);
+    box-shadow: inset 0 0 0 2px var(--link-color), 0 1px 5px color-mix(in srgb, var(--link-color) 18%, transparent);
   }
   .term.linked.sel {
     outline: none;
@@ -396,15 +427,16 @@
     color: var(--result); font-weight: 700; padding: 1px 7px;
     background: transparent; border-radius: 7px; cursor: grab;
   }
-  /* Only results referenced by another block keep the pill background, so the
-     link-colored ring painted by render.js reads as a tag. Plain results stay
-     bare, matching how they look while the expression is being edited. */
-  .result.linksrc { background: var(--result-bg); }
+  /* A referenced result and its connector share the same semantic color token. */
+  .result.linksrc { background: var(--link-color); color: var(--link-on-color); }
   /* Selected result: same solid-accent focus treatment as a selected term. */
   .result.sel { background: var(--accent); color: #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .result.linksrc.sel {
+    background: var(--link-color); color: var(--link-on-color);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--link-on-color) 68%, transparent),
+      0 0 0 3px color-mix(in srgb, var(--accent) 48%, transparent);
+  }
   .result.empty { background: transparent; color: var(--text-dim); }
-  /* Reserved slot for a calc still being typed: muted "?" placeholder, no grab. */
-  .result.pending { background: transparent; color: var(--text-dim); cursor: default; }
   .result.unresolved {
     max-width: min(26ch, 56vw);
     color: var(--warn);
@@ -421,7 +453,7 @@
   }
   /* While a block is being typed into, the result is a live preview: drop the
      filled pill so the input caret reads as the focus, not the answer. */
-  .block.active .result:not(.sel) { background: transparent; }
+  .block.active .result:not(.sel):not(.linksrc):not(.unresolved) { background: transparent; }
 
   /* Blinking caret marking the live input position in the active block. */
   .expr-caret {
@@ -446,19 +478,31 @@
   /* While a label is being edited, the caret in the caption is the only focus
      the eye should track — mute every term/operator/number/result selection so
      a stray selected chip doesn't compete with the text being typed. */
-  .block:has(.cap:focus) .cap:empty:not(:focus) { display: none; }
-  .block:has(.cap:focus) .term.number.sel { background: transparent; color: var(--text); box-shadow: none !important; }
-  .block:has(.cap:focus) .term.operator.sel { background: transparent; color: var(--op); box-shadow: none; padding: 1px 2px; }
-  .block:has(.cap:focus) .term.paren.sel { background: transparent; color: var(--text-dim); box-shadow: none; padding: 1px 2px; }
-  .block:has(.cap:focus) .term.linked.sel { outline: none; box-shadow: none !important; }
-  .block:has(.cap:focus) .op-missing.sel {
+  .block:has(.cap:focus) .cap:empty:not(:focus),
+  html.text-editing .cap:empty:not(:focus) { display: none; }
+  .block:has(.cap:focus) .term.number.sel,
+  html.text-editing .term.number.sel { background: transparent; color: var(--text); box-shadow: none !important; }
+  .block:has(.cap:focus) .term.operator.sel,
+  html.text-editing .term.operator.sel { background: transparent; color: var(--op); box-shadow: none; padding: 1px 2px; }
+  .block:has(.cap:focus) .term.paren.sel,
+  html.text-editing .term.paren.sel { background: transparent; color: var(--text-dim); box-shadow: none; padding: 1px 2px; }
+  .block:has(.cap:focus) .term.linked.sel,
+  html.text-editing .term.linked.sel { outline: none; box-shadow: none !important; }
+  .block:has(.cap:focus) .op-missing.sel,
+  html.text-editing .op-missing.sel {
     background: transparent; color: var(--op);
     border-style: dashed; border-color: var(--op); opacity: 0.85; box-shadow: none;
   }
-  .block:has(.cap:focus) .op-picker { display: none; }
-  .block:has(.cap:focus) .result.sel { outline: none; background: transparent; color: var(--result); box-shadow: none !important; }
+  .block:has(.cap:focus) .op-picker,
+  html.text-editing .op-picker { display: none; }
+  .block:has(.cap:focus) .result.sel,
+  html.text-editing .result.sel { outline: none; background: transparent; color: var(--result); box-shadow: none !important; }
+  .block:has(.cap:focus) .result.linksrc.sel,
+  html.text-editing .result.linksrc.sel { background: var(--link-color); color: var(--link-on-color); }
   .block:has(.cap:focus) .selection-caret,
-  .block:has(.cap:focus) .expr-caret { display: none; }
+  .block:has(.cap:focus) .expr-caret,
+  html.text-editing .selection-caret,
+  html.text-editing .expr-caret { display: none; }
 
   html.text-editing .block.selected,
   html.text-editing .block.active {
@@ -466,26 +510,13 @@
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
   }
   html.text-editing .block-del { display: none !important; }
-  html.text-editing .cap:empty:not(:focus) { display: none; }
-  html.text-editing .term.number.sel { background: transparent; color: var(--text); box-shadow: none !important; }
-  html.text-editing .term.operator.sel { background: transparent; color: var(--op); box-shadow: none; padding: 1px 2px; }
-  html.text-editing .term.paren.sel { background: transparent; color: var(--text-dim); box-shadow: none; padding: 1px 2px; }
-  html.text-editing .term.linked.sel { outline: none; box-shadow: none !important; }
-  html.text-editing .op-missing.sel {
-    background: transparent; color: var(--op);
-    border-style: dashed; border-color: var(--op); opacity: 0.85; box-shadow: none;
-  }
-  html.text-editing .op-picker { display: none; }
-  html.text-editing .result.sel { outline: none; background: transparent; color: var(--result); box-shadow: none !important; }
-  html.text-editing .selection-caret,
-  html.text-editing .expr-caret { display: none; }
 
   /* Ghost (drag-to-link) */
   #ghost {
     position: fixed; z-index: 100; pointer-events: none;
     font-family: var(--mono); font-size: 22px; font-weight: 500;
-    background: var(--result-bg); color: var(--result);
-    border: 1px solid var(--accent); border-radius: 4px;
+    background: var(--link-color, var(--result-bg)); color: var(--link-on-color, var(--result));
+    border: 1px solid var(--link-color, var(--accent)); border-radius: 7px;
     padding: 2px 8px; transform: translate(-50%, -50%); display: none;
     opacity: 0.72; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }

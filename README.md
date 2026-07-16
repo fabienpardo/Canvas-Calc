@@ -21,7 +21,7 @@ The app is a static, offline-capable PWA:
   sign, division, and in-progress editing states.
 - **Linked values:** use a resolved block result, or one number inside a block,
   as an input somewhere else. Changes cascade through every dependent block, and
-  pending `?` results must be fixed before they can start links.
+  unresolved results must be fixed before they can start links.
 - **Cycle protection:** links that would make a calculation depend on itself are
   rejected.
 - **Variables sidebar:** label values and results, inspect them, and edit source
@@ -145,6 +145,7 @@ More detail lives in [TESTING.md](TESTING.md).
 | --- | --- |
 | `index.html` | Static app shell and script loading order. |
 | `styles.css` | Layout, theme variables, blocks, keypad, sidebar, and responsive UI. |
+| `sw-register.js` | Service-worker registration and one-time upgrade reload. |
 | `app.js` | Application bootstrap and DOM wiring across the extracted modules. |
 | `engine.js` | Pure math engine: parsing, formatting, resolving links, definitions, and cycle checks. |
 | `state.js` | Pure saved-state normalization, migration, and lookup helpers. |
@@ -166,10 +167,11 @@ More detail lives in [TESTING.md](TESTING.md).
 ## Offline Behavior
 
 `sw.js` precaches the app shell, JavaScript modules, CSS, manifest, and icons.
-HTML navigations are network-first so deployments are not hidden behind stale
-cached pages. Static assets are cache-first and are refreshed when the service
-worker revision changes. Runtime cache reads and cleanup are scoped to Canvas
-Calc cache names so other apps on the same origin are left alone.
+HTML and static assets stay on one cache-first revision so an update cannot mix
+new markup with old CSS or JavaScript. The browser installs the next complete
+revision in the background, then `sw-register.js` reloads an already-controlled
+page once the new worker takes over. Runtime cache reads and cleanup are scoped
+to Canvas Calc cache names so other apps on the same origin are left alone.
 
 The unit test `test/sw.test.js` checks the cached asset list and revision hash.
 If a shipped file changes without updating the service-worker revision, the test

@@ -215,9 +215,9 @@ test('dragging a number to empty canvas creates a colored linked block', async (
   expect(sourceShadow).not.toBe('none');
   const linkPath = page.locator('#linkLayer path');
   await expect(linkPath).toHaveCount(1);
-  await expect(linkPath).toHaveAttribute('stroke', /.+/);
-  await expect(linkPath).toHaveAttribute('stroke-width', '2.5');
-  await expect(linkPath).toHaveAttribute('opacity', '0.78');
+  await expect(linkPath).toHaveCSS('stroke', /rgb\(.+\)/);
+  await expect(linkPath).toHaveCSS('stroke-width', '2.5px');
+  await expect(linkPath).toHaveCSS('opacity', '1');
   const route = await page.evaluate(() => {
     const path = document.querySelector('#linkLayer path');
     const nums = path.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);

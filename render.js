@@ -8,13 +8,29 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var LINK_PALETTE = ['#c9772f','#3f8f6b','#7b5ea7','#b8456b','#3d7bb0','#9a7b1f','#5a8f3d','#b0568f'];
+  var LINK_COLOR_COUNT = 8;
 
   var SEP = '\u0001'; // signature field separator (won't appear in user data)
 
+  // A source keeps the same palette slot regardless of which other links are
+  // added or removed. FNV-1a is compact, deterministic across sessions, and
+  // avoids putting visual identity into the persisted calculation model.
+  function colorIndexForSource(key) {
+    var hash = 2166136261;
+    key = String(key || '');
+    for (var i = 0; i < key.length; i++) {
+      hash ^= key.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0) % LINK_COLOR_COUNT;
+  }
+
+  function linkColorClass(key) { return 'link-color-' + colorIndexForSource(key); }
+
   function create(deps) {
     var doc = deps.document || document;
-    var linkColorMap = {};
+    var linkedSourceColors = {};
+    function hasLinkColor(key) { return Object.prototype.hasOwnProperty.call(linkedSourceColors, key); }
     // Keyed reconciliation state: a block's DOM element and a signature of every
     // input that affects how it renders. Unchanged blocks are left untouched.
     var blockEls = {};  // id -> element
@@ -80,13 +96,14 @@
         if (t.type === 'operator') { parts.push('o' + t.value); return; }
         if (t.type === 'paren') { parts.push('p' + t.value); return; }
         if (t.type === 'number') {
-          parts.push('n', t.value, t.label || '', linkColorMap[deps.srcKey(b.id, t.tid)] || '');
+          var nkey = deps.srcKey(b.id, t.tid);
+          parts.push('n', t.value, t.label || '', hasLinkColor(nkey) ? linkedSourceColors[nkey] : '');
           return;
         }
         var s = deps.linkedSource(t, map); var lbl = s ? s.getLabel() : '';
         var lv = deps.linkedValue(t, map, evaluationMemo);
         parts.push('l', t.sourceId, t.sourceTid == null ? '@' : t.sourceTid, lbl || '',
-          lv == null ? '?' : lv, linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || '');
+          lv == null ? '?' : lv, colorIndexForSource(deps.srcKey(t.sourceId, t.sourceTid)));
       });
       var missIdx = deps.missingOperatorIndex(b.terms);
       parts.push('m' + missIdx); // missing-operator marker position
@@ -95,23 +112,21 @@
         parts.push('=', diag.status, diag.reason || '',
           diag.message || '',
           diag.status === 'ok' ? (diag.value == null ? '·' : diag.value) : '?',
-          linkColorMap[deps.srcKey(b.id, null)] || '');
+          hasLinkColor(deps.srcKey(b.id, null)) ? linkedSourceColors[deps.srcKey(b.id, null)] : '');
       }
       return parts.join(SEP);
     }
 
-    function computeLinkColors() {
-      var order = [], seen = {};
+    function computeLinkedSourceColors() {
+      var map = {};
       cur().blocks.forEach(function(b){
         b.terms.forEach(function(t){
           if (t.type==='linked') {
             var key = deps.srcKey(t.sourceId, t.sourceTid);
-            if (!seen[key]) { seen[key] = true; order.push(key); }
+            map[key] = colorIndexForSource(key);
           }
         });
       });
-      var map = {};
-      order.forEach(function(key, i){ map[key] = LINK_PALETTE[i % LINK_PALETTE.length]; });
       return map;
     }
 
@@ -128,7 +143,7 @@
       deps.hint.style.display = cur().blocks.length ? 'none' : '';
       var map = deps.blocksMap();
       resetEvaluationMemo();
-      linkColorMap = computeLinkColors();
+      linkedSourceColors = computeLinkedSourceColors();
 
       var present = {};
       cur().blocks.forEach(function(b){ present[b.id] = true; });
@@ -358,7 +373,9 @@
           span.textContent = deps.groupDisplay(t.value);
           span.title = termSelected ? 'Selected number' : 'Select or drag this number';
           var nkey = deps.srcKey(b.id, t.tid);
-          if (linkColorMap[nkey]) span.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[nkey] + ', inset 0 0 0 1px ' + linkColorMap[nkey] + '59';
+          span.className += ' ' + linkColorClass(nkey);
+          span.dataset.linkColor = colorIndexForSource(nkey);
+          if (hasLinkColor(nkey)) span.className += ' linksrc';
         } else {
           span.className = 'term linked' + span.className;
           var lv = deps.linkedValue(t, map, evaluationMemo);
@@ -366,14 +383,8 @@
           span.dataset.linked = '1';
           span.title = termSelected ? 'Selected linked value' : 'Select linked value';
           var lkey = deps.srcKey(t.sourceId, t.sourceTid);
-          var lc = linkColorMap[lkey];
-          if (lc) {
-            span.style.color = lc;
-            // Opaque tint (the colour composited over the block) so the dotted
-            // link line behind the chip doesn't bleed through its body.
-            span.style.background = 'color-mix(in srgb, ' + lc + ' 18%, var(--block))';
-            span.style.boxShadow = 'inset 0 0 0 2px ' + lc + '99, 0 1px 5px ' + lc + '26';
-          }
+          span.className += ' ' + linkColorClass(lkey);
+          span.dataset.linkColor = colorIndexForSource(lkey);
         }
         span.dataset.idx = idx;
         makeSelectable(span, span.title, b.id, idx, t.type==='linked' ? 'linked' : 'number');
@@ -417,14 +428,9 @@
           res.title = selection.blockId===b.id && selection.kind==='result' ? 'Selected result' : 'Select or drag this result';
           makeSelectable(res, res.title, b.id, null, 'result');
           var rkey = deps.srcKey(b.id, null);
-          var rsel = selection.blockId===b.id && selection.kind==='result';
-          if (linkColorMap[rkey]) {
-            // Referenced results keep their pill background (CSS .linksrc); the
-            // link-colored ring is skipped while selected so the solid accent
-            // focus isn't fighting an inline box-shadow.
-            res.className += ' linksrc';
-            if (!rsel) res.style.boxShadow = 'inset 0 -3px 0 0 ' + linkColorMap[rkey] + ', inset 0 0 0 1px ' + linkColorMap[rkey] + '59';
-          }
+          res.className += ' ' + linkColorClass(rkey);
+          res.dataset.linkColor = colorIndexForSource(rkey);
+          if (hasLinkColor(rkey)) res.className += ' linksrc';
         }
         rcell.appendChild(res);
         expr.appendChild(rcell);
@@ -469,7 +475,7 @@
             var si=-1; for (var ii=0; ii<src.terms.length; ii++){ if (src.terms[ii].type==='number' && src.terms[ii].tid===t.sourceTid){ si=ii; break; } }
             srcRes = si>=0 ? srcEl.querySelectorAll('.term')[si] : null;
           } else {
-            srcRes = srcEl.querySelector('.result:not(.pending):not(.unresolved)');
+            srcRes = srcEl.querySelector('.result:not(.unresolved)');
           }
           var dstTerm = dstEl.querySelectorAll('.term')[idx];
           if (!srcRes||!dstTerm) return;
@@ -480,22 +486,19 @@
           );
           var x1 = route.x1, y1 = route.y1, x2 = route.x2, y2 = route.y2;
           var svgNS = 'http://www.w3.org/2000/svg';
-          var col = linkColorMap[deps.srcKey(t.sourceId, t.sourceTid)] || 'var(--accent)';
+          var colorKey = deps.srcKey(t.sourceId, t.sourceTid);
+          var colorClass = linkColorClass(colorKey);
           var path = doc.createElementNS(svgNS,'path');
+          path.setAttribute('class', 'link-path ' + colorClass);
           var bend = Math.min(220, Math.max(36, Math.hypot(x2-x1, y2-y1) * 0.22)) * route.dir;
           path.setAttribute('d','M '+x1+' '+y1+' C '+x1+' '+(y1+bend)+' '+x2+' '+(y2-bend)+' '+x2+' '+y2);
           path.setAttribute('fill','none');
-          path.setAttribute('stroke', col);
-          path.setAttribute('stroke-width','2.5');
-          path.setAttribute('stroke-linecap','round');
-          path.setAttribute('stroke-dasharray','0.1 5');
-          path.setAttribute('opacity','0.78');
           deps.linkLayer.appendChild(path);
           // Solid endpoint dots anchor the dotted link to its source and target.
           [[x1,y1,3.2],[x2,y2,4.2]].forEach(function(p){
             var dot = doc.createElementNS(svgNS,'circle');
+            dot.setAttribute('class', 'link-dot ' + colorClass);
             dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('r', p[2]);
-            dot.setAttribute('fill', col);
             deps.linkLayer.appendChild(dot);
           });
         });
@@ -576,5 +579,5 @@
     };
   }
 
-  return { create: create };
+  return { create: create, colorIndexForSource: colorIndexForSource };
 });

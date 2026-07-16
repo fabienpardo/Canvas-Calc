@@ -1,10 +1,11 @@
-const ASSET_REVISION = 'e409a09d6dda';
+const ASSET_REVISION = 'ad9c2de885d0';
 const CACHE_PREFIX = 'canvas-calc-';
 const CACHE = CACHE_PREFIX + ASSET_REVISION;
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './sw-register.js',
   './app.js',
   './state.js',
   './engine.js',
@@ -55,22 +56,23 @@ self.addEventListener('fetch', function (e) {
   if (req.method !== 'GET') return;
   if (!isHttpRequest(req)) return;
 
-  // Navigations / HTML: network-first so deploys aren't masked by stale cache,
-  // falling back to the cached shell when offline.
+  // Navigations / HTML: keep the document on the same cached revision as its
+  // CSS and JavaScript. The browser's service-worker update check installs the
+  // next complete shell, and sw-register.js reloads once that worker takes
+  // control. This avoids rendering new HTML with old cache-first assets.
   const isNav = req.mode === 'navigate' ||
     (req.headers.get('accept') || '').indexOf('text/html') !== -1;
   if (isNav) {
     e.respondWith(
-      fetch(req).then(function (res) {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(function (c) { c.put(req, copy); });
-        }
-        return res;
-      }).catch(function () {
-        return caches.open(CACHE).then(function (c) {
-          return c.match(req).then(function (hit) {
-            return hit || c.match('./index.html');
+      caches.open(CACHE).then(function (c) {
+        return c.match(req, { ignoreSearch: true }).then(function (hit) {
+          if (hit) return hit;
+          return c.match('./index.html').then(function (shell) {
+            if (shell) return shell;
+            return fetch(req).then(function (res) {
+              if (res && res.ok) c.put(req, res.clone());
+              return res;
+            });
           });
         });
       })

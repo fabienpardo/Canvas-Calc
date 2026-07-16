@@ -1,6 +1,17 @@
 const { test, expect } = require('@playwright/test');
 const { fresh, press, type, addBlock } = require('./helpers');
 
+test('desktop launch keeps the toolbar and SVG icons compact', async ({ page }) => {
+  await fresh(page);
+  const toolbar = await page.locator('#toolbar').boundingBox();
+  const valuesIcon = await page.locator('#varsBtn .ico').boundingBox();
+  const canvasButton = await page.locator('#canvasBtn').boundingBox();
+  expect(toolbar.height).toBeLessThanOrEqual(64);
+  expect(valuesIcon.width).toBeLessThanOrEqual(24);
+  expect(valuesIcon.height).toBeLessThanOrEqual(24);
+  expect(canvasButton.height).toBeLessThanOrEqual(48);
+});
+
 test('the zoom control is pinned (does not scroll with the canvas)', async ({ page }) => {
   await fresh(page);
   const zc = page.locator('#zoomCtl');

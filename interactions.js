@@ -18,7 +18,19 @@
     function pinchCount(){ return Object.keys(pinchPts).length; }
     function pinching(){ return !!pinch; }
 
-    function resetPointer() { pointer = { mode:null }; }
+    function setGhostColor(sourceEl) {
+      Array.prototype.slice.call(deps.ghost.classList).forEach(function (name) {
+        if (/^link-color-\d+$/.test(name)) deps.ghost.classList.remove(name);
+      });
+      if (!sourceEl) return;
+      Array.prototype.slice.call(sourceEl.classList).some(function (name) {
+        if (!/^link-color-\d+$/.test(name)) return false;
+        deps.ghost.classList.add(name);
+        return true;
+      });
+    }
+
+    function resetPointer() { pointer = { mode:null }; setGhostColor(null); }
 
     function clearTargets(){
       deps.canvas.querySelectorAll('.drop-ok, .drop-invalid').forEach(function(e){
@@ -144,11 +156,12 @@
       if (target.closest && target.closest('#zoomCtl')) return;
 
       var resEl = target.closest && target.closest('.result');
-      if (resEl && !resEl.classList.contains('empty') && !resEl.classList.contains('pending') && resEl.dataset.id) {
+      if (resEl && !resEl.classList.contains('empty') && resEl.dataset.id) {
         pointer.mode='maybe-link'; pointer.startX=e.clientX; pointer.startY=e.clientY;
         pointer.linkSrc = { sourceId: resEl.dataset.id, sourceTid: null }; pointer.moved=false;
         pointer.ghostText = resEl.textContent; pointer.pendingSelect = null;
         pointer.touch = e.pointerType==='touch';
+        setGhostColor(resEl);
         return;
       }
 
@@ -174,6 +187,7 @@
         pointer.ghostText = termEl.textContent;
         pointer.pendingSelect = { blockId: nbid, termIndex: nidx, kind: 'number' };
         pointer.touch = e.pointerType==='touch';
+        setGhostColor(termEl);
         return;
       }
 

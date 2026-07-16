@@ -11,6 +11,7 @@ const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 test('service worker precaches the app shell + engine', () => {
   assert.match(sw, /'\.\/index\.html'/);
   assert.match(sw, /'\.\/styles\.css'/);
+  assert.match(sw, /'\.\/sw-register\.js'/);
   assert.match(sw, /'\.\/app\.js'/);
   assert.match(sw, /'\.\/state\.js'/);
   assert.match(sw, /'\.\/engine\.js'/); // forgetting this would silently break offline mode
@@ -74,6 +75,51 @@ test('old Canvas Calc caches are cleaned without touching other cache namespaces
 test('runtime cache reads are scoped to the current app cache', () => {
   assert.doesNotMatch(sw, /caches\.match\(req\)/);
   assert.match(sw, /c\.match\(req\)/);
+});
+
+test('HTML navigation uses the current cached shell before the network', async () => {
+  const listeners = {};
+  const cachedShell = { source: 'current-cache' };
+  let fetches = 0;
+  const context = {
+    URL,
+    Promise,
+    Request,
+    self: {
+      addEventListener(type, handler) { listeners[type] = handler; },
+      skipWaiting() { return Promise.resolve(); },
+      clients: { claim() { return Promise.resolve(); } }
+    },
+    caches: {
+      open() {
+        return Promise.resolve({
+          match(key) { return Promise.resolve(key === './index.html' ? cachedShell : null); },
+          put() { return Promise.resolve(); }
+        });
+      },
+      keys() { return Promise.resolve([]); },
+      delete() { return Promise.resolve(false); }
+    },
+    fetch() {
+      fetches += 1;
+      return Promise.resolve({ ok: true });
+    }
+  };
+  vm.runInNewContext(sw, context);
+
+  let response;
+  listeners.fetch({
+    request: {
+      method: 'GET',
+      url: 'https://example.test/',
+      mode: 'navigate',
+      headers: { get() { return 'text/html'; } }
+    },
+    respondWith(value) { response = value; }
+  });
+
+  assert.equal(await response, cachedShell);
+  assert.equal(fetches, 0);
 });
 
 test('asset revision matches the precached app shell contents', () => {

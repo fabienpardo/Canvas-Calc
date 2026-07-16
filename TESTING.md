@@ -26,7 +26,7 @@
 The no-DOM logic is split into importable browser/Node modules, so the same files
 run in the shipped app and under `node --test`:
 
-- `engine.js`, `state.js`, `sidebar.js`, `editing.js`, `input.js`, `history.js`,
+- `sw-register.js`, `engine.js`, `state.js`, `sidebar.js`, `editing.js`, `input.js`, `history.js`,
   and `store.js` use a small UMD tail (`if (typeof module !== 'undefined') module.exports = …;
   else window.CanvasX = …`).
 - `index.html` loads those modules with `<script>` tags (no build step), and
@@ -158,11 +158,12 @@ chase coverage on rendering — assert behavior and computed values, not markup.
   empty-stack no-ops, per-canvas isolation); `test/store.test.js` — view-state
   round-trips and `commit()` ordering/opt-outs (snapshot→mutate→render→save);
   `test/sw.test.js` — service-worker
-  precache (incl. `app.js`, `state.js`, `engine.js`, `sidebar.js`, `render.js`,
+  precache (incl. `sw-register.js`, `app.js`, `state.js`, `engine.js`, `sidebar.js`, `render.js`,
   `interactions.js`, `canvases.js`, `editing.js`, `input.js`, `history.js`, and
   `store.js`), asset-revision hash guard, `res.ok` guard, non-GET and
   unsupported-scheme requests ignored, Canvas Calc-only cache cleanup, and
-  current-cache-scoped reads.
+  current-cache-scoped reads; `test/sw-register.test.js` covers registration
+  timing and the single-reload upgrade handoff.
 - **E2E (Playwright, shared `e2e/helpers.js`):**
   - `e2e/app.spec.js` — block create / `=` re-anchor, precedence + parens,
     live separators, drag + undo-restore, drag-to-link + color, plus-minus
@@ -176,19 +177,21 @@ chase coverage on rendering — assert behavior and computed values, not markup.
     parenthesis select/delete, linked unlink, empty-block delete, undo/redo
     (typing, delete, clear, paste, redo, redo-stack-cleared).
   - `e2e/linking.spec.js` — result→operator link, before/after insertion
-    when dropping onto a number chip, pending-result refusal, same-session
-    copy/paste live-link preservation, source-unresolved dependent explanation,
-    cycle-rejection dialog, neutral own-source drag cancel, Escape pointer-drag
-    cancel, pointer-cancel cleanup/reversion, delete-source-with-dependents
-    warning and cancel path.
+    when dropping onto a number chip, stable source colors, light/dark contrast,
+    matching drag-ghost styling, unresolved-result refusal, same-session copy/paste
+    live-link preservation, source-unresolved dependent explanation, cycle-rejection
+    dialog, neutral own-source drag cancel, Escape pointer-drag cancel,
+    pointer-cancel cleanup/reversion, delete-source-with-dependents warning and
+    cancel path.
   - `e2e/persistence.spec.js` — old-state load + tid migration, default
     zoom/grid, restored zoom/grid, pagehide save flush, corrupt +
     malformed-but-valid localStorage survive.
   - `e2e/canvases.spec.js` — multi-canvas isolation/switch, per-canvas zoom,
     rename persistence, delete + fallback, multi-canvas persistence, migration,
     and cancellation/freezing of transient links across canvas boundaries.
-  - `e2e/layout.spec.js` — zoom control pinned on scroll; canvas behind keypad,
-    sidebar closes the keypad, bounded canvas scroll space.
+  - `e2e/layout.spec.js` — compact launch toolbar/icons, zoom control pinned on
+    scroll; canvas behind keypad, sidebar closes the keypad, bounded canvas
+    scroll space.
   - `e2e/mobile.spec.js` — mobile (iPhone 16 Pro Max-size viewport) smoke,
     viewport fit, long-expression caret follow, Done result reveal, sidebar
     blur/keypad close, inert hidden controls, hidden-panel input blur,
