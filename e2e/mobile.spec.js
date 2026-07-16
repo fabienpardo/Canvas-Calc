@@ -82,6 +82,26 @@ test('mobile: long-press on a block reveals its delete control, never deletes', 
   await page.mouse.up();
 });
 
+test('mobile: tapping a populated block body abandons an empty draft', async ({ page }) => {
+  await fresh(page);
+  await addBlock(page);
+  await type(page, '5 + 0');
+  await press(page, '=');
+
+  const populated = page.locator('.block').first();
+  await page.locator('#addBtn').tap();
+  await expect(page.locator('.block.empty-draft')).toBeVisible();
+
+  const box = await populated.boundingBox();
+  // Use the same exact background point as the block long-press regression;
+  // touch hit-target adjustment can otherwise redirect a tiny inset to a term.
+  await page.mouse.click(box.x + 6, box.y + 6);
+
+  await expect(page.locator('.block.empty-draft')).toHaveCount(0);
+  await expect(page.locator('.block')).toHaveCount(1);
+  await expect(populated).toHaveClass(/selected/);
+});
+
 test('mobile: keypad fits within the viewport width', async ({ page }) => {
   await fresh(page);
   const vw = page.viewportSize().width;

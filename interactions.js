@@ -223,11 +223,31 @@
       var bEl = target.closest && target.closest('.block');
       if (bEl) {
         pointer.mode='drag-block'; pointer.block=deps.byId(bEl.dataset.id);
+        // Whole-block selection leaves any different block that was being
+        // edited. In particular, reap and persist removal of a fresh
+        // "Type a number…" draft instead of leaving it active beside the block
+        // the user just returned to.
+        var priorActiveId = deps.getActiveBlockId();
+        var leftPriorBlock = !!(priorActiveId && priorActiveId !== pointer.block.id);
+        if (leftPriorBlock) {
+          var priorBlock = deps.byId(priorActiveId);
+          if (priorBlock && priorBlock.terms.length===0) {
+            deps.snapshot(); deps.removeBlock(priorBlock.id); deps.save();
+          } else if (priorBlock && Editing && Editing.unmatchedOpenParens(priorBlock)) {
+            deps.snapshot(); Editing.balanceParens(priorBlock); deps.save();
+          }
+          deps.setActiveBlockId(null);
+        }
         pointer.startX=e.clientX; pointer.startY=e.clientY;
         pointer.origX=pointer.block.x; pointer.origY=pointer.block.y;
         pointer.pointerId = e.pointerId; pointer.blockEl = bEl;
         pointer.moved=false;
         deps.setSelection({ blockId:pointer.block.id, termIndex:null, kind:'result' });
+        if (leftPriorBlock) {
+          deps.renderAll();
+          bEl = deps.blockEl(pointer.block.id) || bEl;
+          pointer.blockEl = bEl;
+        }
         if (deps.invalidateBlock) deps.invalidateBlock(pointer.block.id);
         deps.canvas.querySelectorAll('.selected, .sel').forEach(function(x){ x.classList.remove('selected','sel'); });
         bEl.classList.add('selected');
