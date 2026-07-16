@@ -35,6 +35,12 @@
     // input that affects how it renders. Unchanged blocks are left untouched.
     var blockEls = {};  // id -> element
     var blockSigs = {}; // id -> signature string
+    var blockSizes = {}; // id -> { element, width, height }
+    // Link nodes are reconciled by their destination slot. Keeping the same SVG
+    // nodes while a block moves avoids allocation churn and lets drawLinks()
+    // update only geometry instead of rebuilding the whole layer every frame.
+    var linkEls = {};   // destination block + term index -> SVG nodes
+    var portRects = {}; // stable local chip geometry between full renders
     var lastCanvasId = null; // reconcile is keyed by block id, which repeats across canvases
     var evaluationMemo = null;
     // Keep the original pointer target through the synthetic click. A selection
@@ -75,7 +81,12 @@
       Object.keys(blockEls).forEach(function(id){
         var el = blockEls[id]; if (el && el.parentNode) el.parentNode.removeChild(el);
       });
-      blockEls = {}; blockSigs = {};
+      blockEls = {}; blockSigs = {}; blockSizes = {}; portRects = {};
+      Object.keys(linkEls).forEach(function(key){
+        var group = linkEls[key].group;
+        if (group && group.parentNode) group.parentNode.removeChild(group);
+      });
+      linkEls = {};
     }
 
     function cur() { return deps.cur(); }
@@ -153,7 +164,7 @@
         if (!present[id]) {
           var el = blockEls[id];
           if (el && el.parentNode) el.parentNode.removeChild(el);
-          delete blockEls[id]; delete blockSigs[id];
+          delete blockEls[id]; delete blockSigs[id]; delete blockSizes[id];
         }
       });
 
@@ -168,8 +179,12 @@
         else deps.canvas.appendChild(fresh);
         blockEls[b.id] = fresh;
         blockSigs[b.id] = sig;
+        delete blockSizes[b.id];
       });
 
+      // A full render can replace or resize any endpoint. Rebuild the local
+      // geometry cache once here; subsequent drag frames reuse those values.
+      portRects = {};
       drawLinks(map);
       deps.updateUndoRedo();
       syncSidebar();
@@ -179,8 +194,23 @@
 
     function blockElById(id) { return blockEls[id] || null; }
 
+    function blockSizeById(id) {
+      var el = blockEls[id];
+      if (!el) return null;
+      var cached = blockSizes[id];
+      if (!cached || cached.element !== el) {
+        cached = { element: el, width: el.offsetWidth, height: el.offsetHeight };
+        blockSizes[id] = cached;
+      }
+      return { width: cached.width, height: cached.height };
+    }
+
     function invalidateBlock(id) {
       delete blockSigs[id];
+      delete blockSizes[id];
+      // Selection classes can reveal captions and change endpoint offsets even
+      // when the block element itself is retained during a drag.
+      portRects = {};
     }
 
     function invalidateAll() {
@@ -447,6 +477,15 @@
       return { x:x, y:y };
     }
 
+    function portRect(key, el, blockEl) {
+      var cached = portRects[key];
+      if (cached && cached.element === el && cached.blockElement === blockEl) return cached.rect;
+      var offset = offsetIn(el, blockEl);
+      var rect = { left: offset.x, top: offset.y, width: el.offsetWidth, height: el.offsetHeight };
+      portRects[key] = { element: el, blockElement: blockEl, rect: rect };
+      return rect;
+    }
+
     function linkPortRoute(srcRect, dstRect) {
       var sx = srcRect.left + srcRect.width / 2;
       var tx = dstRect.left + dstRect.width / 2;
@@ -462,8 +501,29 @@
       };
     }
 
+    function setAttr(el, name, value) {
+      value = String(value);
+      if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+    }
+
+    function newLinkNodes(key) {
+      var svgNS = 'http://www.w3.org/2000/svg';
+      var group = doc.createElementNS(svgNS, 'g');
+      group.setAttribute('data-link-key', key);
+      var path = doc.createElementNS(svgNS, 'path');
+      path.setAttribute('fill', 'none');
+      var sourceDot = doc.createElementNS(svgNS, 'circle');
+      var targetDot = doc.createElementNS(svgNS, 'circle');
+      sourceDot.setAttribute('r', '3.2'); targetDot.setAttribute('r', '4.2');
+      group.appendChild(path); group.appendChild(sourceDot); group.appendChild(targetDot);
+      deps.linkLayer.appendChild(group);
+      return { group: group, path: path, sourceDot: sourceDot, targetDot: targetDot };
+    }
+
     function drawLinks(map) {
-      while (deps.linkLayer.firstChild) deps.linkLayer.removeChild(deps.linkLayer.firstChild);
+      // Read every endpoint before touching the SVG. This prevents alternating
+      // DOM writes and offset reads from forcing layout once per link.
+      var routes = [];
       cur().blocks.forEach(function(b){
         b.terms.forEach(function(t, idx){
           if (t.type!=='linked') return;
@@ -480,29 +540,56 @@
           }
           var dstTerm = dstEl.querySelectorAll('.term')[idx];
           if (!srcRes||!dstTerm) return;
-          var so = offsetIn(srcRes, srcEl), to = offsetIn(dstTerm, dstEl);
+          var srcPortKey = src.id + SEP + (t.sourceTid == null ? '@result' : t.sourceTid);
+          var dstPortKey = b.id + SEP + idx;
+          var so = portRect(srcPortKey, srcRes, srcEl);
+          var to = portRect(dstPortKey, dstTerm, dstEl);
           var route = linkPortRoute(
-            { left: src.x + so.x, top: src.y + so.y, width: srcRes.offsetWidth, height: srcRes.offsetHeight },
-            { left: b.x + to.x, top: b.y + to.y, width: dstTerm.offsetWidth, height: dstTerm.offsetHeight }
+            { left: src.x + so.left, top: src.y + so.top, width: so.width, height: so.height },
+            { left: b.x + to.left, top: b.y + to.top, width: to.width, height: to.height }
           );
           var x1 = route.x1, y1 = route.y1, x2 = route.x2, y2 = route.y2;
-          var svgNS = 'http://www.w3.org/2000/svg';
           var colorKey = deps.srcKey(t.sourceId, t.sourceTid);
           var colorClass = linkColorClass(colorKey);
-          var path = doc.createElementNS(svgNS,'path');
-          path.setAttribute('class', 'link-path ' + colorClass);
           var bend = Math.min(220, Math.max(36, Math.hypot(x2-x1, y2-y1) * 0.22)) * route.dir;
-          path.setAttribute('d','M '+x1+' '+y1+' C '+x1+' '+(y1+bend)+' '+x2+' '+(y2-bend)+' '+x2+' '+y2);
-          path.setAttribute('fill','none');
-          deps.linkLayer.appendChild(path);
-          // Solid endpoint dots anchor the dotted link to its source and target.
-          [[x1,y1,3.2],[x2,y2,4.2]].forEach(function(p){
-            var dot = doc.createElementNS(svgNS,'circle');
-            dot.setAttribute('class', 'link-dot ' + colorClass);
-            dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('r', p[2]);
-            deps.linkLayer.appendChild(dot);
+          routes.push({
+            // This key is also stored in an SVG data attribute, so keep it
+            // free of the control-character separator used by internal maps.
+            key: encodeURIComponent(String(b.id)) + ':' + idx,
+            colorClass: colorClass,
+            d: 'M '+x1+' '+y1+' C '+x1+' '+(y1+bend)+' '+x2+' '+(y2-bend)+' '+x2+' '+y2,
+            x1: x1, y1: y1, x2: x2, y2: y2
           });
         });
+      });
+
+      // Write phase: reuse the existing group/path/dots for every live link.
+      var present = {};
+      routes.forEach(function(route){
+        present[route.key] = true;
+        var nodes = linkEls[route.key];
+        if (!nodes) nodes = linkEls[route.key] = newLinkNodes(route.key);
+        setAttr(nodes.path, 'class', 'link-path ' + route.colorClass);
+        setAttr(nodes.path, 'd', route.d);
+        setAttr(nodes.sourceDot, 'class', 'link-dot ' + route.colorClass);
+        setAttr(nodes.sourceDot, 'cx', route.x1); setAttr(nodes.sourceDot, 'cy', route.y1);
+        setAttr(nodes.targetDot, 'class', 'link-dot ' + route.colorClass);
+        setAttr(nodes.targetDot, 'cx', route.x2); setAttr(nodes.targetDot, 'cy', route.y2);
+      });
+      Object.keys(linkEls).forEach(function(key){
+        if (present[key]) return;
+        var group = linkEls[key].group;
+        if (group && group.parentNode) group.parentNode.removeChild(group);
+        delete linkEls[key];
+      });
+
+      // Keep deterministic paint order after insertions/removals without moving
+      // already ordered nodes during ordinary drag frames.
+      var cursor = deps.linkLayer.firstChild;
+      routes.forEach(function(route){
+        var group = linkEls[route.key].group;
+        if (group === cursor) { cursor = cursor.nextSibling; return; }
+        deps.linkLayer.insertBefore(group, cursor);
       });
     }
 
@@ -571,6 +658,7 @@
     return {
       renderAll: renderAll,
       blockEl: blockElById,
+      blockSize: blockSizeById,
       invalidateBlock: invalidateBlock,
       invalidateAll: invalidateAll,
       drawLinks: drawLinks,

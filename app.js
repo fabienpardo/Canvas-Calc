@@ -139,6 +139,15 @@
     scheduleTextEditingSync();
     return true;
   }
+  function finishTextEditing() {
+    if (!blurActiveTextEntry()) return false;
+    // WebKit may report the blurred contenteditable as active until after the
+    // focusout dispatch. This action is an explicit mode change, so clear the
+    // mode synchronously and restore the calculator controls immediately.
+    document.documentElement.classList.remove('text-editing');
+    setNumpadHidden(false);
+    return true;
+  }
   document.addEventListener('focusin', function (e) {
     if (!isTextEntry(e.target)) { scheduleTextEditingSync(); return; }
     syncTextEditingState();
@@ -345,9 +354,9 @@
   function updateViewport() {
     var maxR = 0, maxB = 0;
     cur().blocks.forEach(function(b){
-      var el = blockEl(b.id);
-      maxR = Math.max(maxR, b.x + (el ? el.offsetWidth : 120));
-      maxB = Math.max(maxB, b.y + (el ? el.offsetHeight : 60));
+      var size = renderer.blockSize(b.id);
+      maxR = Math.max(maxR, b.x + (size ? size.width : 120));
+      maxB = Math.max(maxB, b.y + (size ? size.height : 60));
     });
     var ab = document.getElementById('addBtn');
     if (ab && ab.style.display !== 'none') {
@@ -405,8 +414,8 @@
   function lowestBlock() {
     var best = null, bestBottom = -Infinity;
     cur().blocks.forEach(function(b){
-      var el = blockEl(b.id);
-      var bottom = b.y + (el ? el.offsetHeight : 40);
+      var size = renderer.blockSize(b.id);
+      var bottom = b.y + (size ? size.height : 40);
       if (bottom > bestBottom) { bestBottom = bottom; best = b; }
     });
     return best;
@@ -414,8 +423,8 @@
   // Position just below a block (or the default start spot when there are none).
   function slotBelow(b) {
     if (!b) return { x: 40, y: 30 };
-    var el = blockEl(b.id);
-    return { x: b.x, y: b.y + (el ? el.offsetHeight : 40) + BLOCK_GAP };
+    var size = renderer.blockSize(b.id);
+    return { x: b.x, y: b.y + (size ? size.height : 40) + BLOCK_GAP };
   }
 
   // The "+ add" button sits below the lowest block, and hides while editing.
@@ -650,6 +659,7 @@
     drawLinks: drawLinks,
     invalidateBlock: invalidateBlock,
     positionAddBtn: positionAddBtn,
+    finishTextEditing: finishTextEditing,
     snapshot: snapshot,
     save: save,
     renderAll: renderAll,

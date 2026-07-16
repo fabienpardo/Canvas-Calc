@@ -341,6 +341,87 @@ test('a completed block drag adds one undo step that restores its original posit
   await expect(page.locator('#undoBtn')).toBeDisabled();
 });
 
+test('block drag coalesces pending moves and flushes the final position on release', async ({ page }) => {
+  const block = await savedBlockWithFreshHistory(page);
+  const before = await block.evaluate((el) => ({ left: parseFloat(el.style.left), top: parseFloat(el.style.top) }));
+  const box = await block.boundingBox();
+  await page.evaluate(() => {
+    window.__realRequestAnimationFrame = window.requestAnimationFrame;
+    window.__realCancelAnimationFrame = window.cancelAnimationFrame;
+    window.__dragFrameSchedules = 0;
+    window.requestAnimationFrame = function(cb) {
+      window.__pendingDragFrame = cb;
+      window.__dragFrameSchedules += 1;
+      return window.__dragFrameSchedules;
+    };
+    window.cancelAnimationFrame = function() { window.__pendingDragFrame = null; };
+  });
+
+  await page.mouse.move(box.x + 6, box.y + 6);
+  await page.mouse.down();
+  await page.evaluate(({ x, y }) => {
+    const wrap = document.getElementById('canvasWrap');
+    [30, 70, 110].forEach((dx) => {
+      wrap.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true, cancelable: true, pointerType: 'mouse', pointerId: 1,
+        clientX: x + dx, clientY: y + 50
+      }));
+    });
+  }, { x: box.x + 6, y: box.y + 6 });
+
+  expect(await page.evaluate(() => window.__dragFrameSchedules)).toBe(1);
+  await expect(block).toHaveCSS('left', before.left + 'px');
+  await page.mouse.up();
+  await expect(block).toHaveCSS('left', (Math.round((before.left + 110) / 20) * 20) + 'px');
+  await expect(block).toHaveCSS('top', (Math.round((before.top + 50) / 20) * 20) + 'px');
+  await expect(page.locator('#undoBtn')).toBeEnabled();
+
+  await page.evaluate(() => {
+    window.requestAnimationFrame = window.__realRequestAnimationFrame;
+    window.cancelAnimationFrame = window.__realCancelAnimationFrame;
+    delete window.__realRequestAnimationFrame;
+    delete window.__realCancelAnimationFrame;
+    delete window.__pendingDragFrame;
+  });
+});
+
+test('dragging a linked block reuses connector nodes and keeps add dock geometry current', async ({ page }) => {
+  await seed(page, {
+    canvases: [{
+      id: 'c1', title: 'Canvas', nextId: 3, nextTid: 2,
+      blocks: [
+        { id: 'src', x: 80, y: 260, label: '', terms: [{ type: 'number', value: '12', tid: 't1' }] },
+        { id: 'dst', x: 360, y: 80, label: '', terms: [{ type: 'linked', sourceId: 'src', sourceTid: 't1' }] }
+      ]
+    }],
+    activeCanvasId: 'c1'
+  });
+
+  await page.evaluate(() => {
+    window.__linkPathBeforeDrag = document.querySelector('#linkLayer path');
+    window.__linkDBeforeDrag = window.__linkPathBeforeDrag.getAttribute('d');
+  });
+  const source = page.locator('.block[data-id="src"]');
+  const box = await source.boundingBox();
+  await page.mouse.move(box.x + 6, box.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 126, box.y + 86, { steps: 6 });
+
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelector('#linkLayer path') === window.__linkPathBeforeDrag
+  )).toBe(true);
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelector('#linkLayer path').getAttribute('d') !== window.__linkDBeforeDrag
+  )).toBe(true);
+  await expect.poll(() => page.evaluate(() => {
+    const block = document.querySelector('.block[data-id="src"]');
+    const add = document.getElementById('addBtn');
+    return Math.abs(parseFloat(add.style.top) - (parseFloat(block.style.top) + block.offsetHeight + 36));
+  })).toBeLessThanOrEqual(0.5);
+
+  await page.mouse.up();
+});
+
 test('copy/paste keeps a linked value live within the session', async ({ page }) => {
   await fresh(page);
   await addBlock(page);
